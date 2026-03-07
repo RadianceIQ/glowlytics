@@ -285,19 +285,27 @@ Since no physical scanner is available, the device connection flow will be **sim
 
 ### Completed
 - All 3 user journeys fully implemented (onboarding, daily scan, report)
-- 19 screen files, 8 components, 3 services, Zustand store, Express+PostgreSQL backend
+- 19 screen files, 9 components, 3 services, Zustand store, Express+PostgreSQL backend
 - Simulated scanner data with realistic UX (discovery, pairing, readings, connection loss)
 - Skin analysis engine with contextual action recommendations
 - Demo data seeder (14 days of scan history)
-- Web + iOS bundles compile clean, TypeScript 0 errors
+- iOS simulator running clean on Expo Go SDK 54
+
+### SDK Migration (SDK 55 → 54)
+- Downgraded to Expo SDK 54 (`expo ~54.0.0`, `react 19.1.0`, `react-native 0.81.5`)
+- All expo-* packages aligned via `npx expo install --fix`
+- Removed native health packages (`@kingstinct/react-native-healthkit`, `react-native-health-connect`, `expo-health-connect`, `react-native-nitro-modules`, `react-native-worklets`) — these caused NitroModules crashes in Expo Go
+- HealthKit/Health Connect replaced with pure mock in `src/services/healthPermissions.ts`
+- Removed HealthKit plugin from `app.json`
+- App bundles and runs in Expo Go SDK 54 (1305 modules, <1s bundle)
 
 ### Known Issues Resolved
-- **react-native-worklets**: Added as dependency (required by react-native-reanimated v4 on web)
+- **NitroModules crash in Expo Go**: Native health packages crashed at module init before try/catch could handle it — fixed by removing native packages entirely and using pure mocks
 - **Infinite re-render loop on web**: React 19 + Zustand v5 `useSyncExternalStore` conflict — fixed by deferring store hydration and using primitive selectors instead of object selectors
 
 ### Not Yet Wired (stretch goals)
 - Vision LLM API calls (analysis logic present, API call stubbed)
-- HealthKit/HealthConnect device-build integration is wired, but denied/blocked flow QA is still pending; Expo Go support remains unavailable by design
+- HealthKit/Health Connect native integration (deferred to EAS/bare workflow builds)
 - RAG pipeline with AAD/ACOG guidelines
 - Real barcode scanning via expo-barcode-scanner
 - Photo persistence & representative photo display in reports
@@ -322,9 +330,9 @@ Since no physical scanner is available, the device connection flow will be **sim
 - **Deferred from health sync in v1:** cycle/menstrual data (remains self-entered in onboarding).
 
 ### Native build constraint
-- Health integrations are configured for iOS/Android native builds and are not fully supported in Expo Go.
+- Native health packages removed for Expo Go compatibility; health data is fully mocked.
 - UX surfaces explicit unavailable/unsupported messaging when health APIs are not accessible.
-- Denied/blocked recovery UI is present, but final device-level QA remains pending.
+- Real HealthKit/Health Connect integration deferred to EAS/bare workflow builds.
 
 ### State model additions
 - `camera_permission_status` is persisted on the user profile.

@@ -1,11 +1,12 @@
 RadianceIQ - Hackathon Build Progress Tracker
 =============================================
-Last Updated: 2026-03-07 (session 2)
+Last Updated: 2026-03-07 (session 3)
 
 DECISIONS MADE:
-- Platform: React Native (Expo SDK 55)
+- Platform: React Native (Expo SDK 54) — downgraded from SDK 55 for compatibility
 - Scanner: Mocked/simulated data (no physical scanner)
 - ML Models: Vision LLM API (Claude/GPT-4V) for skin analysis
+- HealthKit: Fully mocked for Expo Go — native packages removed, will wire for EAS/bare builds later
 - Scope: All 3 journeys (onboarding, daily scan, clinician report)
 - Repo: https://github.com/RadianceIQ/cornell-hackathon.git
 
@@ -34,7 +35,7 @@ PHASE 2: Journey 1 - First-Time Setup & Baseline
 [x] Mock scanner reading with "Hold steady" UX
 [x] Baseline results screen (3 score tiles)
 [x] Boost accuracy screen (progressive profiling) - app/onboarding/boost.tsx
-[ ] HealthKit/HealthConnect integration (optional - UI present, native bridge not wired)
+[x] HealthKit/HealthConnect mocked for Expo Go (native packages removed, pure mock in healthPermissions.ts)
 
 =============================================
 PHASE 3: Journey 2 - Daily Scan & Results
@@ -94,28 +95,39 @@ PHASE 7: Polish & Demo Prep
 [ ] Demo script preparation
 
 =============================================
-BUILD STATUS: MVP COMPLETE - PUSHED TO GITHUB
+BUILD STATUS: MVP COMPLETE - RUNNING IN EXPO GO (SDK 54)
 =============================================
 - 19 screen files (app/)
-- 8 component files (src/components/)
+- 9 component files (src/components/) — added AtmosphereScreen
 - 3 service files (src/services/)
 - 1 store file (src/store/)
 - 1 types file (src/types/)
 - 1 theme file (src/constants/)
 - 3 backend files (backend/)
-- Web + iOS bundles compile with 0 errors
+- iOS simulator: Expo Go SDK 54 bundling and running clean
 - TypeScript: 0 errors
-- 52 files committed, ~15,000 lines
+- 52+ files committed, ~15,000+ lines
 
 BUGS FIXED:
 - Missing react-native-worklets dependency (required by react-native-reanimated v4)
 - Infinite re-render loop on web: React 19 + Zustand v5 useSyncExternalStore conflict
   - _layout.tsx: deferred loadPersistedData with setTimeout + ref guard
   - index.tsx: changed user object selector to primitive boolean selector
+- NitroModules crash in Expo Go: removed @kingstinct/react-native-healthkit,
+  react-native-health-connect, expo-health-connect, react-native-nitro-modules,
+  react-native-worklets — replaced with pure mock in healthPermissions.ts
+
+SDK MIGRATION (session 3):
+- Downgraded Expo SDK 55 → 54 (expo ~54.0.0, react 19.1.0, react-native 0.81.5)
+- All expo-* packages aligned via `npx expo install --fix`
+- Removed native health packages that caused NitroModules crash in Expo Go
+- Removed @kingstinct/react-native-healthkit plugin from app.json
+- Installed Expo Go SDK 54 on iOS simulator
+- App bundles and runs clean (1305 modules, <1s bundle time)
 
 REMAINING (nice-to-have):
 - Wire Vision LLM API calls (currently simulated)
-- HealthKit native bridge
+- HealthKit/Health Connect native integration (for EAS / bare workflow builds)
 - RAG pipeline for AAD/ACOG guidelines
 - Real barcode scanning via expo-barcode-scanner
 - Photo persistence (currently no images saved)

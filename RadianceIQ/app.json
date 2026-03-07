@@ -50,14 +50,6 @@
         }
       ],
       [
-        "@kingstinct/react-native-healthkit",
-        {
-          "NSHealthShareUsageDescription": "RadianceIQ reads sleep and heart data to add context to your skin trends. It never writes health data.",
-          "NSHealthUpdateUsageDescription": "RadianceIQ does not write health data."
-        }
-      ],
-      "expo-health-connect",
-      [
         "expo-build-properties",
         {
           "android": {

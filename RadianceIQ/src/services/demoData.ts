@@ -1,6 +1,5 @@
 import type { DailyRecord, ModelOutput, ProductEntry, UserProfile, ScanProtocol } from '../types';
 
-// Seed realistic demo data for 14 days of scan history
 const generateId = () => `demo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 const daysAgo = (n: number): string => {
@@ -14,8 +13,8 @@ export const createDemoUser = (): UserProfile => ({
   age_range: '25-34',
   location_coarse: '10001',
   period_applicable: 'yes',
-  period_last_start_date: daysAgo(12),
-  cycle_length_days: 28,
+  period_last_start_date: daysAgo(8),
+  cycle_length_days: 29,
   smoker_status: false,
   drink_baseline_frequency: '1-2',
   wearable_connected: false,
@@ -36,7 +35,7 @@ export const createDemoProtocol = (): ScanProtocol => ({
   primary_goal: 'acne',
   scan_region: 'left_cheek',
   scan_frequency: 'daily',
-  baseline_date: daysAgo(14),
+  baseline_date: daysAgo(21),
 });
 
 export const createDemoProducts = (): ProductEntry[] => [
@@ -47,7 +46,7 @@ export const createDemoProducts = (): ProductEntry[] => [
     product_capture_method: 'search',
     ingredients_list: ['Ceramides', 'Niacinamide', 'Hyaluronic Acid'],
     usage_schedule: 'both',
-    start_date: daysAgo(14),
+    start_date: daysAgo(21),
   },
   {
     user_product_id: 'demo_prod_002',
@@ -56,16 +55,25 @@ export const createDemoProducts = (): ProductEntry[] => [
     product_capture_method: 'barcode',
     ingredients_list: ['Avobenzone', 'Homosalate', 'Octisalate', 'Niacinamide'],
     usage_schedule: 'AM',
-    start_date: daysAgo(14),
+    start_date: daysAgo(21),
   },
   {
     user_product_id: 'demo_prod_003',
     user_id: 'demo_user_001',
     product_name: 'The Ordinary Niacinamide 10%',
-    product_capture_method: 'photo',
+    product_capture_method: 'search',
     ingredients_list: ['Niacinamide', 'Zinc PCA'],
     usage_schedule: 'PM',
-    start_date: daysAgo(7),
+    start_date: daysAgo(21),
+  },
+  {
+    user_product_id: 'demo_prod_004',
+    user_id: 'demo_user_001',
+    product_name: 'Differin Adapalene Gel',
+    product_capture_method: 'search',
+    ingredients_list: ['Adapalene 0.1%', 'Carbomer', 'Propylene Glycol'],
+    usage_schedule: 'PM',
+    start_date: daysAgo(10),
   },
 ];
 
@@ -73,22 +81,54 @@ export const createDemoHistory = (): { records: DailyRecord[]; outputs: ModelOut
   const records: DailyRecord[] = [];
   const outputs: ModelOutput[] = [];
 
-  // Simulate 14 days of gradually improving acne with some cycle-related bumps
-  const baseAcne = 58;
-  const baseSunDamage = 35;
-  const baseSkinAge = 42;
+  // 21 days of history for a 30-year-old female
+  // Story arc: started with moderate acne, saw cycle-related bump around day 7-12,
+  // introduced Differin at day 11, slight purge then improvement, overall downward trend
+  const baseAcne = 62;
+  const baseSunDamage = 32;
+  const baseSkinAge = 38;
 
-  for (let i = 14; i >= 0; i--) {
+  for (let i = 21; i >= 0; i--) {
     const dailyId = `demo_daily_${i}`;
-    const cycleDay = 28 - i + 16; // Simulate being around day 16-30 of cycle
-    const isCycleWindow = cycleDay >= 21 || cycleDay <= 5;
+    const dayNumber = 21 - i; // 0 = first day, 21 = today
 
-    const acneVariation = isCycleWindow ? Math.random() * 8 + 2 : -(Math.random() * 3);
-    const sunVariation = Math.random() * 4 - 2;
-    const ageVariation = -(Math.random() * 1.5);
+    // Cycle: period started 8 days ago, cycle length 29
+    // So today is cycle day 8, day 0 was cycle day 29-13=16
+    const cycleDay = ((29 - 8 - i) % 29 + 29) % 29 + 1;
+    const isCycleWindow = cycleDay >= 24 || cycleDay <= 4;
+    const isLutealPeak = cycleDay >= 20 && cycleDay <= 27;
 
-    const usedSunscreen = Math.random() > 0.25;
-    const sleptWell = Math.random() > 0.3;
+    // Differin introduced at day 11 (10 days ago)
+    const onDifferin = dayNumber >= 11;
+    const differinPurge = onDifferin && dayNumber >= 12 && dayNumber <= 16;
+
+    // Acne trajectory: gradual improvement with cycle bump and purge blip
+    let acneShift = -dayNumber * 0.9; // overall downward trend
+    if (isCycleWindow) acneShift += 6 + Math.random() * 4;
+    if (isLutealPeak) acneShift += 3;
+    if (differinPurge) acneShift += 5 + Math.random() * 3;
+    if (onDifferin && !differinPurge) acneShift -= 2;
+
+    // Sun damage: mostly flat, slight improvement with consistent sunscreen
+    const usedSunscreen = i <= 2 ? true : Math.random() > 0.2; // more consistent recently
+    let sunShift = -dayNumber * 0.15;
+    if (!usedSunscreen) sunShift += 3;
+
+    // Skin age: slow steady improvement from routine
+    let ageShift = -dayNumber * 0.3;
+
+    // Sleep and stress patterns
+    const sleptWell = Math.random() > 0.25;
+    const stressed = Math.random() > 0.65;
+    if (!sleptWell) { acneShift += 2; ageShift += 1; }
+    if (stressed) acneShift += 2;
+
+    const acneScore = Math.round(Math.max(18, Math.min(82,
+      baseAcne + acneShift + (Math.random() * 4 - 2))));
+    const sunScore = Math.round(Math.max(12, Math.min(65,
+      baseSunDamage + sunShift + (Math.random() * 3 - 1.5))));
+    const ageScore = Math.round(Math.max(22, Math.min(55,
+      baseSkinAge + ageShift + (Math.random() * 3 - 1.5))));
 
     records.push({
       daily_id: dailyId,
@@ -96,39 +136,61 @@ export const createDemoHistory = (): { records: DailyRecord[]; outputs: ModelOut
       date: daysAgo(i),
       scanner_reading_id: `demo_scan_${i}`,
       scanner_indices: {
-        inflammation_index: Math.max(10, Math.min(80, 45 + (Math.random() * 20 - 10))),
-        pigmentation_index: Math.max(10, Math.min(80, 30 + (Math.random() * 15 - 7))),
-        texture_index: Math.max(10, Math.min(80, 38 + (Math.random() * 18 - 9))),
+        inflammation_index: Math.max(10, Math.min(80, 42 + acneShift * 0.6 + (Math.random() * 10 - 5))),
+        pigmentation_index: Math.max(10, Math.min(70, 28 + sunShift * 0.8 + (Math.random() * 8 - 4))),
+        texture_index: Math.max(10, Math.min(70, 35 + ageShift * 0.7 + (Math.random() * 8 - 4))),
       },
-      scanner_quality_flag: 'pass',
+      scanner_quality_flag: Math.random() > 0.05 ? 'pass' : 'warn',
       scan_region: 'left_cheek',
       sunscreen_used: usedSunscreen,
-      new_product_added: i === 7, // Added product 7 days ago
+      new_product_added: dayNumber === 11,
       period_status_confirmed: 'accurate',
-      cycle_day_estimated: ((cycleDay - 1) % 28) + 1,
-      sleep_quality: sleptWell ? 'great' : 'poor',
-      stress_level: Math.random() > 0.6 ? 'high' : 'low',
+      cycle_day_estimated: cycleDay,
+      sleep_quality: sleptWell ? (Math.random() > 0.5 ? 'great' : 'ok') : 'poor',
+      stress_level: stressed ? 'high' : (Math.random() > 0.5 ? 'med' : 'low'),
     });
 
-    const dayOffset = 14 - i;
+    // Determine primary driver and action
+    let primaryDriver: string;
+    let action: string;
+    let escalation = false;
+
+    if (differinPurge) {
+      primaryDriver = 'new product confounder';
+      action = 'Adapalene purge is expected in weeks 2-4. Keep routine stable and avoid layering new actives.';
+    } else if (isCycleWindow && acneScore > 50) {
+      primaryDriver = 'cycle window';
+      action = 'Likely cycle-related; keep routine stable and avoid adding new actives.';
+    } else if (!usedSunscreen && sunScore > 35) {
+      primaryDriver = 'low sunscreen adherence';
+      action = 'Add sunscreen daily (AM) and reapply on high-exposure days.';
+    } else if (!sleptWell && stressed) {
+      primaryDriver = 'lifestyle factors';
+      action = 'Sleep and stress both flagged. Focus on recovery tonight for better signal tomorrow.';
+    } else if (acneScore < 40) {
+      primaryDriver = 'routine adherence';
+      action = 'Your routine is working. Acne signal is trending down — stay consistent.';
+    } else {
+      primaryDriver = 'general tracking';
+      action = 'Continue daily scans. The trend is building and will sharpen over the next week.';
+    }
+
+    // Check for rapid change (escalation)
+    if (outputs.length > 0) {
+      const prev = outputs[outputs.length - 1];
+      if (Math.abs(acneScore - prev.acne_score) > 18) escalation = true;
+    }
+
     outputs.push({
       output_id: `demo_output_${i}`,
       daily_id: dailyId,
-      acne_score: Math.round(Math.max(15, Math.min(85,
-        baseAcne + acneVariation - dayOffset * 1.2))),
-      sun_damage_score: Math.round(Math.max(10, Math.min(75,
-        baseSunDamage + sunVariation + (usedSunscreen ? -1 : 2)))),
-      skin_age_score: Math.round(Math.max(20, Math.min(70,
-        baseSkinAge + ageVariation - dayOffset * 0.5))),
-      confidence: i > 11 ? 'low' : i > 7 ? 'med' : 'high',
-      primary_driver: isCycleWindow ? 'cycle window' :
-        !usedSunscreen ? 'low sunscreen adherence' : 'routine adherence',
-      recommended_action: isCycleWindow
-        ? 'Likely cycle-related; keep routine stable.'
-        : !usedSunscreen
-        ? 'Add sunscreen daily (AM).'
-        : 'Great job! Stay consistent.',
-      escalation_flag: false,
+      acne_score: acneScore,
+      sun_damage_score: sunScore,
+      skin_age_score: ageScore,
+      confidence: dayNumber < 5 ? 'low' : dayNumber < 10 ? 'med' : 'high',
+      primary_driver: primaryDriver,
+      recommended_action: action,
+      escalation_flag: escalation,
     });
   }
 
