@@ -1,13 +1,27 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button } from '../../src/components/Button';
-import { ScoreTile } from '../../src/components/ScoreTile';
+import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { ActionCard } from '../../src/components/ActionCard';
+import { Button } from '../../src/components/Button';
 import { ConfidenceBadge } from '../../src/components/ConfidenceBadge';
-import { useStore } from '../../src/store/useStore';
+import { ScoreTile } from '../../src/components/ScoreTile';
+import {
+  BorderRadius,
+  Colors,
+  FontFamily,
+  FontSize,
+  Spacing,
+} from '../../src/constants/theme';
 import { getExplanation } from '../../src/services/skinAnalysis';
+import { useStore } from '../../src/store/useStore';
+
+const getStatusLabel = (value: number) => {
+  if (value <= 25) return 'Calm';
+  if (value <= 50) return 'Stable';
+  if (value <= 75) return 'Elevated';
+  return 'Watch';
+};
 
 export default function Results() {
   const router = useRouter();
@@ -21,17 +35,22 @@ export default function Results() {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 7);
     const cutoffStr = cutoff.toISOString().split('T')[0];
-    const records = dailyRecords.filter((r) => r.date >= cutoffStr);
-    const dailyIds = new Set(records.map((r) => r.daily_id));
-    return allOutputs.filter((o) => dailyIds.has(o.daily_id));
+    const records = dailyRecords.filter((record) => record.date >= cutoffStr);
+    const ids = new Set(records.map((record) => record.daily_id));
+    return allOutputs.filter((output) => ids.has(output.daily_id));
   }, [dailyRecords, allOutputs]);
 
   if (!latestOutput) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>No results yet</Text>
+      <AtmosphereScreen scroll={false} contentContainerStyle={styles.emptyLayout}>
+        <View style={styles.emptyBlock}>
+          <Text style={styles.emptyTitle}>No results yet</Text>
+          <Text style={styles.emptyCopy}>
+            Capture a scan first so RadianceIQ can generate your trend summary.
+          </Text>
+        </View>
         <Button title="Go back" onPress={() => router.back()} />
-      </View>
+      </AtmosphereScreen>
     );
   }
 
@@ -40,13 +59,7 @@ export default function Results() {
   const sunDelta = baseline ? latestOutput.sun_damage_score - baseline.sun_damage_score : 0;
   const ageDelta = baseline ? latestOutput.skin_age_score - baseline.skin_age_score : 0;
 
-  const acneHistory = outputHistory.map((o) => o.acne_score);
-  const sunHistory = outputHistory.map((o) => o.sun_damage_score);
-  const ageHistory = outputHistory.map((o) => o.skin_age_score);
-
-  // Get latest daily record for context
   const latestDaily = dailyRecords.length > 0 ? dailyRecords[dailyRecords.length - 1] : null;
-
   const explanation = getExplanation(latestOutput, {
     sunscreen: latestDaily?.sunscreen_used ?? true,
     cycleWindow: latestOutput.primary_driver === 'cycle window',
@@ -60,167 +73,220 @@ export default function Results() {
   };
 
   return (
-    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer}>
-      <Text style={styles.title}>Today's Results</Text>
+    <AtmosphereScreen>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.eyebrow}>Results</Text>
+          <Text style={styles.title}>Today’s scan outcome</Text>
+        </View>
+        <TouchableOpacity style={styles.inlineAction} onPress={() => router.push('/report/generate')}>
+          <Text style={styles.inlineActionText}>Share</Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* Confidence */}
-      <ConfidenceBadge level={latestOutput.confidence} />
+      <View style={styles.metaRow}>
+        <ConfidenceBadge level={latestOutput.confidence} />
+        <Text style={styles.metaText}>
+          Driver: {(latestOutput.primary_driver || 'daily insight').replace(/_/g, ' ')}
+        </Text>
+      </View>
 
-      {/* Score tiles */}
-      <View style={styles.tiles}>
+      <ActionCard
+        driver={latestOutput.primary_driver || 'daily insight'}
+        action={explanation}
+        supportingText={latestOutput.recommended_action}
+        mode="hero"
+      />
+
+      <View style={styles.metricStack}>
         <ScoreTile
           label="Acne"
           score={latestOutput.acne_score}
           delta={acneDelta}
           color={Colors.acne}
-          sparklineData={acneHistory}
+          sparklineData={outputHistory.map((output) => output.acne_score)}
+          compact
+          lowLabel="Baseline"
+          highLabel="Today"
+          statusLabel={getStatusLabel(latestOutput.acne_score)}
         />
         <ScoreTile
           label="Sun Damage"
           score={latestOutput.sun_damage_score}
           delta={sunDelta}
           color={Colors.sunDamage}
-          sparklineData={sunHistory}
+          sparklineData={outputHistory.map((output) => output.sun_damage_score)}
+          compact
+          lowLabel="Baseline"
+          highLabel="Today"
+          statusLabel={getStatusLabel(latestOutput.sun_damage_score)}
         />
         <ScoreTile
           label="Skin Age"
           score={latestOutput.skin_age_score}
           delta={ageDelta}
           color={Colors.skinAge}
-          sparklineData={ageHistory}
+          sparklineData={outputHistory.map((output) => output.skin_age_score)}
+          compact
+          lowLabel="Baseline"
+          highLabel="Today"
+          statusLabel={getStatusLabel(latestOutput.skin_age_score)}
         />
       </View>
 
-      {/* Explanation */}
-      <View style={styles.explanationCard}>
-        <Text style={styles.explanationTitle}>What this means</Text>
-        <Text style={styles.explanationText}>{explanation}</Text>
-      </View>
-
-      {/* Action card */}
-      <ActionCard
-        driver={latestOutput.primary_driver || 'insight'}
-        action={latestOutput.recommended_action}
-        escalation={latestOutput.escalation_flag}
-      />
-
-      {/* Escalation */}
-      {latestOutput.escalation_flag && (
-        <View style={styles.escalationCard}>
-          <Text style={styles.escalationText}>
-            Your metrics changed rapidly and the trend is unusual for your baseline.
-            This isn't a diagnosis, but it may be worth sharing a report with a clinician for context.
+      {latestOutput.escalation_flag ? (
+        <View style={styles.alertStrip}>
+          <Text style={styles.alertTitle}>Worth escalating</Text>
+          <Text style={styles.alertCopy}>
+            Your trend changed quickly for this baseline. This is not diagnostic, but it is worth packaging for clinician context.
           </Text>
           <Button
-            title="Share Report"
+            title="Share report"
             variant="secondary"
+            size="sm"
             onPress={() => router.push('/report/generate')}
-            small
           />
         </View>
-      )}
+      ) : null}
 
-      {/* Disconnect scanner toast */}
-      <View style={styles.disconnectCard}>
-        <Text style={styles.disconnectText}>Scan complete. Disconnect scanner?</Text>
-        <View style={styles.disconnectButtons}>
-          <Button
-            title="Disconnect now"
-            onPress={handleDone}
-            small
-          />
-          <Button
-            title="Keep connected"
-            variant="ghost"
-            onPress={() => router.replace('/home')}
-            small
-          />
+      <View style={styles.disconnectStrip}>
+        <View>
+          <Text style={styles.disconnectTitle}>Scanner session</Text>
+          <Text style={styles.disconnectCopy}>
+            Disconnect now, or keep the simulated device live for another pass.
+          </Text>
+        </View>
+        <View style={styles.disconnectActions}>
+          <Button title="Disconnect" onPress={handleDone} size="sm" />
+          <Button title="Keep live" variant="ghost" onPress={() => router.replace('/home')} size="sm" />
         </View>
       </View>
 
-      <View style={styles.bottom}>
-        <Button title="Log done" onPress={handleDone} />
+      <View style={styles.bottomAction}>
+        <Button title="Log done" onPress={handleDone} size="lg" />
       </View>
-    </ScrollView>
+    </AtmosphereScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.lg,
-  },
-  contentContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
-    paddingBottom: Spacing.xxl,
-  },
-  title: {
-    fontSize: FontSize.xxl,
-    fontWeight: '700',
-    color: Colors.text,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
     marginBottom: Spacing.md,
   },
-  tiles: {
+  eyebrow: {
+    color: Colors.primaryLight,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  title: {
+    marginTop: Spacing.xs,
+    color: Colors.text,
+    fontFamily: FontFamily.serifBold,
+    fontSize: FontSize.hero,
+    lineHeight: 40,
+  },
+  inlineAction: {
+    backgroundColor: Colors.glass,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  inlineActionText: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  metaText: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.sm,
+    textTransform: 'capitalize',
+  },
+  metricStack: {
     gap: Spacing.sm,
     marginTop: Spacing.lg,
   },
-  explanationCard: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
+  alertStrip: {
     marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
+    backgroundColor: 'rgba(72, 43, 16, 0.88)',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.warning + '40',
+    padding: Spacing.lg,
+    gap: Spacing.sm,
   },
-  explanationTitle: {
-    color: Colors.text,
-    fontSize: FontSize.md,
-    fontWeight: '600',
-    marginBottom: Spacing.sm,
+  alertTitle: {
+    color: Colors.warning,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  explanationText: {
+  alertCopy: {
     color: Colors.textSecondary,
-    fontSize: FontSize.sm,
-    lineHeight: 20,
-  },
-  escalationCard: {
-    backgroundColor: Colors.warning + '15',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginTop: Spacing.md,
-    gap: Spacing.md,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.warning,
-  },
-  escalationText: {
-    color: Colors.text,
-    fontSize: FontSize.sm,
-    lineHeight: 20,
-  },
-  disconnectCard: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginTop: Spacing.xl,
-    gap: Spacing.md,
-  },
-  disconnectText: {
-    color: Colors.text,
+    fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
-    textAlign: 'center',
+    lineHeight: 22,
   },
-  disconnectButtons: {
+  disconnectStrip: {
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.glass,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  disconnectTitle: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.md,
+  },
+  disconnectCopy: {
+    marginTop: Spacing.xs,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+  },
+  disconnectActions: {
     flexDirection: 'row',
     gap: Spacing.sm,
   },
-  bottom: {
+  bottomAction: {
     marginTop: Spacing.lg,
+  },
+  emptyLayout: {
+    justifyContent: 'space-between',
+  },
+  emptyBlock: {
+    gap: Spacing.sm,
+  },
+  emptyTitle: {
+    color: Colors.text,
+    fontFamily: FontFamily.serifBold,
+    fontSize: FontSize.hero,
+  },
+  emptyCopy: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+    lineHeight: 24,
   },
 });

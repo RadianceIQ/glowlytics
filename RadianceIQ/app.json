@@ -19,7 +19,8 @@
         "NSCameraUsageDescription": "RadianceIQ uses the camera to capture guided skin scans and compare trends over time.",
         "NSPhotoLibraryUsageDescription": "RadianceIQ needs photo library access to save scan photos.",
         "NSHealthShareUsageDescription": "RadianceIQ reads sleep and heart data to add context to your skin trends. It never writes health data."
-      }
+      },
+      "bundleIdentifier": "com.mufasabrownie.RadianceIQ"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +29,13 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -57,7 +64,8 @@
             "minSdkVersion": 26
           }
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

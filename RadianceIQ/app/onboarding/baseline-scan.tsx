@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -6,6 +6,7 @@ import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/the
 import { Button } from '../../src/components/Button';
 import { ScannerAnimation } from '../../src/components/ScannerAnimation';
 import { OnboardingHero } from '../../src/components/OnboardingHero';
+import { getCameraPermissionStatus } from '../../src/services/permissionState';
 import { useStore } from '../../src/store/useStore';
 import { simulateScanReading, simulatePhotoQualityCheck } from '../../src/services/mockScanner';
 
@@ -17,11 +18,30 @@ export default function BaselineScan() {
   const protocol = useStore((s) => s.protocol);
   const addDailyRecord = useStore((s) => s.addDailyRecord);
   const addModelOutput = useStore((s) => s.addModelOutput);
+  const cameraPermissionStatus = useStore((s) => s.user?.camera_permission_status);
+  const updateUser = useStore((s) => s.updateUser);
   const cameraRef = useRef<any>(null);
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [scannerData, setScannerData] = useState<any>(null);
   const [photoTaken, setPhotoTaken] = useState(false);
+
+  useEffect(() => {
+    if (!permission) return;
+
+    const nextStatus = getCameraPermissionStatus(permission);
+    if (cameraPermissionStatus === nextStatus) return;
+
+    updateUser({
+      camera_permission_status: nextStatus,
+    });
+  }, [
+    permission?.status,
+    permission?.granted,
+    permission?.canAskAgain,
+    cameraPermissionStatus,
+    updateUser,
+  ]);
 
   const handleStartScan = async () => {
     const reading = await simulateScanReading();

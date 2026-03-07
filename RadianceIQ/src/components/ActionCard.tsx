@@ -1,78 +1,130 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors, BorderRadius, FontSize, Spacing } from '../constants/theme';
+import { StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  BorderRadius,
+  Colors,
+  FontFamily,
+  FontSize,
+  Shadows,
+  Spacing,
+} from '../constants/theme';
 
 interface Props {
   driver: string;
   action: string;
   escalation?: boolean;
+  mode?: 'standard' | 'hero';
+  supportingText?: string;
 }
 
-export const ActionCard: React.FC<Props> = ({ driver, action, escalation }) => {
+const formatDriver = (driver: string) =>
+  driver.charAt(0).toUpperCase() + driver.slice(1).replace(/_/g, ' ');
+
+export const ActionCard: React.FC<Props> = ({
+  driver,
+  action,
+  escalation,
+  mode = 'standard',
+  supportingText,
+}) => {
+  const hero = mode === 'hero';
+  const glowColor = escalation ? Colors.glowAmber : Colors.glowPrimary;
+
   return (
-    <View style={[styles.container, escalation && styles.escalation]}>
+    <LinearGradient
+      colors={[
+        Colors.glassStrong,
+        escalation ? 'rgba(45, 30, 12, 0.94)' : 'rgba(13, 24, 39, 0.96)',
+      ]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.container, hero && styles.heroContainer]}
+    >
+      <View style={[styles.glow, { backgroundColor: glowColor }]} />
       <View style={styles.header}>
-        <Text style={styles.icon}>{escalation ? '!' : 'i'}</Text>
-        <Text style={styles.driver}>
-          {driver.charAt(0).toUpperCase() + driver.slice(1).replace(/_/g, ' ')}
-        </Text>
+        <View
+          style={[
+            styles.badge,
+            {
+              backgroundColor: escalation ? Colors.warning + '1C' : Colors.primary + '18',
+              borderColor: escalation ? Colors.warning + '45' : Colors.primary + '3A',
+            },
+          ]}
+        >
+          <Text style={[styles.badgeText, { color: escalation ? Colors.warning : Colors.primaryLight }]}>
+            {formatDriver(driver)}
+          </Text>
+        </View>
       </View>
-      <Text style={styles.action}>{action}</Text>
-      {escalation && (
-        <Text style={styles.escalationText}>
+      <Text style={[styles.action, hero && styles.heroAction]}>{action}</Text>
+      {supportingText ? (
+        <Text style={styles.supportingText}>{supportingText}</Text>
+      ) : null}
+      {escalation && !supportingText ? (
+        <Text style={styles.supportingText}>
           Consider sharing a report with a clinician for context.
         </Text>
-      )}
-    </View>
+      ) : null}
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.primary + '15',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.card,
   },
-  escalation: {
-    backgroundColor: Colors.warning + '15',
-    borderLeftColor: Colors.warning,
+  heroContainer: {
+    minHeight: 220,
+    justifyContent: 'flex-end',
+  },
+  glow: {
+    position: 'absolute',
+    top: -36,
+    right: -28,
+    width: 180,
+    height: 180,
+    borderRadius: BorderRadius.full,
+    opacity: 0.18,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
-  icon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: Colors.primary,
-    color: Colors.text,
+  badge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  badgeText: {
+    fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.xs,
-    fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginRight: Spacing.sm,
-    overflow: 'hidden',
-  },
-  driver: {
-    color: Colors.textSecondary,
-    fontSize: FontSize.sm,
-    fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   action: {
     color: Colors.text,
-    fontSize: FontSize.md,
-    lineHeight: 22,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.lg,
+    lineHeight: 26,
   },
-  escalationText: {
-    color: Colors.warning,
+  heroAction: {
+    fontFamily: FontFamily.serifBold,
+    fontSize: FontSize.hero,
+    lineHeight: 44,
+  },
+  supportingText: {
+    marginTop: Spacing.md,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
-    marginTop: Spacing.sm,
-    fontStyle: 'italic',
+    lineHeight: 21,
+    maxWidth: '92%',
   },
 });

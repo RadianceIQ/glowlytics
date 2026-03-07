@@ -297,7 +297,48 @@ Since no physical scanner is available, the device connection flow will be **sim
 
 ### Not Yet Wired (stretch goals)
 - Vision LLM API calls (analysis logic present, API call stubbed)
-- HealthKit/HealthConnect native bridge (UI present, bridge not wired)
+- HealthKit/HealthConnect device-build integration is wired, but denied/blocked flow QA is still pending; Expo Go support remains unavailable by design
 - RAG pipeline with AAD/ACOG guidelines
 - Real barcode scanning via expo-barcode-scanner
 - Photo persistence & representative photo display in reports
+
+---
+
+## Onboarding & Permissions Implementation Update (Current)
+
+### Actual onboarding order (implemented)
+1. Essentials
+2. Goal
+3. Region
+4. Products
+5. Permissions prep
+6. Baseline scan
+7. Accuracy/boost
+
+### Permission timing and scope
+- **Camera:** Requested in-context at baseline scan start, treated as required for scan capture, and persisted on the user profile.
+- **HealthKit / Health Connect:** Introduced in a dedicated pre-scan education step and remains optional/non-blocking.
+- **v1 health scope (read-only):** sleep, resting heart rate, and heart-rate variability.
+- **Deferred from health sync in v1:** cycle/menstrual data (remains self-entered in onboarding).
+
+### Native build constraint
+- Health integrations are configured for iOS/Android native builds and are not fully supported in Expo Go.
+- UX surfaces explicit unavailable/unsupported messaging when health APIs are not accessible.
+- Denied/blocked recovery UI is present, but final device-level QA remains pending.
+
+### State model additions
+- `camera_permission_status` is persisted on the user profile.
+- `health_connection` is persisted with normalized status/state metadata covering source, requested/granted types, sync skip state, and timestamps.
+
+### Compliance guardrails
+- Health access is always optional for onboarding completion and first baseline result.
+- Permission rationale copy is shown before prompts.
+- Denial paths avoid dead ends and provide a settings-recovery action where available.
+
+## UX Plan Completion Verification
+
+To ensure the frontend UX plan is tracked and auditable, the execution checklist is maintained in `ux_progress.txt`.
+
+- The UX tracker maps completion status to each major journey and interaction design objective.
+- MVP-critical UX flows are marked complete; placeholders and stretch integrations are explicitly called out as in-progress or pending.
+- This separation prevents stretch-goal gaps from being mistaken as core plan failures during demo readiness reviews.

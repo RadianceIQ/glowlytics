@@ -1,6 +1,22 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle } from 'react-native';
-import { Colors, BorderRadius, FontSize, Spacing } from '../constants/theme';
+import {
+  ActivityIndicator,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  BorderRadius,
+  Colors,
+  FontFamily,
+  FontSize,
+  Shadows,
+  Spacing,
+} from '../constants/theme';
 
 interface Props {
   title: string;
@@ -8,70 +24,132 @@ interface Props {
   variant?: 'primary' | 'secondary' | 'ghost';
   disabled?: boolean;
   loading?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   small?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
-export const Button: React.FC<Props> = ({
-  title, onPress, variant = 'primary', disabled, loading, style, small,
-}) => {
-  const bgColor = variant === 'primary' ? Colors.primary
-    : variant === 'secondary' ? Colors.surfaceLight
-    : 'transparent';
+const sizeMap = {
+  sm: {
+    minHeight: 44,
+    paddingHorizontal: Spacing.md,
+    fontSize: FontSize.sm,
+  },
+  md: {
+    minHeight: 54,
+    paddingHorizontal: Spacing.lg,
+    fontSize: FontSize.md,
+  },
+  lg: {
+    minHeight: 60,
+    paddingHorizontal: Spacing.xl,
+    fontSize: FontSize.lg,
+  },
+};
 
-  const textColor = variant === 'ghost' ? Colors.primary : Colors.text;
-  const borderColor = variant === 'ghost' ? Colors.primary : 'transparent';
+export const Button: React.FC<Props> = ({
+  title,
+  onPress,
+  variant = 'primary',
+  disabled,
+  loading,
+  style,
+  small,
+  size,
+}) => {
+  const resolvedSize = small ? 'sm' : size || 'md';
+  const sizeConfig = sizeMap[resolvedSize];
+  const textColor = disabled
+    ? Colors.textMuted
+    : variant === 'ghost'
+      ? Colors.primaryLight
+      : Colors.text;
+
+  const content = (
+    <View
+      style={[
+        styles.content,
+        {
+          minHeight: sizeConfig.minHeight,
+          paddingHorizontal: sizeConfig.paddingHorizontal,
+        },
+      ]}
+    >
+      {loading ? (
+        <ActivityIndicator color={textColor} size="small" />
+      ) : (
+        <Text style={[styles.text, { color: textColor, fontSize: sizeConfig.fontSize }]}>
+          {title}
+        </Text>
+      )}
+    </View>
+  );
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      style={[
-        styles.button,
-        {
-          backgroundColor: disabled ? Colors.surfaceHighlight : bgColor,
-          borderColor: variant === 'ghost' ? borderColor : 'transparent',
-          borderWidth: variant === 'ghost' ? 1.5 : 0,
-          paddingVertical: small ? Spacing.sm : Spacing.md,
-          paddingHorizontal: small ? Spacing.md : Spacing.lg,
-        },
-        style,
-      ]}
-      activeOpacity={0.7}
+      style={style}
+      activeOpacity={0.86}
     >
-      {loading ? (
-        <ActivityIndicator color={Colors.text} size="small" />
+      {variant === 'primary' ? (
+        <LinearGradient
+          colors={
+            disabled
+              ? [Colors.surfaceHighlight, Colors.surface]
+              : [Colors.primaryDark, Colors.primary]
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.shell, styles.primaryShell]}
+        >
+          {content}
+        </LinearGradient>
       ) : (
-        <Text style={[
-          styles.text,
-          { color: disabled ? Colors.textMuted : textColor },
-          small && { fontSize: FontSize.sm },
-        ]}>
-          {title}
-        </Text>
+        <View
+          style={[
+            styles.shell,
+            variant === 'secondary' ? styles.secondaryShell : styles.ghostShell,
+            disabled && styles.disabledShell,
+          ]}
+        >
+          {content}
+        </View>
       )}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  button: {
-    borderRadius: BorderRadius.xl,
+  shell: {
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+  },
+  primaryShell: {
+    borderWidth: 1,
+    borderColor: 'rgba(199, 255, 250, 0.22)',
+    ...Shadows.glow,
+  },
+  secondaryShell: {
+    backgroundColor: Colors.glass,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  ghostShell: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+  },
+  disabledShell: {
+    backgroundColor: Colors.surfaceHighlight,
+    borderColor: Colors.border,
+  },
+  content: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 54,
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    elevation: 4,
   },
   text: {
-    fontSize: FontSize.lg,
-    fontWeight: '600',
-    letterSpacing: 0.2,
+    fontFamily: FontFamily.sansSemiBold,
+    letterSpacing: 0.3,
   },
 });

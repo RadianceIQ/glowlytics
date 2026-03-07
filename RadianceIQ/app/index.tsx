@@ -1,9 +1,17 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, FontSize, Spacing, BorderRadius } from '../src/constants/theme';
-import { useStore } from '../src/store/useStore';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AtmosphereScreen } from '../src/components/AtmosphereScreen';
 import { Button } from '../src/components/Button';
+import {
+  BorderRadius,
+  Colors,
+  FontFamily,
+  FontSize,
+  Spacing,
+} from '../src/constants/theme';
+import { useStore } from '../src/store/useStore';
 
 export default function Index() {
   const router = useRouter();
@@ -18,111 +26,173 @@ export default function Index() {
   }, [onboardingComplete]);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        {/* Logo area */}
-        <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>R</Text>
+    <AtmosphereScreen scroll={false} contentContainerStyle={styles.content}>
+      <View style={styles.header}>
+        <Text style={styles.brand}>RadianceIQ</Text>
+        <View style={styles.headerDot} />
+      </View>
+
+      <View style={styles.hero}>
+        <LinearGradient
+          colors={[Colors.glowSecondary, Colors.glowPrimary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.orbShell}
+        >
+          <View style={styles.orbRing}>
+            <View style={styles.orbInner}>
+              <Text style={styles.orbLetter}>R</Text>
+            </View>
           </View>
-        </View>
+        </LinearGradient>
 
-        <Text style={styles.title}>RadianceIQ</Text>
-        <Text style={styles.subtitle}>Your skin, measured.</Text>
+        <Text style={styles.kicker}>Premium skin trend tracking</Text>
+        <Text style={styles.title}>
+          Your skin,{'\n'}
+          <Text style={styles.titleAccent}>measured.</Text>
+        </Text>
+        <Text style={styles.subtitle}>
+          Guided scans, contextual insights, and a calmer daily rhythm built for demo-ready clarity.
+        </Text>
 
-        <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerText}>
-            Measures skin metrics + trends.{'\n'}Not diagnostic.
+        <View style={styles.safetyCard}>
+          <Text style={styles.safetyEyebrow}>Safety framing</Text>
+          <Text style={styles.safetyText}>
+            RadianceIQ measures skin metrics and trends over time. It does not diagnose conditions.
           </Text>
         </View>
       </View>
 
-      <View style={styles.bottom}>
+      <View style={styles.footer}>
         <Button
-          title="Start"
+          title="Start your baseline"
           onPress={() => router.push('/onboarding/essentials')}
+          size="lg"
         />
-
-        {/* Demo mode for hackathon */}
-        <TouchableOpacity
-          style={styles.demoButton}
+        <Button
+          title="Load demo data"
           onPress={() => router.push('/onboarding/demo-setup')}
-        >
-          <Text style={styles.demoText}>Load Demo Data</Text>
-        </TouchableOpacity>
+          variant="secondary"
+        />
+        <Text style={styles.footerNote}>
+          Demo mode seeds a finished journey so you can review home, results, and report states quickly.
+        </Text>
       </View>
-    </View>
+    </AtmosphereScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 100,
-    paddingBottom: Spacing.xxl,
-  },
   content: {
-    flex: 1,
+    justifyContent: 'space-between',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  logoContainer: {
-    marginBottom: Spacing.xl,
+  brand: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
   },
-  logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+  headerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: BorderRadius.full,
     backgroundColor: Colors.primary,
+  },
+  hero: {
+    gap: Spacing.lg,
+    paddingTop: Spacing.lg,
+  },
+  orbShell: {
+    width: 148,
+    height: 148,
+    borderRadius: BorderRadius.full,
+    padding: 1,
+    alignSelf: 'center',
+  },
+  orbRing: {
+    flex: 1,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
+    backgroundColor: 'rgba(9, 16, 26, 0.82)',
   },
-  logoText: {
-    fontSize: 48,
-    fontWeight: '700',
+  orbInner: {
+    width: 88,
+    height: 88,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceOverlay,
+    borderWidth: 1,
+    borderColor: 'rgba(199,255,250,0.18)',
+  },
+  orbLetter: {
     color: Colors.text,
+    fontFamily: FontFamily.serifBold,
+    fontSize: FontSize.hero,
+    lineHeight: 44,
+  },
+  kicker: {
+    color: Colors.primaryLight,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   title: {
-    fontSize: FontSize.hero,
-    fontWeight: '700',
     color: Colors.text,
-    marginBottom: Spacing.sm,
+    fontFamily: FontFamily.serifBold,
+    fontSize: FontSize.display,
+    lineHeight: 52,
+  },
+  titleAccent: {
+    color: Colors.primaryLight,
   },
   subtitle: {
-    fontSize: FontSize.lg,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xxl,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+    lineHeight: 24,
+    maxWidth: '88%',
   },
-  disclaimer: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    width: '100%',
-    alignItems: 'center',
+  safetyCard: {
+    backgroundColor: Colors.glass,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
   },
-  disclaimerText: {
+  safetyEyebrow: {
+    color: Colors.warning,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  safetyText: {
     color: Colors.textSecondary,
-    fontSize: FontSize.sm,
-    textAlign: 'center',
-    lineHeight: 20,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+    lineHeight: 23,
   },
-  bottom: {
+  footer: {
     gap: Spacing.md,
   },
-  demoButton: {
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-  },
-  demoText: {
-    color: Colors.textMuted,
+  footerNote: {
+    color: Colors.textDim,
+    fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
-    textDecorationLine: 'underline',
+    lineHeight: 20,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.md,
   },
 });
