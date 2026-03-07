@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   drink_baseline_frequency VARCHAR(10),
   wearable_connected BOOLEAN DEFAULT FALSE,
   wearable_source VARCHAR(50),
+  camera_permission_status VARCHAR(20) DEFAULT 'not_requested',
+  health_connection JSONB DEFAULT '{}'::jsonb,
   onboarding_complete BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()

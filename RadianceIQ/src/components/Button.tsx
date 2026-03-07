@@ -56,13 +56,22 @@ export const Button: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 54,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    elevation: 4,
   },
   text: {
     fontSize: FontSize.lg,
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });

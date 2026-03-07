@@ -19,6 +19,14 @@ export const createDemoUser = (): UserProfile => ({
   smoker_status: false,
   drink_baseline_frequency: '1-2',
   wearable_connected: false,
+  camera_permission_status: 'granted',
+  health_connection: {
+    status: 'not_requested',
+    requested_types: [],
+    granted_types: [],
+    sync_skipped: true,
+    availability_note: 'Demo mode uses simulated health context only.',
+  },
   onboarding_complete: true,
 });
 

@@ -16,8 +16,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "RadianceIQ needs camera access to scan your skin.",
-        "NSPhotoLibraryUsageDescription": "RadianceIQ needs photo library access to save scan photos."
+        "NSCameraUsageDescription": "RadianceIQ uses the camera to capture guided skin scans and compare trends over time.",
+        "NSPhotoLibraryUsageDescription": "RadianceIQ needs photo library access to save scan photos.",
+        "NSHealthShareUsageDescription": "RadianceIQ reads sleep and heart data to add context to your skin trends. It never writes health data."
       }
     },
     "android": {
@@ -38,7 +39,23 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "RadianceIQ needs camera access to analyze your skin."
+          "cameraPermission": "RadianceIQ uses the camera to capture guided skin scans and compare trends over time."
+        }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "RadianceIQ reads sleep and heart data to add context to your skin trends. It never writes health data.",
+          "NSHealthUpdateUsageDescription": "RadianceIQ does not write health data."
+        }
+      ],
+      "expo-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
         }
       ]
     ]

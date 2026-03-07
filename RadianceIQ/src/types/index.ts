@@ -7,6 +7,20 @@ export type SleepQuality = 'poor' | 'ok' | 'great';
 export type StressLevel = 'low' | 'med' | 'high';
 export type UsageSchedule = 'AM' | 'PM' | 'both';
 export type CaptureMethod = 'barcode' | 'photo' | 'search';
+export type PermissionStatus = 'not_requested' | 'granted' | 'denied' | 'blocked' | 'unavailable';
+export type HealthSource = 'apple_health' | 'health_connect';
+export type HealthDataType = 'sleep' | 'resting_heart_rate' | 'heart_rate_variability';
+
+export interface HealthConnectionState {
+  status: PermissionStatus;
+  source?: HealthSource;
+  requested_types: HealthDataType[];
+  granted_types: HealthDataType[];
+  sync_skipped: boolean;
+  last_checked_at?: string;
+  last_synced_at?: string;
+  availability_note?: string;
+}
 
 export interface UserProfile {
   user_id: string;
@@ -19,6 +33,8 @@ export interface UserProfile {
   drink_baseline_frequency?: string;
   wearable_connected: boolean;
   wearable_source?: string;
+  camera_permission_status: PermissionStatus;
+  health_connection: HealthConnectionState;
   onboarding_complete: boolean;
 }
 

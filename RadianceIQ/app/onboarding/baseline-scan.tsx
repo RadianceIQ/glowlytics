@@ -1,34 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { ScannerAnimation } from '../../src/components/ScannerAnimation';
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingHero } from '../../src/components/OnboardingHero';
 import { useStore } from '../../src/store/useStore';
 import { simulateScanReading, simulatePhotoQualityCheck } from '../../src/services/mockScanner';
-import { analyzeSkiN } from '../../src/services/skinAnalysis';
 
-type Phase = 'connect' | 'scanning' | 'photo' | 'analyzing' | 'complete';
+type Phase = 'intro' | 'scan' | 'photo' | 'complete';
 
 export default function BaselineScan() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
-  const store = useStore();
   const protocol = useStore((s) => s.protocol);
-  const user = useStore((s) => s.user);
-
-  const [phase, setPhase] = useState<Phase>('connect');
-  const [scannerData, setScannerData] = useState<any>(null);
-  const [photoTaken, setPhotoTaken] = useState(false);
-  const [qualityCheck, setQualityCheck] = useState<any>(null);
-  const [results, setResults] = useState<any>(null);
+  const addDailyRecord = useStore((s) => s.addDailyRecord);
+  const addModelOutput = useStore((s) => s.addModelOutput);
   const cameraRef = useRef<any>(null);
 
-  const handleConnect = async () => {
-    setPhase('scanning');
-    // Simulate scanner reading
+  const [phase, setPhase] = useState<Phase>('intro');
+  const [scannerData, setScannerData] = useState<any>(null);
+  const [photoTaken, setPhotoTaken] = useState(false);
+
+  const handleStartScan = async () => {
     const reading = await simulateScanReading();
     setScannerData(reading);
     setPhase('photo');
@@ -37,82 +32,97 @@ export default function BaselineScan() {
   const handleTakePhoto = async () => {
     setPhotoTaken(true);
     const quality = await simulatePhotoQualityCheck();
-    setQualityCheck(quality);
 
     if (quality.score >= 0.7) {
-      setPhase('analyzing');
-      // Run analysis
-      if (user && protocol) {
-        const analysis = await analyzeSkiN({
-          scannerData,
-          userProfile: user,
-          protocol,
-          previousOutputs: [],
-          dailyContext: {
-            sunscreen_used: true,
-            new_product_added: false,
-          },
-        });
+      // Save baseline record
+      const record = addDailyRecord({
+        date: new Date().toISOString().split('T')[0],
+        scanner_reading_id: `baseline_${Date.now()}`,
+        scanner_indices: {
+          inflammation_index: scannerData?.inflammation_index ?? 40,
+          pigmentation_index: scannerData?.pigmentation_index ?? 30,
+          texture_index: scannerData?.texture_index ?? 35,
+        },
+        scanner_quality_flag: 'pass',
+        scan_region: protocol?.scan_region || 'left_cheek',
+        sunscreen_used: false,
+        new_product_added: false,
+      });
 
-        const dailyRecord = store.addDailyRecord({
-          date: new Date().toISOString().split('T')[0],
-          scanner_reading_id: `baseline_${Date.now()}`,
-          scanner_indices: scannerData,
-          scanner_quality_flag: 'pass',
-          scan_region: protocol.scan_region,
-          sunscreen_used: true,
-          new_product_added: false,
-        });
+      // Generate baseline model output
+      addModelOutput({
+        daily_id: record.daily_id,
+        acne_score: Math.round(50 + (scannerData?.inflammation_index ?? 40) * 0.3),
+        sun_damage_score: Math.round(40 + (scannerData?.pigmentation_index ?? 30) * 0.3),
+        skin_age_score: Math.round(45 + (scannerData?.texture_index ?? 35) * 0.3),
+        confidence: 'med',
+        primary_driver: 'baseline',
+        recommended_action: 'Your baseline is set! Scan daily at the same time for the best trend accuracy.',
+        escalation_flag: false,
+      });
 
-        store.addModelOutput({
-          daily_id: dailyRecord.daily_id,
-          ...analysis,
-        });
-
-        setResults(analysis);
-        setPhase('complete');
-      }
+      setPhase('complete');
     } else {
-      // Photo quality too low, let them retry
       setPhotoTaken(false);
     }
   };
 
+  if (phase === 'intro') {
+    return (
+      <View style={styles.container}>
+        <OnboardingHero
+          total={7}
+          current={5}
+          eyebrow="Step 6 · Baseline"
+          title="Take your first scan."
+          subtitle="This establishes your personal baseline. All future scores are measured against it."
+        />
+
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>What happens next</Text>
+          <Text style={styles.infoItem}>1. Scanner reads skin indices (simulated)</Text>
+          <Text style={styles.infoItem}>2. Camera captures a reference photo</Text>
+          <Text style={styles.infoItem}>3. AI generates your baseline scores</Text>
+        </View>
+
+        <View style={styles.footer}>
+          {!permission?.granted ? (
+            <Button title="Enable Camera & Start" onPress={async () => {
+              await requestPermission();
+              setPhase('scan');
+            }} />
+          ) : (
+            <Button title="Start Baseline Scan" onPress={() => setPhase('scan')} />
+          )}
+        </View>
+      </View>
+    );
+  }
+
   if (!permission?.granted) {
     return (
       <View style={styles.container}>
-        <ProgressDots total={6} current={4} />
-        <Text style={styles.title}>Camera Access</Text>
-        <Text style={styles.subtitle}>
-          We need camera access to capture your skin scan photos.
-        </Text>
-        <Button title="Grant Camera Access" onPress={requestPermission} />
+        <View style={styles.centeredContent}>
+          <Text style={styles.title}>Camera Access Needed</Text>
+          <Text style={styles.subtitle}>
+            We need camera access to capture your baseline scan photo.
+          </Text>
+          <Button title="Grant Camera Access" onPress={requestPermission} />
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <ProgressDots total={6} current={4} />
-
-      {phase === 'connect' && (
-        <View style={styles.content}>
+      {phase === 'scan' && (
+        <View style={styles.centeredContent}>
           <Text style={styles.title}>Baseline Scan</Text>
-          <Text style={styles.subtitle}>
-            Let's capture your first scan to establish your baseline.
+          <Text style={styles.regionReminder}>
+            Region: {protocol?.scan_region?.replace(/_/g, ' ')}
           </Text>
-          <ScannerAnimation phase="searching" />
-          <Button title="Connect Scanner" onPress={handleConnect} />
-          <Text style={styles.hint}>
-            Scanning region: {protocol?.scan_region?.replace(/_/g, ' ')}
-          </Text>
-        </View>
-      )}
-
-      {phase === 'scanning' && (
-        <View style={styles.content}>
-          <Text style={styles.title}>Reading Scanner...</Text>
-          <ScannerAnimation phase="scanning" message="Hold steady..." />
+          <ScannerAnimation phase="scanning" message="Reading skin indices..." />
+          <Button title="Start Scanner" onPress={handleStartScan} />
         </View>
       )}
 
@@ -120,81 +130,43 @@ export default function BaselineScan() {
         <View style={styles.cameraContainer}>
           <CameraView
             ref={cameraRef}
-            style={styles.camera}
+            style={StyleSheet.absoluteFill}
             facing="front"
-          >
-            {/* Bounding box overlay */}
-            <View style={styles.overlay}>
-              <View style={styles.boundingBox}>
-                <Text style={styles.regionLabel}>
-                  {protocol?.scan_region?.replace(/_/g, ' ').toUpperCase()}
-                </Text>
-              </View>
-            </View>
-
-            {/* Quality indicators */}
-            {qualityCheck && !qualityCheck.centered && (
-              <View style={styles.tipBanner}>
-                <Text style={styles.tipText}>Center your face in the frame</Text>
-              </View>
-            )}
-
-            <View style={styles.cameraControls}>
-              {!photoTaken ? (
-                <>
-                  <View style={styles.qualityIndicators}>
-                    <Text style={styles.qualityItem}>
-                      {qualityCheck?.lighting !== false ? 'OK' : '!'} Lighting
-                    </Text>
-                    <Text style={styles.qualityItem}>
-                      {qualityCheck?.centered !== false ? 'OK' : '!'} Centered
-                    </Text>
-                  </View>
-                  <TouchableOpacity style={styles.captureButton} onPress={handleTakePhoto}>
-                    <View style={styles.captureInner} />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <View style={styles.processingOverlay}>
-                  <Text style={styles.processingText}>Checking quality...</Text>
-                </View>
-              )}
-            </View>
-          </CameraView>
-        </View>
-      )}
-
-      {phase === 'analyzing' && (
-        <View style={styles.content}>
-          <Text style={styles.title}>Analyzing...</Text>
-          <ScannerAnimation phase="scanning" message="Processing your baseline..." />
-        </View>
-      )}
-
-      {phase === 'complete' && results && (
-        <View style={styles.content}>
-          <ScannerAnimation phase="complete" />
-          <Text style={styles.title}>Baseline Captured!</Text>
-
-          <View style={styles.resultsPreview}>
-            <View style={styles.resultRow}>
-              <Text style={styles.resultLabel}>Acne</Text>
-              <Text style={[styles.resultScore, { color: Colors.acne }]}>{results.acne_score}</Text>
-            </View>
-            <View style={styles.resultRow}>
-              <Text style={styles.resultLabel}>Sun Damage</Text>
-              <Text style={[styles.resultScore, { color: Colors.sunDamage }]}>{results.sun_damage_score}</Text>
-            </View>
-            <View style={styles.resultRow}>
-              <Text style={styles.resultLabel}>Skin Age</Text>
-              <Text style={[styles.resultScore, { color: Colors.skinAge }]}>{results.skin_age_score}</Text>
+          />
+          <View style={styles.overlay} pointerEvents="box-none">
+            <View style={styles.boundingBox}>
+              <Text style={styles.regionLabel}>
+                {protocol?.scan_region?.replace(/_/g, ' ').toUpperCase()}
+              </Text>
             </View>
           </View>
 
-          <Text style={styles.trendNote}>Trend starts after 3 scans</Text>
+          <View style={styles.cameraControls}>
+            <View style={styles.qualityIndicators}>
+              <Text style={styles.qualityItem}>OK Lighting</Text>
+              <Text style={styles.qualityItem}>OK Centered</Text>
+              <Text style={styles.qualityItem}>OK Focus</Text>
+            </View>
+            {!photoTaken ? (
+              <TouchableOpacity style={styles.captureButton} onPress={handleTakePhoto}>
+                <View style={styles.captureInner} />
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.processingText}>Checking quality...</Text>
+            )}
+          </View>
+        </View>
+      )}
 
+      {phase === 'complete' && (
+        <View style={styles.centeredContent}>
+          <ScannerAnimation phase="complete" />
+          <Text style={styles.title}>Baseline captured!</Text>
+          <Text style={styles.subtitle}>
+            Your personal baseline is set. Future scans will track changes from here.
+          </Text>
           <Button
-            title="Save Baseline"
+            title="Continue"
             onPress={() => router.push('/onboarding/boost')}
           />
         </View>
@@ -207,12 +179,36 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: 60,
+    paddingTop: 56,
   },
-  content: {
+  centeredContent: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
     justifyContent: 'center',
+  },
+  infoCard: {
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  infoTitle: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+    marginBottom: Spacing.xs,
+  },
+  infoItem: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.md,
+    lineHeight: 22,
+  },
+  footer: {
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
   },
   title: {
     fontSize: FontSize.xxl,
@@ -226,22 +222,21 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: Spacing.xl,
+    lineHeight: 22,
+    paddingHorizontal: Spacing.lg,
   },
-  hint: {
-    color: Colors.textMuted,
-    fontSize: FontSize.sm,
+  regionReminder: {
+    fontSize: FontSize.md,
+    color: Colors.primary,
     textAlign: 'center',
-    marginTop: Spacing.lg,
+    marginBottom: Spacing.xl,
     textTransform: 'capitalize',
   },
   cameraContainer: {
     flex: 1,
   },
-  camera: {
-    flex: 1,
-  },
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -264,21 +259,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
-  },
-  tipBanner: {
-    position: 'absolute',
-    top: 100,
-    left: Spacing.lg,
-    right: Spacing.lg,
-    backgroundColor: Colors.warning + 'DD',
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.sm,
-    alignItems: 'center',
-  },
-  tipText: {
-    color: Colors.background,
-    fontSize: FontSize.sm,
-    fontWeight: '600',
+    overflow: 'hidden',
   },
   cameraControls: {
     position: 'absolute',
@@ -293,12 +274,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   qualityItem: {
-    color: Colors.text,
+    color: Colors.success,
     fontSize: FontSize.xs,
     backgroundColor: Colors.background + 'AA',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.full,
+    overflow: 'hidden',
   },
   captureButton: {
     width: 72,
@@ -315,40 +297,13 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: Colors.text,
   },
-  processingOverlay: {
+  processingText: {
+    color: Colors.text,
+    fontSize: FontSize.md,
     backgroundColor: Colors.background + 'CC',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
-  },
-  processingText: {
-    color: Colors.text,
-    fontSize: FontSize.md,
-  },
-  resultsPreview: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    marginVertical: Spacing.lg,
-    gap: Spacing.md,
-  },
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  resultLabel: {
-    color: Colors.textSecondary,
-    fontSize: FontSize.md,
-  },
-  resultScore: {
-    fontSize: FontSize.xl,
-    fontWeight: '700',
-  },
-  trendNote: {
-    color: Colors.textMuted,
-    fontSize: FontSize.sm,
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
+    overflow: 'hidden',
   },
 });

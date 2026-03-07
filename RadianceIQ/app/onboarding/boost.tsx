@@ -1,20 +1,42 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingHero } from '../../src/components/OnboardingHero';
 import { useStore } from '../../src/store/useStore';
+import { connectHealthData, getHealthSourceLabel } from '../../src/services/healthPermissions';
+
+const getStatusTone = (status?: string) => {
+  switch (status) {
+    case 'granted':
+      return { label: 'Connected', color: Colors.success };
+    case 'denied':
+      return { label: 'Permission denied', color: Colors.warning };
+    case 'blocked':
+      return { label: 'Open settings', color: Colors.warning };
+    case 'unavailable':
+      return { label: 'Unavailable', color: Colors.textMuted };
+    default:
+      return { label: 'Optional', color: Colors.primaryLight };
+  }
+};
 
 export default function Boost() {
   const router = useRouter();
+  const user = useStore((s) => s.user);
   const updateUser = useStore((s) => s.updateUser);
+  const updateHealthConnection = useStore((s) => s.updateHealthConnection);
 
-  const [smoker, setSmoker] = useState<string | null>(null);
-  const [drinks, setDrinks] = useState<string | null>(null);
-  const [sleep, setSleep] = useState<string | null>(null);
-  const [stress, setStress] = useState<string | null>(null);
+  const [smoker, setSmoker] = useState<string | null>(
+    user?.smoker_status === undefined ? null : user.smoker_status ? 'yes' : 'no'
+  );
+  const [drinks, setDrinks] = useState<string | null>(user?.drink_baseline_frequency || null);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const healthState = user?.health_connection;
+  const statusTone = getStatusTone(healthState?.status);
 
   const handleDone = () => {
     updateUser({
@@ -22,93 +44,104 @@ export default function Boost() {
       drink_baseline_frequency: drinks || undefined,
       onboarding_complete: true,
     });
+
+    updateHealthConnection({
+      sync_skipped: healthState?.status !== 'granted',
+      last_checked_at: new Date().toISOString(),
+    });
+
     router.replace('/home');
   };
 
   const handleSkip = () => {
+    updateHealthConnection({
+      sync_skipped: true,
+      last_checked_at: new Date().toISOString(),
+    });
     updateUser({ onboarding_complete: true });
     router.replace('/home');
   };
 
+  const handleConnectHealth = async () => {
+    setIsConnecting(true);
+
+    try {
+      const nextState = await connectHealthData(healthState?.status);
+      updateHealthConnection(nextState);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <ProgressDots total={6} current={5} />
-
-      <Text style={styles.title}>Boost accuracy</Text>
-      <Text style={styles.subtitle}>
-        Improve insights with 30 seconds of context. Skip anytime.
-      </Text>
-
-      {/* Smoker */}
-      <Text style={styles.sectionLabel}>Do you smoke?</Text>
-      <OptionSelector
-        options={[
-          { label: 'Yes', value: 'yes' },
-          { label: 'No', value: 'no' },
-        ]}
-        selected={smoker}
-        onSelect={setSmoker}
-        horizontal
+      <OnboardingHero
+        total={7}
+        current={6}
+        eyebrow="Step 7 · Accuracy"
+        title="Add a little context for better trend readouts."
+        subtitle="Keep this lightweight. Anything here is optional and meant to sharpen the story behind your scores."
       />
 
-      {/* Drinks */}
-      <Text style={styles.sectionLabel}>Weekly drink frequency</Text>
-      <OptionSelector
-        options={[
-          { label: '0', value: '0' },
-          { label: '1-2', value: '1-2' },
-          { label: '3+', value: '3+' },
-        ]}
-        selected={drinks}
-        onSelect={setDrinks}
-        horizontal
-      />
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Lifestyle baseline</Text>
+        <Text style={styles.helperText}>These answers stay coarse and help interpret longer-term changes.</Text>
 
-      {/* Sleep */}
-      <Text style={styles.sectionLabel}>Sleep quality (yesterday)</Text>
-      <OptionSelector
-        options={[
-          { label: 'Poor', value: 'poor' },
-          { label: 'OK', value: 'ok' },
-          { label: 'Great', value: 'great' },
-        ]}
-        selected={sleep}
-        onSelect={setSleep}
-        horizontal
-      />
+        <Text style={styles.fieldLabel}>Do you smoke?</Text>
+        <OptionSelector
+          options={[
+            { label: 'Yes', value: 'yes' },
+            { label: 'No', value: 'no' },
+          ]}
+          selected={smoker}
+          onSelect={setSmoker}
+          horizontal
+        />
 
-      {/* Stress */}
-      <Text style={styles.sectionLabel}>Stress level (yesterday)</Text>
-      <OptionSelector
-        options={[
-          { label: 'Low', value: 'low' },
-          { label: 'Medium', value: 'med' },
-          { label: 'High', value: 'high' },
-        ]}
-        selected={stress}
-        onSelect={setStress}
-        horizontal
-      />
-
-      {/* Wearable */}
-      <View style={styles.wearableCard}>
-        <Text style={styles.wearableTitle}>Connect a wearable</Text>
-        <Text style={styles.wearableDesc}>
-          We use sleep + stress proxies from Apple Health to interpret trends.
-        </Text>
-        <Button
-          title="Connect Apple Health"
-          variant="secondary"
-          onPress={() => {
-            updateUser({ wearable_connected: true, wearable_source: 'Apple Health' });
-          }}
-          small
+        <Text style={styles.fieldLabel}>Weekly drink frequency</Text>
+        <OptionSelector
+          options={[
+            { label: '0', value: '0' },
+            { label: '1-2', value: '1-2' },
+            { label: '3+', value: '3+' },
+          ]}
+          selected={drinks}
+          onSelect={setDrinks}
+          horizontal
         />
       </View>
 
-      <View style={styles.bottom}>
-        <Button title="Done" onPress={handleDone} />
-        <Button title="Skip" variant="ghost" onPress={handleSkip} />
+      <View style={styles.sectionCard}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionTitle}>{getHealthSourceLabel(healthState?.source)}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusTone.color + '16' }]}>
+            <Text style={[styles.statusText, { color: statusTone.color }]}>{statusTone.label}</Text>
+          </View>
+        </View>
+        <Text style={styles.helperText}>
+          Health data remains optional. When connected, it helps RadianceIQ compare skin changes with sleep and resting-heart context.
+        </Text>
+        <Text style={styles.healthNote}>
+          {healthState?.availability_note || 'If you skip this, daily check-ins still work with manual context.'}
+        </Text>
+
+        <View style={styles.healthActions}>
+          <Button
+            title={healthState?.status === 'granted' ? 'Refresh health access' : 'Connect health data'}
+            variant={healthState?.status === 'granted' ? 'secondary' : 'primary'}
+            onPress={handleConnectHealth}
+            loading={isConnecting}
+            disabled={healthState?.status === 'unavailable'}
+          />
+          {(healthState?.status === 'denied' || healthState?.status === 'blocked') && (
+            <Button title="Open Settings" variant="ghost" onPress={() => Linking.openSettings()} />
+          )}
+        </View>
+      </View>
+
+      <View style={styles.footer}>
+        <Button title="Finish onboarding" onPress={handleDone} />
+        <Button title="Skip for now" variant="ghost" onPress={handleSkip} />
       </View>
     </ScrollView>
   );
@@ -121,46 +154,61 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
+    paddingTop: 56,
     paddingBottom: Spacing.xxl,
+    gap: Spacing.md,
   },
-  title: {
-    fontSize: FontSize.xxl,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  subtitle: {
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.lg,
-  },
-  sectionLabel: {
-    fontSize: FontSize.md,
-    fontWeight: '600',
-    color: Colors.text,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  wearableCard: {
+  sectionCard: {
     backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginTop: Spacing.xl,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
     gap: Spacing.sm,
   },
-  wearableTitle: {
-    color: Colors.text,
-    fontSize: FontSize.md,
-    fontWeight: '600',
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
-  wearableDesc: {
+  sectionTitle: {
+    color: Colors.text,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
+  },
+  helperText: {
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     lineHeight: 20,
   },
-  bottom: {
-    marginTop: Spacing.xl,
-    gap: Spacing.md,
+  fieldLabel: {
+    color: Colors.text,
+    fontSize: FontSize.md,
+    fontWeight: '600',
+    marginTop: Spacing.sm,
+  },
+  healthNote: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+  },
+  healthActions: {
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  statusBadge: {
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  statusText: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  footer: {
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
 });

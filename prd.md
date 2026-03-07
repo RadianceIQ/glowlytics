@@ -278,3 +278,26 @@ Since no physical scanner is available, the device connection flow will be **sim
 
 ### Escalation Language (non-diagnostic)
 - "Your metrics changed rapidly and the trend is unusual for your baseline. This isn't a diagnosis, but it may be worth sharing a report with a clinician for context."
+
+---
+
+## Implementation Status (as of 2026-03-07)
+
+### Completed
+- All 3 user journeys fully implemented (onboarding, daily scan, report)
+- 19 screen files, 8 components, 3 services, Zustand store, Express+PostgreSQL backend
+- Simulated scanner data with realistic UX (discovery, pairing, readings, connection loss)
+- Skin analysis engine with contextual action recommendations
+- Demo data seeder (14 days of scan history)
+- Web + iOS bundles compile clean, TypeScript 0 errors
+
+### Known Issues Resolved
+- **react-native-worklets**: Added as dependency (required by react-native-reanimated v4 on web)
+- **Infinite re-render loop on web**: React 19 + Zustand v5 `useSyncExternalStore` conflict — fixed by deferring store hydration and using primitive selectors instead of object selectors
+
+### Not Yet Wired (stretch goals)
+- Vision LLM API calls (analysis logic present, API call stubbed)
+- HealthKit/HealthConnect native bridge (UI present, bridge not wired)
+- RAG pipeline with AAD/ACOG guidelines
+- Real barcode scanning via expo-barcode-scanner
+- Photo persistence & representative photo display in reports

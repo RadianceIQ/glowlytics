@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, FontSize, Spacing } from '../../src/constants/theme';
+import { Colors, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
-import { ProgressDots } from '../../src/components/ProgressDots';
-import { useStore } from '../../src/store/useStore';
+import { OnboardingHero } from '../../src/components/OnboardingHero';
 
 export default function Goal() {
   const router = useRouter();
@@ -13,30 +12,31 @@ export default function Goal() {
 
   return (
     <View style={styles.container}>
-      <ProgressDots total={6} current={1} />
+      <OnboardingHero
+        total={7}
+        current={1}
+        eyebrow="Step 2 · Focus"
+        title="Choose the trend you care about most."
+        subtitle="We’ll use this to recommend the best scan region and tailor your first insights."
+      />
 
-      <Text style={styles.title}>What's your primary goal?</Text>
-      <Text style={styles.subtitle}>
-        This helps us focus your scan and recommendations.
-      </Text>
-
-      <View style={styles.options}>
+      <View style={styles.optionsCard}>
         <OptionSelector
           options={[
             {
               label: 'Acne',
               value: 'acne',
-              description: 'Track breakouts, inflammation, and skin clarity.',
+              description: 'Track breakouts, inflammation, and day-to-day clarity.',
             },
             {
               label: 'Sun Damage',
               value: 'sun_damage',
-              description: 'Monitor UV-related changes, pigmentation, and spots.',
+              description: 'Monitor UV-related pigmentation and visible change over time.',
             },
             {
               label: 'Skin Age',
               value: 'skin_age',
-              description: 'Track texture, fine lines, and skin vitality over time.',
+              description: 'Focus on texture, fine lines, and skin vitality trends.',
             },
           ]}
           selected={goal}
@@ -44,13 +44,14 @@ export default function Goal() {
         />
       </View>
 
-      <View style={styles.bottom}>
+      <View style={styles.footer}>
         <Button
           title="Next"
-          onPress={() => router.push({
-            pathname: '/onboarding/region',
-            params: { goal },
-          })}
+          onPress={() =>
+            router.push({
+              pathname: '/onboarding/region',
+              params: { goal },
+            })}
           disabled={!goal}
         />
       </View>
@@ -63,24 +64,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
     paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
+    paddingTop: 56,
     paddingBottom: Spacing.xxl,
   },
-  title: {
-    fontSize: FontSize.xxl,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  subtitle: {
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xl,
-  },
-  options: {
+  optionsCard: {
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
     flex: 1,
   },
-  bottom: {
+  footer: {
     marginTop: Spacing.lg,
   },
 });

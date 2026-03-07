@@ -32,14 +32,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: Colors.surfaceHighlight,
   },
   dotActive: {
     backgroundColor: Colors.primary,
-    width: 24,
+    width: 30,
   },
   dotComplete: {
     backgroundColor: Colors.primary + '60',

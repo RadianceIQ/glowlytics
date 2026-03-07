@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
@@ -11,11 +11,20 @@ import { getExplanation } from '../../src/services/skinAnalysis';
 
 export default function Results() {
   const router = useRouter();
-  const latestOutput = useStore((s) => s.getLatestOutput());
-  const outputHistory = useStore((s) => s.getOutputHistory(7));
   const allOutputs = useStore((s) => s.modelOutputs);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const disconnectScanner = useStore((s) => s.disconnectScanner);
+
+  const latestOutput = allOutputs.length > 0 ? allOutputs[allOutputs.length - 1] : null;
+
+  const outputHistory = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const records = dailyRecords.filter((r) => r.date >= cutoffStr);
+    const dailyIds = new Set(records.map((r) => r.daily_id));
+    return allOutputs.filter((o) => dailyIds.has(o.daily_id));
+  }, [dailyRecords, allOutputs]);
 
   if (!latestOutput) {
     return (

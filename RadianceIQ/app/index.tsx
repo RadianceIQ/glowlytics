@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors, FontSize, Spacing, BorderRadius } from '../src/constants/theme';
@@ -7,13 +7,15 @@ import { Button } from '../src/components/Button';
 
 export default function Index() {
   const router = useRouter();
-  const user = useStore((s) => s.user);
+  const onboardingComplete = useStore((s) => s.user?.onboarding_complete ?? false);
+  const navigated = useRef(false);
 
   useEffect(() => {
-    if (user?.onboarding_complete) {
+    if (onboardingComplete && !navigated.current) {
+      navigated.current = true;
       router.replace('/home');
     }
-  }, [user]);
+  }, [onboardingComplete]);
 
   return (
     <View style={styles.container}>

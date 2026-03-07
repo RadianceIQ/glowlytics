@@ -1,6 +1,6 @@
 RadianceIQ - Hackathon Build Progress Tracker
 =============================================
-Last Updated: 2026-03-07
+Last Updated: 2026-03-07 (session 2)
 
 DECISIONS MADE:
 - Platform: React Native (Expo SDK 55)
@@ -106,6 +106,12 @@ BUILD STATUS: MVP COMPLETE - PUSHED TO GITHUB
 - Web + iOS bundles compile with 0 errors
 - TypeScript: 0 errors
 - 52 files committed, ~15,000 lines
+
+BUGS FIXED:
+- Missing react-native-worklets dependency (required by react-native-reanimated v4)
+- Infinite re-render loop on web: React 19 + Zustand v5 useSyncExternalStore conflict
+  - _layout.tsx: deferred loadPersistedData with setTimeout + ref guard
+  - index.tsx: changed user object selector to primitive boolean selector
 
 REMAINING (nice-to-have):
 - Wire Vision LLM API calls (currently simulated)

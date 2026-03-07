@@ -56,10 +56,10 @@ const styles = StyleSheet.create({
   },
   option: {
     backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: Colors.border,
   },
   optionHorizontal: {
     flex: 1,
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   },
   optionSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: Colors.primary + '12',
   },
   optionLabel: {
     color: Colors.text,
@@ -82,5 +82,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: Spacing.xs,
+    lineHeight: 19,
   },
 });

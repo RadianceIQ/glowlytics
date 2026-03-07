@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors, FontSize, Spacing, BorderRadius } from '../src/constants/theme';
@@ -12,10 +12,38 @@ export default function Home() {
   const router = useRouter();
   const user = useStore((s) => s.user);
   const protocol = useStore((s) => s.protocol);
-  const latestOutput = useStore((s) => s.getLatestOutput());
-  const streak = useStore((s) => s.getStreak());
-  const outputHistory = useStore((s) => s.getOutputHistory(7));
   const dailyRecords = useStore((s) => s.dailyRecords);
+  const modelOutputs = useStore((s) => s.modelOutputs);
+
+  // Compute derived values from raw state (avoids new-reference-per-render)
+  const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
+
+  const streak = useMemo(() => {
+    const sorted = [...dailyRecords].sort((a, b) => b.date.localeCompare(a.date));
+    if (sorted.length === 0) return 0;
+    let s = 0;
+    const today = new Date();
+    for (let i = 0; i < sorted.length; i++) {
+      const expected = new Date(today);
+      expected.setDate(expected.getDate() - i);
+      const expectedStr = expected.toISOString().split('T')[0];
+      if (sorted.find((r) => r.date === expectedStr)) {
+        s++;
+      } else {
+        break;
+      }
+    }
+    return s;
+  }, [dailyRecords]);
+
+  const outputHistory = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const records = dailyRecords.filter((r) => r.date >= cutoffStr);
+    const dailyIds = new Set(records.map((r) => r.daily_id));
+    return modelOutputs.filter((o) => dailyIds.has(o.daily_id));
+  }, [dailyRecords, modelOutputs]);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const scannedToday = dailyRecords.some((r) => r.date === todayStr);
@@ -24,9 +52,7 @@ export default function Home() {
   const sunHistory = outputHistory.map((o) => o.sun_damage_score);
   const ageHistory = outputHistory.map((o) => o.skin_age_score);
 
-  // Calculate deltas from baseline (first output)
-  const allOutputs = useStore((s) => s.modelOutputs);
-  const baseline = allOutputs.length > 0 ? allOutputs[0] : null;
+  const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
   const acneDelta = latestOutput && baseline
     ? latestOutput.acne_score - baseline.acne_score : undefined;
   const sunDelta = latestOutput && baseline

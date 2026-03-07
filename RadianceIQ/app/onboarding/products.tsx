@@ -4,18 +4,17 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingHero } from '../../src/components/OnboardingHero';
 import { useStore } from '../../src/store/useStore';
 import type { UsageSchedule } from '../../src/types';
 
-// Simulated product database for search
 const MOCK_PRODUCTS = [
   { name: 'CeraVe Foaming Facial Cleanser', ingredients: ['Ceramides', 'Niacinamide', 'Hyaluronic Acid'] },
   { name: 'La Roche-Posay Anthelios SPF 50', ingredients: ['Avobenzone', 'Homosalate', 'Niacinamide'] },
   { name: 'The Ordinary Niacinamide 10%', ingredients: ['Niacinamide', 'Zinc PCA'] },
   { name: 'CeraVe Moisturizing Cream', ingredients: ['Ceramides', 'Hyaluronic Acid', 'Petrolatum'] },
   { name: 'Neutrogena Hydro Boost', ingredients: ['Hyaluronic Acid', 'Glycerin', 'Dimethicone'] },
-  { name: 'Paula\'s Choice BHA Exfoliant', ingredients: ['Salicylic Acid', 'Green Tea Extract'] },
+  { name: "Paula's Choice BHA Exfoliant", ingredients: ['Salicylic Acid', 'Green Tea Extract'] },
   { name: 'The Ordinary Retinol 0.5%', ingredients: ['Retinol', 'Squalane', 'Jojoba Oil'] },
   { name: 'Differin Adapalene Gel', ingredients: ['Adapalene 0.1%', 'Carbomer', 'Propylene Glycol'] },
 ];
@@ -31,13 +30,14 @@ export default function Products() {
   const [showSearch, setShowSearch] = useState(false);
 
   const filteredProducts = searchQuery.length > 1
-    ? MOCK_PRODUCTS.filter((p) =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ? MOCK_PRODUCTS.filter((product) =>
+        product.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : [];
 
   const handleAddProduct = () => {
     if (!selectedProduct || !schedule) return;
+
     addProduct({
       product_name: selectedProduct.name,
       product_capture_method: 'search',
@@ -45,6 +45,7 @@ export default function Products() {
       usage_schedule: schedule as UsageSchedule,
       start_date: new Date().toISOString().split('T')[0],
     });
+
     setSelectedProduct(null);
     setSchedule(null);
     setSearchQuery('');
@@ -53,41 +54,51 @@ export default function Products() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <ProgressDots total={6} current={3} />
+      <OnboardingHero
+        total={7}
+        current={3}
+        eyebrow="Step 4 · Routine"
+        title="Add the products you’re using right now."
+        subtitle="This step is optional, but it helps explain changes in your scores and recommendations."
+      />
 
-      <Text style={styles.title}>Your products</Text>
-      <Text style={styles.subtitle}>
-        Add your current skincare products so we can track ingredient effects.
-      </Text>
-
-      {/* Added products */}
-      {products.map((p) => (
-        <View key={p.user_product_id} style={styles.productCard}>
-          <Text style={styles.productName}>{p.product_name}</Text>
-          <Text style={styles.productIngredients}>
-            {p.ingredients_list.join(', ')}
-          </Text>
-          <Text style={styles.productSchedule}>{p.usage_schedule}</Text>
+      {products.length > 0 && (
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Current routine</Text>
+          {products.map((product) => (
+            <View key={product.user_product_id} style={styles.productCard}>
+              <Text style={styles.productName}>{product.product_name}</Text>
+              <Text style={styles.productIngredients}>
+                {product.ingredients_list.join(', ')}
+              </Text>
+              <Text style={styles.productSchedule}>{product.usage_schedule}</Text>
+            </View>
+          ))}
         </View>
-      ))}
+      )}
 
-      {/* Add product flow */}
       {!showSearch ? (
-        <View style={styles.addButtons}>
-          <Button
-            title="Search product"
-            variant="secondary"
-            onPress={() => setShowSearch(true)}
-          />
-          <Button
-            title="Scan barcode"
-            variant="secondary"
-            onPress={() => setShowSearch(true)} // Same flow for demo
-            small
-          />
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Choose how to add a product</Text>
+          <Text style={styles.helperText}>
+            Search is fastest for the prototype. Barcode and photo can follow the same path later.
+          </Text>
+          <View style={styles.addButtons}>
+            <Button
+              title="Search product"
+              variant="secondary"
+              onPress={() => setShowSearch(true)}
+            />
+            <Button
+              title="Scan barcode"
+              variant="ghost"
+              onPress={() => setShowSearch(true)}
+            />
+          </View>
         </View>
       ) : (
-        <View style={styles.searchContainer}>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Search skincare products</Text>
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
@@ -97,24 +108,24 @@ export default function Products() {
             autoFocus
           />
 
-          {filteredProducts.map((p) => (
+          {filteredProducts.map((product) => (
             <TouchableOpacity
-              key={p.name}
+              key={product.name}
               style={[
                 styles.searchResult,
-                selectedProduct?.name === p.name && styles.searchResultSelected,
+                selectedProduct?.name === product.name && styles.searchResultSelected,
               ]}
-              onPress={() => setSelectedProduct(p)}
+              onPress={() => setSelectedProduct(product)}
             >
-              <Text style={styles.searchResultName}>{p.name}</Text>
+              <Text style={styles.searchResultName}>{product.name}</Text>
               <Text style={styles.searchResultIngredients}>
-                {p.ingredients.join(', ')}
+                {product.ingredients.join(', ')}
               </Text>
             </TouchableOpacity>
           ))}
 
           {selectedProduct && (
-            <>
+            <View style={styles.scheduleSection}>
               <Text style={styles.scheduleLabel}>When do you use it?</Text>
               <OptionSelector
                 options={[
@@ -127,12 +138,12 @@ export default function Products() {
                 horizontal
               />
               <Button
-                title="Add Product"
+                title="Add product"
                 onPress={handleAddProduct}
                 disabled={!schedule}
-                style={{ marginTop: Spacing.md }}
+                style={styles.addProductButton}
               />
-            </>
+            </View>
           )}
 
           <Button
@@ -142,18 +153,17 @@ export default function Products() {
               setShowSearch(false);
               setSearchQuery('');
               setSelectedProduct(null);
+              setSchedule(null);
             }}
-            style={{ marginTop: Spacing.sm }}
-            small
           />
         </View>
       )}
 
-      <View style={styles.bottom}>
+      <View style={styles.footer}>
         <Button
-          title={products.length > 0 ? 'Done' : 'Skip for now'}
+          title={products.length > 0 ? 'Continue' : 'Skip for now'}
           variant={products.length > 0 ? 'primary' : 'ghost'}
-          onPress={() => router.push('/onboarding/baseline-scan')}
+          onPress={() => router.push('/onboarding/permissions')}
         />
       </View>
     </ScrollView>
@@ -167,25 +177,34 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
+    paddingTop: 56,
     paddingBottom: Spacing.xxl,
+    gap: Spacing.md,
   },
-  title: {
-    fontSize: FontSize.xxl,
-    fontWeight: '700',
+  sectionCard: {
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  sectionTitle: {
     color: Colors.text,
-    marginBottom: Spacing.sm,
+    fontSize: FontSize.lg,
+    fontWeight: '700',
   },
-  subtitle: {
-    fontSize: FontSize.md,
+  helperText: {
     color: Colors.textSecondary,
-    marginBottom: Spacing.lg,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
   },
   productCard: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginTop: Spacing.sm,
+    gap: 4,
   },
   productName: {
     color: Colors.text,
@@ -195,61 +214,63 @@ const styles = StyleSheet.create({
   productIngredients: {
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
-    marginTop: Spacing.xs,
+    lineHeight: 18,
   },
   productSchedule: {
-    color: Colors.primary,
+    color: Colors.primaryLight,
     fontSize: FontSize.xs,
-    fontWeight: '600',
-    marginTop: Spacing.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   addButtons: {
     gap: Spacing.sm,
-    marginTop: Spacing.md,
-  },
-  searchContainer: {
-    marginTop: Spacing.md,
+    marginTop: Spacing.sm,
   },
   searchInput: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     color: Colors.text,
     fontSize: FontSize.md,
     borderWidth: 1,
-    borderColor: Colors.primary,
-    marginBottom: Spacing.sm,
+    borderColor: Colors.border,
   },
   searchResult: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.xs,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: Colors.border,
+    marginTop: Spacing.xs,
   },
   searchResultSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: Colors.primary + '12',
   },
   searchResultName: {
     color: Colors.text,
     fontSize: FontSize.md,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   searchResultIngredients: {
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontSize: FontSize.sm,
+    lineHeight: 18,
     marginTop: 2,
+  },
+  scheduleSection: {
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
   },
   scheduleLabel: {
     color: Colors.text,
     fontSize: FontSize.md,
     fontWeight: '600',
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
   },
-  bottom: {
-    marginTop: Spacing.xl,
+  addProductButton: {
+    marginTop: Spacing.xs,
+  },
+  footer: {
+    marginTop: Spacing.sm,
   },
 });

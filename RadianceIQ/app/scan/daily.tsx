@@ -21,7 +21,6 @@ export default function DailyScan() {
   const [scannerData, setScannerData] = useState<any>(null);
   const [photoTaken, setPhotoTaken] = useState(false);
 
-  // Get baseline scanner data for variation
   const baselineRecord = dailyRecords.length > 0 ? dailyRecords[0] : null;
 
   const handleStartScan = async () => {
@@ -37,10 +36,6 @@ export default function DailyScan() {
     const quality = await simulatePhotoQualityCheck();
 
     if (quality.score >= 0.7) {
-      // Store scanner data temporarily and go to check-in
-      useStore.setState({
-        // Store temp scan data via a simple approach
-      });
       setPhase('complete');
     } else {
       setPhotoTaken(false);
@@ -73,37 +68,35 @@ export default function DailyScan() {
         <View style={styles.cameraContainer}>
           <CameraView
             ref={cameraRef}
-            style={styles.camera}
+            style={StyleSheet.absoluteFill}
             facing="front"
-          >
-            {/* Bounding box overlay */}
-            <View style={styles.overlay}>
-              <View style={styles.boundingBox}>
-                <Text style={styles.regionLabel}>
-                  {protocol?.scan_region?.replace(/_/g, ' ').toUpperCase()}
-                </Text>
-              </View>
-              {/* Baseline overlay indicator */}
-              <View style={styles.baselineOverlay}>
-                <Text style={styles.baselineText}>Match baseline framing</Text>
-              </View>
+          />
+          {/* Overlay as sibling, not child of CameraView */}
+          <View style={styles.overlay} pointerEvents="box-none">
+            <View style={styles.boundingBox}>
+              <Text style={styles.regionLabel}>
+                {protocol?.scan_region?.replace(/_/g, ' ').toUpperCase()}
+              </Text>
             </View>
+            <View style={styles.baselineOverlay}>
+              <Text style={styles.baselineText}>Match baseline framing</Text>
+            </View>
+          </View>
 
-            <View style={styles.cameraControls}>
-              <View style={styles.qualityIndicators}>
-                <Text style={styles.qualityItem}>OK Lighting</Text>
-                <Text style={styles.qualityItem}>OK Centered</Text>
-                <Text style={styles.qualityItem}>OK Focus</Text>
-              </View>
-              {!photoTaken ? (
-                <TouchableOpacity style={styles.captureButton} onPress={handleTakePhoto}>
-                  <View style={styles.captureInner} />
-                </TouchableOpacity>
-              ) : (
-                <Text style={styles.processingText}>Checking quality...</Text>
-              )}
+          <View style={styles.cameraControls}>
+            <View style={styles.qualityIndicators}>
+              <Text style={styles.qualityItem}>OK Lighting</Text>
+              <Text style={styles.qualityItem}>OK Centered</Text>
+              <Text style={styles.qualityItem}>OK Focus</Text>
             </View>
-          </CameraView>
+            {!photoTaken ? (
+              <TouchableOpacity style={styles.captureButton} onPress={handleTakePhoto}>
+                <View style={styles.captureInner} />
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.processingText}>Checking quality...</Text>
+            )}
+          </View>
         </View>
       )}
 
@@ -156,11 +149,8 @@ const styles = StyleSheet.create({
   cameraContainer: {
     flex: 1,
   },
-  camera: {
-    flex: 1,
-  },
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -183,6 +173,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
+    overflow: 'hidden',
   },
   baselineOverlay: {
     marginTop: Spacing.md,
@@ -215,6 +206,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.full,
+    overflow: 'hidden',
   },
   captureButton: {
     width: 72,
@@ -238,5 +230,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
+    overflow: 'hidden',
   },
 });

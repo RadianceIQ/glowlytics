@@ -1,5 +1,5 @@
 import 'react-native-get-random-values';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
@@ -8,9 +8,13 @@ import { useStore } from '../src/store/useStore';
 
 export default function RootLayout() {
   const loadPersistedData = useStore((s) => s.loadPersistedData);
+  const loaded = useRef(false);
 
   useEffect(() => {
-    loadPersistedData();
+    if (!loaded.current) {
+      loaded.current = true;
+      setTimeout(() => loadPersistedData(), 0);
+    }
   }, []);
 
   return (

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
-import { ProgressDots } from '../../src/components/ProgressDots';
+import { OnboardingHero } from '../../src/components/OnboardingHero';
 import { useStore } from '../../src/store/useStore';
 import type { PeriodApplicable } from '../../src/types';
 
@@ -39,80 +39,92 @@ export default function Essentials() {
       location_coarse: zip,
       period_applicable: periodApplicable as PeriodApplicable,
       period_last_start_date: periodApplicable === 'yes' ? lastPeriod || undefined : undefined,
-      cycle_length_days: periodApplicable === 'yes' ? parseInt(cycleLength) || 28 : 28,
+      cycle_length_days: periodApplicable === 'yes' ? parseInt(cycleLength, 10) || 28 : 28,
     });
     router.push('/onboarding/goal');
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <ProgressDots total={6} current={0} />
-
-      <Text style={styles.title}>Let's get started</Text>
-      <Text style={styles.subtitle}>Just a few basics to personalize your experience.</Text>
-
-      {/* Age */}
-      <Text style={styles.sectionLabel}>Age Range</Text>
-      <OptionSelector
-        options={ageRanges}
-        selected={age}
-        onSelect={setAge}
-        horizontal
+      <OnboardingHero
+        total={7}
+        current={0}
+        eyebrow="Step 1 · Essentials"
+        title="Start with the basics."
+        subtitle="A few taps help RadianceIQ personalize your scan and trend context."
       />
 
-      {/* Location */}
-      <Text style={styles.sectionLabel}>Location (ZIP Code)</Text>
-      <TextInput
-        style={styles.input}
-        value={zip}
-        onChangeText={setZip}
-        placeholder="Enter ZIP code"
-        placeholderTextColor={Colors.textMuted}
-        keyboardType="number-pad"
-        maxLength={5}
-      />
-
-      {/* Period */}
-      <Text style={styles.sectionLabel}>Do you get periods?</Text>
-      <OptionSelector
-        options={[
-          { label: 'Yes', value: 'yes' },
-          { label: 'No', value: 'no' },
-          { label: 'Prefer not to say', value: 'prefer_not' },
-        ]}
-        selected={periodApplicable}
-        onSelect={setPeriodApplicable}
-        horizontal
-      />
-
-      {periodApplicable === 'yes' && (
-        <>
-          <Text style={styles.sectionLabel}>Last period start date</Text>
-          <TextInput
-            style={styles.input}
-            value={lastPeriod}
-            onChangeText={setLastPeriod}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={Colors.textMuted}
-          />
-          <Text style={styles.sectionLabel}>Typical cycle length (days)</Text>
-          <TextInput
-            style={styles.input}
-            value={cycleLength}
-            onChangeText={setCycleLength}
-            placeholder="28"
-            placeholderTextColor={Colors.textMuted}
-            keyboardType="number-pad"
-          />
-        </>
-      )}
-
-      <View style={styles.buttonContainer}>
-        <Button
-          title="Continue"
-          onPress={handleContinue}
-          disabled={!canContinue}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionLabel}>Age range</Text>
+        <OptionSelector
+          options={ageRanges}
+          selected={age}
+          onSelect={setAge}
+          horizontal
         />
+      </View>
+
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionLabel}>Location</Text>
+        <Text style={styles.helperText}>Used for coarse climate and UV context only.</Text>
+        <TextInput
+          style={styles.input}
+          value={zip}
+          onChangeText={setZip}
+          placeholder="Enter ZIP code"
+          placeholderTextColor={Colors.textMuted}
+          keyboardType="number-pad"
+          maxLength={5}
+        />
+      </View>
+
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionLabel}>Cycle basics</Text>
+        <Text style={styles.helperText}>Optional and self-entered for now.</Text>
+        <OptionSelector
+          options={[
+            { label: 'Yes', value: 'yes' },
+            { label: 'No', value: 'no' },
+            { label: 'Prefer not to say', value: 'prefer_not' },
+          ]}
+          selected={periodApplicable}
+          onSelect={setPeriodApplicable}
+          horizontal
+        />
+
+        {periodApplicable === 'yes' && (
+          <View style={styles.inlineFields}>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.inlineLabel}>Last period start</Text>
+              <TextInput
+                style={styles.input}
+                value={lastPeriod}
+                onChangeText={setLastPeriod}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.inlineLabel}>Typical cycle length</Text>
+              <TextInput
+                style={styles.input}
+                value={cycleLength}
+                onChangeText={setCycleLength}
+                placeholder="28"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="number-pad"
+              />
+            </View>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerNote}>
+          Camera and health permissions come later, right when they add value.
+        </Text>
+        <Button title="Continue" onPress={handleContinue} disabled={!canContinue} />
       </View>
     </ScrollView>
   );
@@ -125,37 +137,57 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
+    paddingTop: 56,
     paddingBottom: Spacing.xxl,
+    gap: Spacing.md,
   },
-  title: {
-    fontSize: FontSize.xxl,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  subtitle: {
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xl,
+  sectionCard: {
+    backgroundColor: Colors.surfaceLight,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
   },
   sectionLabel: {
-    fontSize: FontSize.md,
-    fontWeight: '600',
+    fontSize: FontSize.lg,
+    fontWeight: '700',
     color: Colors.text,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
+  },
+  helperText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: Spacing.xs,
   },
   input: {
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     color: Colors.text,
     fontSize: FontSize.md,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  buttonContainer: {
-    marginTop: Spacing.xl,
+  inlineFields: {
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  fieldGroup: {
+    gap: Spacing.sm,
+  },
+  inlineLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  footer: {
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  footerNote: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
   },
 });

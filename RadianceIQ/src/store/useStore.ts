@@ -3,8 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   UserProfile, ScanProtocol, ProductEntry, DailyRecord,
-  ModelOutput, PrimaryGoal, ScanRegion, PeriodApplicable,
-  SleepQuality, StressLevel, Confidence,
+  ModelOutput, PrimaryGoal, ScanRegion, HealthConnectionState,
 } from '../types';
 
 interface AppState {
@@ -26,6 +25,7 @@ interface AppState {
   setOnboardingStep: (step: number) => void;
   createUser: (data: Partial<UserProfile>) => void;
   updateUser: (data: Partial<UserProfile>) => void;
+  updateHealthConnection: (data: Partial<HealthConnectionState>) => void;
   setProtocol: (goal: PrimaryGoal, region: ScanRegion) => void;
   addProduct: (product: Omit<ProductEntry, 'user_product_id' | 'user_id'>) => void;
   removeProduct: (id: string) => void;
@@ -49,6 +49,39 @@ const generateId = () => {
   }
 };
 
+const defaultHealthConnection = (): HealthConnectionState => ({
+  status: 'not_requested',
+  requested_types: [],
+  granted_types: [],
+  sync_skipped: false,
+});
+
+const normalizeUser = (user?: Partial<UserProfile> | null): UserProfile | null => {
+  if (!user) return null;
+
+  return {
+    user_id: user.user_id || generateId(),
+    age_range: user.age_range || '',
+    location_coarse: user.location_coarse || '',
+    period_applicable: user.period_applicable || 'prefer_not',
+    period_last_start_date: user.period_last_start_date,
+    cycle_length_days: user.cycle_length_days || 28,
+    smoker_status: user.smoker_status,
+    drink_baseline_frequency: user.drink_baseline_frequency,
+    wearable_connected: user.wearable_connected || false,
+    wearable_source: user.wearable_source,
+    camera_permission_status: user.camera_permission_status || 'not_requested',
+    health_connection: {
+      ...defaultHealthConnection(),
+      ...user.health_connection,
+      requested_types: user.health_connection?.requested_types || [],
+      granted_types: user.health_connection?.granted_types || [],
+      sync_skipped: user.health_connection?.sync_skipped || false,
+    },
+    onboarding_complete: user.onboarding_complete || false,
+  };
+};
+
 export const useStore = create<AppState>((set, get) => ({
   user: null,
   protocol: null,
@@ -62,7 +95,7 @@ export const useStore = create<AppState>((set, get) => ({
   setOnboardingStep: (step) => set({ onboardingStep: step }),
 
   createUser: (data) => {
-    const user: UserProfile = {
+    const user = normalizeUser({
       user_id: generateId(),
       age_range: data.age_range || '',
       location_coarse: data.location_coarse || '',
@@ -73,8 +106,10 @@ export const useStore = create<AppState>((set, get) => ({
       drink_baseline_frequency: data.drink_baseline_frequency,
       wearable_connected: data.wearable_connected || false,
       wearable_source: data.wearable_source,
+      camera_permission_status: data.camera_permission_status || 'not_requested',
+      health_connection: data.health_connection || defaultHealthConnection(),
       onboarding_complete: false,
-    };
+    });
     set({ user });
     get().persistData();
   },
@@ -82,7 +117,41 @@ export const useStore = create<AppState>((set, get) => ({
   updateUser: (data) => {
     const current = get().user;
     if (!current) return;
-    const updated = { ...current, ...data };
+    const updated = normalizeUser({
+      ...current,
+      ...data,
+      health_connection: {
+        ...current.health_connection,
+        ...data.health_connection,
+      },
+    });
+    set({ user: updated });
+    get().persistData();
+  },
+
+  updateHealthConnection: (data) => {
+    const current = get().user;
+    if (!current) return;
+
+    const health_connection = {
+      ...current.health_connection,
+      ...data,
+      requested_types: data.requested_types || current.health_connection.requested_types,
+      granted_types: data.granted_types || current.health_connection.granted_types,
+    };
+
+    const updated = normalizeUser({
+      ...current,
+      wearable_connected: health_connection.status === 'granted',
+      wearable_source:
+        health_connection.status === 'granted'
+          ? health_connection.source === 'apple_health'
+            ? 'Apple Health'
+            : 'Health Connect'
+          : current.wearable_source,
+      health_connection,
+    });
+
     set({ user: updated });
     get().persistData();
   },
@@ -183,7 +252,7 @@ export const useStore = create<AppState>((set, get) => ({
       if (data) {
         const parsed = JSON.parse(data);
         set({
-          user: parsed.user || null,
+          user: normalizeUser(parsed.user),
           protocol: parsed.protocol || null,
           products: parsed.products || [],
           dailyRecords: parsed.dailyRecords || [],
