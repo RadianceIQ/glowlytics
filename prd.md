@@ -297,7 +297,42 @@ Since no physical scanner is available, the device connection flow will be **sim
 
 ### Not Yet Wired (stretch goals)
 - Vision LLM API calls (analysis logic present, API call stubbed)
-- HealthKit/HealthConnect native bridge (UI present, bridge not wired)
+- HealthKit/HealthConnect adapter wired for native builds; Expo Go support remains unavailable by design
 - RAG pipeline with AAD/ACOG guidelines
 - Real barcode scanning via expo-barcode-scanner
 - Photo persistence & representative photo display in reports
+
+---
+
+## Onboarding & Permissions Implementation Update (Current)
+
+### Actual onboarding order (implemented)
+1. Essentials
+2. Goal
+3. Region
+4. Products
+5. Permissions prep (new)
+6. Baseline scan
+7. Accuracy/boost
+
+### Permission timing and scope
+- **Camera:** Requested in-context at baseline scan start and treated as required for scan capture.
+- **HealthKit / Health Connect:** Introduced in a dedicated pre-scan education step and remains optional/non-blocking.
+- **v1 health scope (read-only):** sleep, resting heart rate, and heart-rate variability.
+- **Deferred from health sync in v1:** cycle/menstrual data (remains self-entered in onboarding).
+
+### Native build constraint
+- Health integrations are configured for iOS/Android native builds and are not fully supported in Expo Go.
+- UX surfaces explicit unavailable/unsupported messaging when health APIs are not accessible.
+
+### State model additions
+- `camera_permission_status` persisted on user profile.
+- `health_connection` persisted with normalized status/state metadata:
+  - status: `unavailable | not_requested | granted | denied | blocked`
+  - source: `apple_health | health_connect`
+  - requested/granted types, sync skip flag, and timestamps.
+
+### Compliance guardrails
+- Health access is always optional for onboarding completion and first baseline result.
+- Permission rationale copy is shown before prompts.
+- Denial paths avoid dead ends and provide a settings-recovery action where available.
