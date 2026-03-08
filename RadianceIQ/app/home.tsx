@@ -6,16 +6,19 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../src/components/AtmosphereScreen';
 import { ActionCard } from '../src/components/ActionCard';
 import { Button } from '../src/components/Button';
-import { ConfidenceBadge } from '../src/components/ConfidenceBadge';
 import { ScoreTile } from '../src/components/ScoreTile';
+import { SkinScoreHero } from '../src/components/SkinScoreHero';
 import {
   BorderRadius,
   Colors,
   FontFamily,
   FontSize,
-  Shadows,
   Spacing,
 } from '../src/constants/theme';
+import {
+  buildOverallSkinInsight,
+  getLatestDailyForOutput,
+} from '../src/services/skinInsights';
 import { useStore } from '../src/store/useStore';
 
 interface TopStat {
@@ -127,6 +130,7 @@ export default function Home() {
 
   const todayStr = new Date().toISOString().split('T')[0];
   const scannedToday = dailyRecords.some((record) => record.date === todayStr);
+  const primaryAction = scannedToday && latestOutput ? '/scan/results' : '/scan/connect';
 
   const acneHistory = outputHistory.map((output) => output.acne_score);
   const sunHistory = outputHistory.map((output) => output.sun_damage_score);
@@ -252,44 +256,12 @@ export default function Home() {
           <Text style={styles.heroEyebrow}>
             {scannedToday ? 'Today refreshed' : 'Today spotlight'}
           </Text>
-          {latestOutput ? <ConfidenceBadge level={latestOutput.confidence} /> : null}
-        </View>
-        <Text style={styles.heroTitle}>
-          {latestOutput
-            ? `${spotlightMetric.label} is ${formatMetricStatus(spotlightMetric.score || 0).toLowerCase()} today.`
-            : 'Build your first baseline.'}
-        </Text>
-        <Text style={styles.heroCopy}>
-          {latestOutput
-            ? latestOutput.recommended_action
-            : 'Run your first guided scan to unlock trend lines, context-aware insights, and report previews.'}
-        </Text>
-
-        <View style={styles.heroMetricRow}>
-          <View>
-            <Text style={styles.heroMetricLabel}>{spotlightMetric.label} signal</Text>
-            <View style={styles.heroMetricValueRow}>
-              <Text style={styles.heroMetricValue}>{spotlightMetric.score ?? '--'}</Text>
-              {spotlightMetric.delta !== undefined ? (
-                <Text
-                  style={[
-                    styles.heroMetricDelta,
-                    { color: spotlightMetric.delta <= 0 ? Colors.success : Colors.error },
-                  ]}
-                >
-                  {spotlightMetric.delta > 0 ? '+' : ''}
-                  {spotlightMetric.delta}
-                </Text>
-              ) : null}
-            </View>
+          <View style={styles.emptyHeroActions}>
+            <Button title="Start first scan" onPress={() => router.push('/scan/connect')} />
+            <Button title="Learn more" variant="secondary" onPress={() => router.push('/skin-metrics')} />
           </View>
-          <Button
-            title={scannedToday && latestOutput ? "View today's results" : "Start today's scan"}
-            onPress={() => router.push(primaryAction)}
-            size="lg"
-          />
         </View>
-      </View>
+      )}
 
       <View style={styles.infoGrid}>
         <View style={styles.infoCard}>
@@ -319,7 +291,7 @@ export default function Home() {
           <ScoreTile
             label="Acne"
             score={latestOutput.acne_score}
-            delta={goals.acne.delta}
+            delta={baseline ? latestOutput.acne_score - baseline.acne_score : undefined}
             color={Colors.acne}
             sparklineData={acneHistory}
             compact
@@ -330,7 +302,7 @@ export default function Home() {
           <ScoreTile
             label="Sun Damage"
             score={latestOutput.sun_damage_score}
-            delta={goals.sun_damage.delta}
+            delta={baseline ? latestOutput.sun_damage_score - baseline.sun_damage_score : undefined}
             color={Colors.sunDamage}
             sparklineData={sunHistory}
             compact
@@ -341,7 +313,7 @@ export default function Home() {
           <ScoreTile
             label="Skin Age"
             score={latestOutput.skin_age_score}
-            delta={goals.skin_age.delta}
+            delta={baseline ? latestOutput.skin_age_score - baseline.skin_age_score : undefined}
             color={Colors.skinAge}
             sparklineData={ageHistory}
             compact
@@ -354,7 +326,7 @@ export default function Home() {
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No scan data yet</Text>
           <Text style={styles.emptyCopy}>
-            Your first baseline will unlock this dashboard and the shareable report preview.
+            Your first baseline will unlock this dashboard and the detailed assessment flow.
           </Text>
         </View>
       )}
@@ -468,72 +440,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.lg,
-    gap: Spacing.lg,
-    marginBottom: Spacing.lg,
-    ...Shadows.card,
-  },
-  heroGlow: {
-    position: 'absolute',
-    right: -40,
-    top: -30,
-    width: 180,
-    height: 180,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.glowPrimary,
-    opacity: 0.22,
-  },
-  heroHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     gap: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  heroEyebrow: {
-    color: Colors.secondaryLight,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
-  },
-  heroTitle: {
+  emptyHeroTitle: {
     color: Colors.text,
     fontFamily: FontFamily.serifBold,
-    fontSize: FontSize.hero,
-    lineHeight: 42,
-    maxWidth: '92%',
+    fontSize: FontSize.xxl,
   },
-  heroCopy: {
+  emptyHeroCopy: {
     color: Colors.textSecondary,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
     lineHeight: 24,
   },
-  heroMetricRow: {
-    gap: Spacing.lg,
-  },
-  heroMetricLabel: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: Spacing.xs,
-  },
-  heroMetricValueRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+  emptyHeroActions: {
     gap: Spacing.sm,
-  },
-  heroMetricValue: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.display,
-    lineHeight: 52,
-  },
-  heroMetricDelta: {
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.md,
-    marginBottom: 8,
   },
   infoGrid: {
     flexDirection: 'row',
