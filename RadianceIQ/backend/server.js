@@ -274,27 +274,63 @@ app.get('/api/reports/:userId', async (req, res) => {
   }
 });
 
-// ==================== OPEN BEAUTY FACTS PROXY ====================
+// ==================== BARCODE PRODUCT LOOKUP (waterfall) ====================
+
+async function lookupOpenFoodFacts(barcode) {
+  const res = await fetch(
+    `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
+  );
+  const data = await res.json();
+  if (data.status !== 1) return null;
+  const p = data.product;
+  return {
+    name: p.product_name || '',
+    brands: p.brands || '',
+    ingredients: p.ingredients_text || '',
+    image_url: p.image_url || null,
+    source: 'Open Food Facts',
+  };
+}
+
+async function lookupUPCitemdb(barcode) {
+  const res = await fetch(
+    `https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.items || data.items.length === 0) return null;
+  const item = data.items[0];
+  return {
+    name: item.title || '',
+    brands: item.brand || '',
+    ingredients: '',
+    image_url: (item.images && item.images[0]) || null,
+    source: 'UPCitemdb',
+  };
+}
 
 app.get('/api/products/lookup/:barcode', async (req, res) => {
-  try {
-    const response = await fetch(
-      `https://world.openbeautyfacts.org/api/v0/product/${req.params.barcode}.json`
-    );
-    const data = await response.json();
-    if (data.status === 1) {
-      res.json({
-        name: data.product.product_name || 'Unknown Product',
-        brands: data.product.brands || '',
-        ingredients: data.product.ingredients_text || '',
-        image_url: data.product.image_url || null,
-      });
-    } else {
-      res.status(404).json({ error: 'Product not found' });
+  const barcode = req.params.barcode;
+  const sources = [lookupOpenFoodFacts, lookupUPCitemdb];
+
+  let bestResult = null;
+  for (const lookup of sources) {
+    try {
+      const result = await lookup(barcode);
+      if (result && result.name) {
+        bestResult = result;
+        if (result.ingredients) break;
+      }
+    } catch {
+      // Source failed, try next
     }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
+
+  if (bestResult) {
+    return res.json(bestResult);
+  }
+
+  res.status(404).json({ error: 'Product not found in any database' });
 });
 
 // Start server

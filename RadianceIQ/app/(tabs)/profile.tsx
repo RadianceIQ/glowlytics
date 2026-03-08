@@ -88,12 +88,8 @@ export default function ProfileTab() {
             style={styles.addButton}
             onPress={() => router.push('/onboarding/products')}
           >
-            <Feather name="search" size={16} color={Colors.primaryLight} />
-            <Text style={styles.addButtonText}>Search product</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.addButton}>
-            <Feather name="camera" size={16} color={Colors.primaryLight} />
-            <Text style={styles.addButtonText}>Scan barcode</Text>
+            <Feather name="plus" size={16} color={Colors.primaryLight} />
+            <Text style={styles.addButtonText}>Add a Product</Text>
           </TouchableOpacity>
         </View>
       </View>
