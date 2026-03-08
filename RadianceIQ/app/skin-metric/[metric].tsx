@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { Button } from '../../src/components/Button';
@@ -67,6 +67,28 @@ export default function MetricAssessmentDetail() {
   }, [detail]);
 
   const activeZone = detail?.zones.find((zone) => zone.key === selectedZone) || detail?.zones[0];
+  const zoneReportMotion = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    zoneReportMotion.setValue(0);
+    Animated.timing(zoneReportMotion, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [activeZone?.key, zoneReportMotion]);
+
+  const zoneReportStyle = {
+    opacity: zoneReportMotion,
+    transform: [
+      {
+        translateY: zoneReportMotion.interpolate({
+          inputRange: [0, 1],
+          outputRange: [8, 0],
+        }),
+      },
+    ],
+  };
 
   if (!metric) {
     return (
@@ -141,11 +163,11 @@ export default function MetricAssessmentDetail() {
       </View>
 
       {activeZone ? (
-        <View style={styles.zoneReportCard}>
+        <Animated.View style={[styles.zoneReportCard, zoneReportStyle]}>
           <Text style={styles.zoneReportTitle}>{activeZone.label} finding</Text>
           <Text style={styles.zoneReportCopy}>{activeZone.summary}</Text>
           <Text style={styles.zoneAction}>{activeZone.recommendation}</Text>
-        </View>
+        </Animated.View>
       ) : null}
 
       <View style={styles.productCard}>

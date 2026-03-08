@@ -44,36 +44,71 @@ export interface MetricDetailInsight {
 
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value));
 
-const average = (values: number[]) => {
-  if (values.length === 0) return 0;
-  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
-};
-
 const severityFromScore = (score: number): SeverityLevel => {
-  if (score >= 70) return 'high';
-  if (score >= 40) return 'moderate';
+  if (score >= 68) return 'high';
+  if (score >= 38) return 'moderate';
   return 'low';
 };
 
 const confidenceStatus = (score: number) => {
-  if (score >= 85) return 'Optimal';
-  if (score >= 70) return 'Stable';
-  if (score >= 55) return 'Watch';
-  return 'Needs Attention';
+  if (score >= 88) return 'Peak';
+  if (score >= 75) return 'Strong';
+  if (score >= 60) return 'Monitor';
+  return 'Recovery';
 };
 
 const cadenceStatement = (score: number, trendDelta: number) => {
-  if (score >= 85 && trendDelta >= -2) {
+  if (score >= 88 && trendDelta >= 1) {
     return 'Keep it going! Reduce scans to once weekly.';
   }
-  if (score >= 70 && trendDelta >= -8) {
-    return 'Progress is steady. Keep scans to 2-3 times this week.';
+  if (score >= 75 && trendDelta >= -3) {
+    return 'Strong consistency. Scan twice weekly to maintain momentum.';
   }
-  if (score >= 55) {
-    return 'Slight regression noted. Scan every other day and keep routine stable.';
+  if (score >= 60 && trendDelta >= -8) {
+    return 'Signal variability detected. Scan every other day and hold routine changes.';
   }
   return 'Damage noted, increase scans to daily.';
 };
+
+const deriveCompositeSignals = ({
+  acneRisk,
+  sunRisk,
+  ageRisk,
+  inflammationRisk,
+  pigmentationRisk,
+  textureRisk,
+  stressLevel,
+  sleepQuality,
+}: {
+  acneRisk: number;
+  sunRisk: number;
+  ageRisk: number;
+  inflammationRisk: number;
+  pigmentationRisk: number;
+  textureRisk: number;
+  stressLevel?: DailyRecord['stress_level'];
+  sleepQuality?: DailyRecord['sleep_quality'];
+}): CompositeSignals => {
+  const stressPenalty = stressLevel === 'high' ? 12 : stressLevel === 'med' ? 6 : 0;
+  const sleepPenalty = sleepQuality === 'poor' ? 8 : sleepQuality === 'ok' ? 3 : 0;
+
+  return {
+    structure: clamp(Math.round(100 - (textureRisk * 0.55 + ageRisk * 0.45))),
+    hydration: clamp(Math.round(100 - (textureRisk * 0.5 + acneRisk * 0.2 + stressPenalty + sleepPenalty))),
+    inflammation: clamp(Math.round(100 - (inflammationRisk * 0.8 + acneRisk * 0.2))),
+    sunDamage: clamp(Math.round(100 - (sunRisk * 0.82 + pigmentationRisk * 0.18))),
+    elasticity: clamp(Math.round(100 - (ageRisk * 0.62 + textureRisk * 0.38))),
+  };
+};
+
+const scoreFromSignals = (signals: CompositeSignals) =>
+  Math.round(
+    signals.structure * 0.22 +
+      signals.hydration * 0.18 +
+      signals.inflammation * 0.2 +
+      signals.sunDamage * 0.2 +
+      signals.elasticity * 0.2
+  );
 
 const hasSunscreenProduct = (products: ProductEntry[]) =>
   products.some((product) => {
@@ -120,38 +155,31 @@ export const buildOverallSkinInsight = ({
   const pigmentationRisk = latestDaily?.scanner_indices.pigmentation_index ?? latestOutput.sun_damage_score;
   const textureRisk = latestDaily?.scanner_indices.texture_index ?? latestOutput.skin_age_score;
 
-  const structure = clamp(Math.round(100 - (textureRisk * 0.68 + latestOutput.skin_age_score * 0.32)));
-  const hydration = clamp(Math.round(
-    100 -
-      (textureRisk * 0.4 +
-        latestOutput.acne_score * 0.2 +
-        (latestDaily?.stress_level === 'high' ? 14 : latestDaily?.stress_level === 'med' ? 7 : 0))
-  ));
-  const inflammation = clamp(Math.round(100 - (inflammationRisk * 0.72 + latestOutput.acne_score * 0.28)));
-  const sunDamage = clamp(Math.round(100 - (latestOutput.sun_damage_score * 0.75 + pigmentationRisk * 0.25)));
-  const elasticity = clamp(Math.round(100 - (latestOutput.skin_age_score * 0.74 + textureRisk * 0.26)));
+  const signals = deriveCompositeSignals({
+    acneRisk: latestOutput.acne_score,
+    sunRisk: latestOutput.sun_damage_score,
+    ageRisk: latestOutput.skin_age_score,
+    inflammationRisk,
+    pigmentationRisk,
+    textureRisk,
+    stressLevel: latestDaily?.stress_level,
+    sleepQuality: latestDaily?.sleep_quality,
+  });
 
-  const signals: CompositeSignals = {
-    structure,
-    hydration,
-    inflammation,
-    sunDamage,
-    elasticity,
-  };
-
-  const score = average(Object.values(signals));
+  const score = scoreFromSignals(signals);
 
   const baselineSignals = baselineOutput
-    ? {
-        structure: clamp(Math.round(100 - baselineOutput.skin_age_score)),
-        hydration: clamp(Math.round(100 - (baselineOutput.skin_age_score * 0.5 + baselineOutput.acne_score * 0.5))),
-        inflammation: clamp(Math.round(100 - baselineOutput.acne_score)),
-        sunDamage: clamp(Math.round(100 - baselineOutput.sun_damage_score)),
-        elasticity: clamp(Math.round(100 - baselineOutput.skin_age_score)),
-      }
+    ? deriveCompositeSignals({
+        acneRisk: baselineOutput.acne_score,
+        sunRisk: baselineOutput.sun_damage_score,
+        ageRisk: baselineOutput.skin_age_score,
+        inflammationRisk: baselineOutput.acne_score,
+        pigmentationRisk: baselineOutput.sun_damage_score,
+        textureRisk: baselineOutput.skin_age_score,
+      })
     : null;
 
-  const baselineScore = baselineSignals ? average(Object.values(baselineSignals)) : score;
+  const baselineScore = baselineSignals ? scoreFromSignals(baselineSignals) : score;
   const trendDelta = score - baselineScore;
 
   return {

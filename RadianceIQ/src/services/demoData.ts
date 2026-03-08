@@ -1,7 +1,5 @@
 import type { DailyRecord, ModelOutput, ProductEntry, UserProfile, ScanProtocol } from '../types';
 
-const generateId = () => `demo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
 const daysAgo = (n: number): string => {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -195,4 +193,13 @@ export const createDemoHistory = (): { records: DailyRecord[]; outputs: ModelOut
   }
 
   return { records, outputs };
+};
+
+export const createDemoSeed = () => {
+  const user = createDemoUser();
+  const protocol = createDemoProtocol();
+  const products = createDemoProducts();
+  const { records, outputs } = createDemoHistory();
+
+  return { user, protocol, products, records, outputs };
 };

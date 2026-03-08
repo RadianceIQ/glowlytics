@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { Button } from './Button';
 import {
@@ -63,11 +63,62 @@ export const SkinScoreHero: React.FC<Props> = ({
   primaryActionLabel,
 }) => {
   const radius = 98;
-  const progressEnd = 180 - (Math.max(0, Math.min(100, score)) / 100) * 180;
+  const [animatedScore, setAnimatedScore] = useState(0);
+  const previousScore = useRef(0);
+  const revealMotion = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const from = previousScore.current;
+    const to = score;
+    const duration = 760;
+    const startAt = Date.now();
+    let frame = 0;
+
+    const run = () => {
+      const elapsed = Date.now() - startAt;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const value = from + (to - from) * eased;
+      setAnimatedScore(value);
+
+      if (progress < 1) {
+        frame = requestAnimationFrame(run);
+      } else {
+        previousScore.current = to;
+      }
+    };
+
+    frame = requestAnimationFrame(run);
+    return () => cancelAnimationFrame(frame);
+  }, [score]);
+
+  useEffect(() => {
+    revealMotion.setValue(0);
+    Animated.timing(revealMotion, {
+      toValue: 1,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [score, revealMotion]);
+
+  const progressEnd = 180 - (Math.max(0, Math.min(100, animatedScore)) / 100) * 180;
   const accent = scoreColor(score);
+  const displayScore = Math.round(animatedScore);
 
   const trendColor = trendDelta >= 0 ? Colors.success : Colors.error;
   const trendCopy = trendDelta === 0 ? 'No change' : `${trendDelta > 0 ? '+' : ''}${trendDelta} vs baseline`;
+  const revealStyle = {
+    opacity: revealMotion,
+    transform: [
+      {
+        translateY: revealMotion.interpolate({
+          inputRange: [0, 1],
+          outputRange: [10, 0],
+        }),
+      },
+    ],
+  };
 
   const signalRows = [
     { key: 'structure', label: 'Structure', value: signals.structure },
@@ -105,7 +156,7 @@ export const SkinScoreHero: React.FC<Props> = ({
           />
         </Svg>
         <View style={styles.centerScore}>
-          <Text style={styles.score}>{score}</Text>
+          <Text style={styles.score}>{displayScore}</Text>
           <Text style={styles.scoreLabel}>{statusLabel}</Text>
           <Text style={[styles.trend, { color: trendColor }]}>{trendCopy}</Text>
         </View>
@@ -113,19 +164,19 @@ export const SkinScoreHero: React.FC<Props> = ({
 
       <Text style={styles.actionStatement}>{actionStatement}</Text>
 
-      <View style={styles.actions}>
+      <Animated.View style={[styles.actions, revealStyle]}>
         <Button title="Learn more" variant="secondary" onPress={onLearnMore} />
         <Button title={primaryActionLabel} onPress={onPrimaryAction} />
-      </View>
+      </Animated.View>
 
-      <View style={styles.signalGrid}>
+      <Animated.View style={[styles.signalGrid, revealStyle]}>
         {signalRows.map((signal) => (
           <View key={signal.key} style={styles.signalChip}>
             <Text style={styles.signalLabel}>{signal.label}</Text>
             <Text style={styles.signalValue}>{signal.value}</Text>
           </View>
         ))}
-      </View>
+      </Animated.View>
     </View>
   );
 };

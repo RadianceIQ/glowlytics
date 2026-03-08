@@ -5,6 +5,7 @@ import type {
   UserProfile, ScanProtocol, ProductEntry, DailyRecord,
   ModelOutput, PrimaryGoal, ScanRegion, HealthConnectionState,
 } from '../types';
+import { createDemoSeed } from '../services/demoData';
 
 interface AppState {
   // User
@@ -249,8 +250,15 @@ export const useStore = create<AppState>((set, get) => ({
   loadPersistedData: async () => {
     try {
       const data = await AsyncStorage.getItem('radianceiq_data');
-      if (data) {
-        const parsed = JSON.parse(data);
+      const parsed = data ? JSON.parse(data) : null;
+      const hasPersistedSession = Boolean(
+        parsed?.user ||
+        parsed?.protocol ||
+        (parsed?.dailyRecords && parsed.dailyRecords.length > 0) ||
+        (parsed?.modelOutputs && parsed.modelOutputs.length > 0)
+      );
+
+      if (hasPersistedSession) {
         set({
           user: normalizeUser(parsed.user),
           protocol: parsed.protocol || null,
@@ -258,7 +266,20 @@ export const useStore = create<AppState>((set, get) => ({
           dailyRecords: parsed.dailyRecords || [],
           modelOutputs: parsed.modelOutputs || [],
         });
+        return;
       }
+
+      // Seed realistic usage data on first launch so home/report/detail flows are immediately populated.
+      const demo = createDemoSeed();
+      const seededState = {
+        user: normalizeUser(demo.user),
+        protocol: demo.protocol,
+        products: demo.products,
+        dailyRecords: demo.records,
+        modelOutputs: demo.outputs,
+      };
+      set(seededState);
+      await AsyncStorage.setItem('radianceiq_data', JSON.stringify(seededState));
     } catch (e) {
       console.log('Failed to load persisted data', e);
     }

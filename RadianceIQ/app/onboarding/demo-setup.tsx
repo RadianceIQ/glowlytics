@@ -4,17 +4,14 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSize, Spacing } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { useStore } from '../../src/store/useStore';
-import { createDemoUser, createDemoProtocol, createDemoProducts, createDemoHistory } from '../../src/services/demoData';
+import { createDemoSeed } from '../../src/services/demoData';
 
 export default function DemoSetup() {
   const router = useRouter();
   const store = useStore();
 
   const loadDemo = () => {
-    const user = createDemoUser();
-    const protocol = createDemoProtocol();
-    const products = createDemoProducts();
-    const { records, outputs } = createDemoHistory();
+    const { user, protocol, products, records, outputs } = createDemoSeed();
 
     store.createUser(user);
     store.updateUser({ onboarding_complete: true });
@@ -36,14 +33,14 @@ export default function DemoSetup() {
       <View style={styles.content}>
         <Text style={styles.title}>Demo Mode</Text>
         <Text style={styles.subtitle}>
-          Load 14 days of simulated scan data to explore the full app experience.
+          Load 21 days of simulated scan data to explore the full app experience.
         </Text>
         <Text style={styles.detail}>
           Includes:{'\n'}
           - User profile (age 25-34, NYC){'\n'}
           - Primary goal: Acne{'\n'}
-          - 3 skincare products{'\n'}
-          - 14 days of scan history{'\n'}
+          - 4 skincare products{'\n'}
+          - 21 days of scan history{'\n'}
           - Trend data with cycle correlation
         </Text>
       </View>

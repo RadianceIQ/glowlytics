@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   BorderRadius,
   Colors,
@@ -26,6 +26,24 @@ export const FaceAssessmentMap: React.FC<Props> = ({
   selectedZoneKey,
   onSelectZone,
 }) => {
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    pulse.setValue(0.92);
+    Animated.sequence([
+      Animated.timing(pulse, {
+        toValue: 1.08,
+        duration: 170,
+        useNativeDriver: true,
+      }),
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [selectedZoneKey, pulse]);
+
   return (
     <View style={styles.container}>
       <View style={styles.faceModel}>
@@ -40,9 +58,12 @@ export const FaceAssessmentMap: React.FC<Props> = ({
 
         {zones.map((zone) => {
           const selected = zone.key === selectedZoneKey;
+          const markerTransform = selected
+            ? [{ translateX: -14 }, { translateY: -14 }, { scale: pulse }]
+            : [{ translateX: -14 }, { translateY: -14 }];
 
           return (
-            <TouchableOpacity
+            <Animated.View
               key={zone.key}
               style={[
                 styles.marker,
@@ -53,16 +74,20 @@ export const FaceAssessmentMap: React.FC<Props> = ({
                   backgroundColor: selected
                     ? severityColors[zone.severity]
                     : severityColors[zone.severity] + '22',
-                  transform: [{ translateX: -14 }, { translateY: -14 }],
+                  transform: markerTransform,
                 },
               ]}
-              onPress={() => onSelectZone(zone.key)}
-              activeOpacity={0.8}
             >
-              <Text style={[styles.markerLabel, selected && styles.markerLabelSelected]}>
-                {zone.label.slice(0, 1)}
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => onSelectZone(zone.key)}
+                activeOpacity={0.8}
+                style={styles.markerTouch}
+              >
+                <Text style={[styles.markerLabel, selected && styles.markerLabelSelected]}>
+                  {zone.label.slice(0, 1)}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
           );
         })}
       </View>
@@ -125,6 +150,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  markerTouch: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.full,
   },
   markerLabel: {
     color: Colors.text,
