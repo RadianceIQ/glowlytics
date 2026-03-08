@@ -51,7 +51,9 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: Colors.background },
             animation: 'slide_from_right',
           }}
-        />
+        >
+          <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
+        </Stack>
       </View>
     </SafeAreaProvider>
   );
