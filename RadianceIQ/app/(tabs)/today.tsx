@@ -1,6 +1,6 @@
 import React from 'react';
-import TodayScreen from '../../src/screens/TodayScreen';
+import Home from '../home';
 
 export default function TodayTab() {
-  return <TodayScreen />;
+  return <Home />;
 }

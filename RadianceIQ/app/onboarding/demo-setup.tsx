@@ -25,7 +25,7 @@ export default function DemoSetup() {
     });
 
     store.persistData();
-    router.replace('/home');
+    router.replace('/(tabs)/today');
   };
 
   return (

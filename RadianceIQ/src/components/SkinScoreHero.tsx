@@ -103,14 +103,6 @@ export const SkinScoreHero: React.FC<Props> = ({
     ],
   };
 
-  const signalRows = [
-    { key: 'structure', label: 'Structure', value: signals.structure },
-    { key: 'hydration', label: 'Hydration', value: signals.hydration },
-    { key: 'inflammation', label: 'Inflammation', value: signals.inflammation },
-    { key: 'sunDamage', label: 'Sun Damage', value: signals.sunDamage },
-    { key: 'elasticity', label: 'Elasticity', value: signals.elasticity },
-  ];
-
   return (
     <View style={styles.card}>
       <View style={styles.glow} />
@@ -153,14 +145,6 @@ export const SkinScoreHero: React.FC<Props> = ({
         <Button title={primaryActionLabel} onPress={onPrimaryAction} />
       </Animated.View>
 
-      <Animated.View style={[styles.signalGrid, revealStyle]}>
-        {signalRows.map((signal) => (
-          <View key={signal.key} style={styles.signalChip}>
-            <Text style={styles.signalLabel}>{signal.label}</Text>
-            <Text style={styles.signalValue}>{signal.value}</Text>
-          </View>
-        ))}
-      </Animated.View>
     </View>
   );
 };
@@ -198,11 +182,11 @@ const styles = StyleSheet.create({
   gaugeWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 160,
+    minHeight: 176,
   },
   centerScore: {
     position: 'absolute',
-    bottom: 14,
+    bottom: 0,
     alignItems: 'center',
     gap: Spacing.xs,
   },
@@ -227,34 +211,6 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.lg,
     lineHeight: 24,
-  },
-  signalGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    marginTop: Spacing.xs,
-  },
-  signalChip: {
-    width: '48%',
-    backgroundColor: Colors.glass,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    gap: 2,
-  },
-  signalLabel: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  signalValue: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.lg,
   },
   actions: {
     gap: Spacing.sm,

@@ -69,7 +69,7 @@ export default function Results() {
 
   const handleDone = () => {
     disconnectScanner();
-    router.replace('/home');
+    router.replace('/(tabs)/today');
   };
 
   return (
@@ -158,7 +158,7 @@ export default function Results() {
         </View>
         <View style={styles.disconnectActions}>
           <Button title="Disconnect" onPress={handleDone} size="sm" />
-          <Button title="Keep live" variant="ghost" onPress={() => router.replace('/home')} size="sm" />
+          <Button title="Keep live" variant="ghost" onPress={() => router.replace('/(tabs)/today')} size="sm" />
         </View>
       </View>
 

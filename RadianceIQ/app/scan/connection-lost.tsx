@@ -23,7 +23,7 @@ export default function ConnectionLost() {
         <Button
           title="Cancel scan"
           variant="ghost"
-          onPress={() => router.replace('/home')}
+          onPress={() => router.replace('/(tabs)/today')}
         />
       </View>
     </View>

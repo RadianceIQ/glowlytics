@@ -21,7 +21,7 @@ export default function Index() {
   useEffect(() => {
     if (onboardingComplete && !navigated.current) {
       navigated.current = true;
-      router.replace('/home');
+      router.replace('/(tabs)/today');
     }
   }, [onboardingComplete]);
 

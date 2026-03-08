@@ -50,7 +50,7 @@ export default function Boost() {
       last_checked_at: new Date().toISOString(),
     });
 
-    router.replace('/home');
+    router.replace('/(tabs)/today');
   };
 
   const handleSkip = () => {
@@ -59,7 +59,7 @@ export default function Boost() {
       last_checked_at: new Date().toISOString(),
     });
     updateUser({ onboarding_complete: true });
-    router.replace('/home');
+    router.replace('/(tabs)/today');
   };
 
   const handleConnectHealth = async () => {

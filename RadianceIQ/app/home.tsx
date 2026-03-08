@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../src/components/AtmosphereScreen';
-import { ActionCard } from '../src/components/ActionCard';
 import { Button } from '../src/components/Button';
 import { ScoreTile } from '../src/components/ScoreTile';
 import { SkinScoreHero } from '../src/components/SkinScoreHero';
@@ -255,27 +254,14 @@ export default function Home() {
         </View>
       )}
 
-      <View style={styles.infoGrid}>
-        <View style={styles.infoCard}>
-          <Text style={styles.infoEyebrow}>Cadence</Text>
-          <Text style={styles.infoValue}>{streak} day streak</Text>
-          <Text style={styles.infoCopy}>
-            {protocol?.scan_region
-              ? `Same-region scans on ${protocol.scan_region.replace(/_/g, ' ')} keep the trend cleaner.`
-              : 'Choose a consistent region for cleaner signal tracking.'}
-          </Text>
-        </View>
-        <View style={styles.infoCard}>
-          <Text style={styles.infoEyebrow}>Program</Text>
-          <Text style={styles.infoValue}>
-            {protocol?.primary_goal ? protocol.primary_goal.replace(/_/g, ' ') : 'Baseline'}
-          </Text>
-          <Text style={styles.infoCopy}>
-            {dailyRecords.length > 0
-              ? `${dailyRecords.length} scans captured so far.`
-              : 'No scans captured yet.'}
-          </Text>
-        </View>
+      <View style={styles.infoCard}>
+        <Text style={styles.infoEyebrow}>Cadence</Text>
+        <Text style={styles.infoValue}>{streak} day streak</Text>
+        <Text style={styles.infoCopy}>
+          {protocol?.scan_region
+            ? `Same-region scans on ${protocol.scan_region.replace(/_/g, ' ')} keep the trend cleaner.`
+            : 'Choose a consistent region for cleaner signal tracking.'}
+        </Text>
       </View>
 
       {latestOutput ? (
@@ -323,13 +309,6 @@ export default function Home() {
         </View>
       )}
 
-      {latestOutput?.recommended_action ? (
-        <ActionCard
-          driver={latestOutput.primary_driver || 'daily insight'}
-          action={latestOutput.recommended_action}
-          supportingText="One best next step, kept intentionally focused so the dashboard stays fast to scan."
-        />
-      ) : null}
 
       <View style={styles.utilityStrip}>
         <TouchableOpacity style={styles.utilityAction} onPress={() => router.push('/report/generate')}>
@@ -447,14 +426,9 @@ const styles = StyleSheet.create({
   emptyHeroActions: {
     gap: Spacing.sm,
   },
-  infoGrid: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
   infoCard: {
-    flex: 1,
     backgroundColor: Colors.glass,
+    marginBottom: Spacing.lg,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
