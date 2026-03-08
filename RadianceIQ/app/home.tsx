@@ -92,6 +92,8 @@ export default function Home() {
 
   const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
   const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
+  const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
+
   const latestRecord = useMemo(() => {
     if (dailyRecords.length === 0) return null;
     const sorted = [...dailyRecords].sort((a, b) => a.date.localeCompare(b.date));
@@ -135,6 +137,16 @@ export default function Home() {
   const acneHistory = outputHistory.map((output) => output.acne_score);
   const sunHistory = outputHistory.map((output) => output.sun_damage_score);
   const ageHistory = outputHistory.map((output) => output.skin_age_score);
+
+  const overallInsight = useMemo(
+    () =>
+      buildOverallSkinInsight({
+        latestOutput,
+        baselineOutput: baseline,
+        latestDaily,
+      }),
+    [latestOutput, baseline, latestDaily]
+  );
 
   const topStats = useMemo<TopStat[]>(() => {
     const inflammationIndex = latestRecord?.scanner_indices.inflammation_index ?? 38;
@@ -190,37 +202,6 @@ export default function Home() {
     ];
   }, [latestOutput, latestRecord]);
 
-  const goals = {
-    acne: {
-      label: 'Acne',
-      score: latestOutput?.acne_score,
-      color: Colors.acne,
-      delta: latestOutput && baseline ? latestOutput.acne_score - baseline.acne_score : undefined,
-      history: acneHistory,
-      icon: 'A',
-    },
-    sun_damage: {
-      label: 'Sun Damage',
-      score: latestOutput?.sun_damage_score,
-      color: Colors.sunDamage,
-      delta: latestOutput && baseline ? latestOutput.sun_damage_score - baseline.sun_damage_score : undefined,
-      history: sunHistory,
-      icon: 'S',
-    },
-    skin_age: {
-      label: 'Skin Age',
-      score: latestOutput?.skin_age_score,
-      color: Colors.skinAge,
-      delta: latestOutput && baseline ? latestOutput.skin_age_score - baseline.skin_age_score : undefined,
-      history: ageHistory,
-      icon: 'G',
-    },
-  } as const;
-
-  const goalKey = protocol?.primary_goal || 'acne';
-  const spotlightMetric = goals[goalKey];
-  const primaryAction = scannedToday && latestOutput ? '/scan/results' : '/scan/connect';
-
   return (
     <AtmosphereScreen>
       <View style={styles.header}>
@@ -250,11 +231,22 @@ export default function Home() {
         </ScrollView>
       </View>
 
-      <View style={styles.heroCard}>
-        <View style={styles.heroGlow} />
-        <View style={styles.heroHeader}>
-          <Text style={styles.heroEyebrow}>
-            {scannedToday ? 'Today refreshed' : 'Today spotlight'}
+      {overallInsight ? (
+        <SkinScoreHero
+          score={overallInsight.score}
+          statusLabel={overallInsight.statusLabel}
+          actionStatement={overallInsight.actionStatement}
+          trendDelta={overallInsight.trendDelta}
+          signals={overallInsight.signals}
+          onLearnMore={() => router.push('/skin-metrics')}
+          onPrimaryAction={() => router.push(primaryAction)}
+          primaryActionLabel={scannedToday && latestOutput ? "View today's results" : "Start today's scan"}
+        />
+      ) : (
+        <View style={styles.emptyHero}>
+          <Text style={styles.emptyHeroTitle}>Build your first baseline</Text>
+          <Text style={styles.emptyHeroCopy}>
+            Your overall skin score unlocks after your first scan. Start now to track structure, hydration, inflammation, sun damage, and elasticity.
           </Text>
           <View style={styles.emptyHeroActions}>
             <Button title="Start first scan" onPress={() => router.push('/scan/connect')} />
@@ -432,9 +424,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textAlign: 'center',
   },
-  heroCard: {
-    position: 'relative',
-    overflow: 'hidden',
+  emptyHero: {
     backgroundColor: Colors.glassStrong,
     borderRadius: BorderRadius.xxl,
     borderWidth: 1,
