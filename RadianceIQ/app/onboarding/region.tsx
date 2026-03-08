@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { FaceMap } from '../../src/components/FaceMap';
 import { OnboardingHero } from '../../src/components/OnboardingHero';
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   recommendationText: {
     color: Colors.accent,
     fontSize: FontSize.xs,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     textTransform: 'capitalize',
   },
   footer: {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors, BorderRadius, FontSize, Spacing } from '../constants/theme';
+import { Colors, BorderRadius, FontSize, FontFamily, Spacing } from '../constants/theme';
 import type { ScanRegion } from '../types';
 
 interface Props {
@@ -139,11 +139,11 @@ const styles = StyleSheet.create({
   regionLabel: {
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
-    fontWeight: '500',
+    fontFamily: FontFamily.sansMedium,
   },
   regionLabelSelected: {
     color: Colors.primary,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
   },
   recommended: {
     color: Colors.accent,

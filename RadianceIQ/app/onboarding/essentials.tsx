@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
 import { OnboardingHero } from '../../src/components/OnboardingHero';
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: FontSize.lg,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     color: Colors.text,
   },
   helperText: {
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   },
   inlineLabel: {
     fontSize: FontSize.sm,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
     color: Colors.text,
   },
   footer: {

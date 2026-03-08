@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, FontSize, Spacing } from '../../src/constants/theme';
+import { Colors, FontSize, FontFamily, Spacing } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { ScannerAnimation } from '../../src/components/ScannerAnimation';
 
@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSize.xxl,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     color: Colors.text,
     textAlign: 'center',
     marginTop: Spacing.lg,

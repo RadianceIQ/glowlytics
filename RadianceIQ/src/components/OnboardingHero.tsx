@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors, FontSize, Spacing, BorderRadius } from '../constants/theme';
+import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../constants/theme';
 import { ProgressDots } from './ProgressDots';
 
 interface Props {
@@ -54,14 +54,14 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: Colors.primaryLight,
     fontSize: FontSize.xs,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   title: {
     color: Colors.text,
     fontSize: FontSize.hero,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     lineHeight: 42,
   },
   subtitle: {

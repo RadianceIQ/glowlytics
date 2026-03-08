@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OnboardingHero } from '../../src/components/OnboardingHero';
 import { useStore } from '../../src/store/useStore';
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: Colors.text,
     fontSize: FontSize.lg,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
   },
   cardBody: {
     color: Colors.textSecondary,
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: FontSize.xs,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     textTransform: 'uppercase',
   },
   supportNote: {

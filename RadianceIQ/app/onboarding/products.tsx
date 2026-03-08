@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
 import { OnboardingHero } from '../../src/components/OnboardingHero';
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: Colors.text,
     fontSize: FontSize.lg,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
   },
   helperText: {
     color: Colors.textSecondary,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   productName: {
     color: Colors.text,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
   },
   productIngredients: {
     color: Colors.textSecondary,
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   productSchedule: {
     color: Colors.primaryLight,
     fontSize: FontSize.xs,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     textTransform: 'uppercase',
   },
   addButtons: {
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   searchResultName: {
     color: Colors.text,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
   },
   searchResultIngredients: {
     color: Colors.textSecondary,
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   scheduleLabel: {
     color: Colors.text,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
   },
   addProductButton: {
     marginTop: Spacing.xs,

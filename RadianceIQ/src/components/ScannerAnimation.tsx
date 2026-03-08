@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { Colors, BorderRadius, FontSize, Spacing } from '../constants/theme';
+import { Colors, BorderRadius, FontSize, FontFamily, Spacing } from '../constants/theme';
 
 interface Props {
   phase: 'searching' | 'connecting' | 'scanning' | 'complete' | 'error';
@@ -88,11 +88,11 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: FontSize.hero,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
   },
   text: {
     fontSize: FontSize.lg,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
   },
   progressBar: {
     width: '80%',

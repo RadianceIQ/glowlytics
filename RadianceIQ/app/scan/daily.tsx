@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { ScannerAnimation } from '../../src/components/ScannerAnimation';
 import { useStore } from '../../src/store/useStore';
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSize.xxl,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     color: Colors.text,
     textAlign: 'center',
     marginBottom: Spacing.sm,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
   regionLabel: {
     color: Colors.primary,
     fontSize: FontSize.xs,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     backgroundColor: Colors.background + 'CC',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   baselineText: {
     color: Colors.accent,
     fontSize: FontSize.xs,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
   },
   cameraControls: {
     position: 'absolute',

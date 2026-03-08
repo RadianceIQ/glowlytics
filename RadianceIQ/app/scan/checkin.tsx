@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
 import { useStore } from '../../src/store/useStore';
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSize.xxl,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     color: Colors.text,
     marginBottom: Spacing.sm,
   },
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
     color: Colors.text,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   cycleDayText: {
     color: Colors.primary,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
   },
   contextToggle: {
     marginTop: Spacing.xl,

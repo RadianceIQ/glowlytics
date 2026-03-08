@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { router as globalRouter } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../src/components/AtmosphereScreen';
@@ -84,7 +84,7 @@ const formatMetricStatus = (value: number) => {
 };
 
 export default function Home() {
-  const router = useRouter();
+  const router = globalRouter;
   const protocol = useStore((s) => s.protocol);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const modelOutputs = useStore((s) => s.modelOutputs);
@@ -204,19 +204,14 @@ export default function Home() {
   return (
     <AtmosphereScreen>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>Today</Text>
-          <Text style={styles.date}>
-            {new Date().toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-            })}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.reportButton} onPress={() => router.push('/report/generate')}>
-          <Text style={styles.reportButtonText}>Report</Text>
-        </TouchableOpacity>
+        <Text style={styles.eyebrow}>Today</Text>
+        <Text style={styles.date}>
+          {new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </Text>
       </View>
 
       <View style={styles.summaryRow}>
@@ -333,9 +328,6 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: Spacing.lg,
   },
   eyebrow: {
@@ -351,25 +343,12 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xxl,
   },
-  reportButton: {
-    backgroundColor: Colors.glass,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  reportButtonText: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
-  },
   summaryRow: {
     marginBottom: Spacing.lg,
-    marginHorizontal: -Spacing.xs,
+    marginHorizontal: -Spacing.lg,
   },
   summaryRowContent: {
-    paddingHorizontal: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
   },
   summaryStat: {

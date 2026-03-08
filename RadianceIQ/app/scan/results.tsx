@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { ActionCard } from '../../src/components/ActionCard';
 import { Button } from '../../src/components/Button';
-import { ConfidenceBadge } from '../../src/components/ConfidenceBadge';
+import { FacialMesh } from '../../src/components/FacialMesh';
 import { ScoreTile } from '../../src/components/ScoreTile';
 import {
   BorderRadius,
@@ -75,28 +75,29 @@ export default function Results() {
   return (
     <AtmosphereScreen>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>Results</Text>
-          <Text style={styles.title}>Today’s scan outcome</Text>
-        </View>
-        <TouchableOpacity style={styles.inlineAction} onPress={() => router.push('/report/generate')}>
-          <Text style={styles.inlineActionText}>Share</Text>
-        </TouchableOpacity>
+        <Text style={styles.eyebrow}>Results</Text>
+        <Text style={styles.title}>Today’s scan outcome</Text>
       </View>
 
       <View style={styles.metaRow}>
-        <ConfidenceBadge level={latestOutput.confidence} />
         <Text style={styles.metaText}>
           Driver: {(latestOutput.primary_driver || 'daily insight').replace(/_/g, ' ')}
         </Text>
       </View>
 
-      <ActionCard
-        driver={latestOutput.primary_driver || 'daily insight'}
-        action={explanation}
-        supportingText={latestOutput.recommended_action}
-        mode="hero"
+      <FacialMesh
+        acneScore={latestOutput.acne_score}
+        sunDamageScore={latestOutput.sun_damage_score}
+        skinAgeScore={latestOutput.skin_age_score}
       />
+
+      <View style={{ marginTop: Spacing.lg }}>
+        <ActionCard
+          driver={latestOutput.primary_driver || 'daily insight'}
+          action={explanation}
+          supportingText={latestOutput.recommended_action}
+        />
+      </View>
 
       <View style={styles.metricStack}>
         <ScoreTile
@@ -171,10 +172,6 @@ export default function Results() {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
     marginBottom: Spacing.md,
   },
   eyebrow: {
@@ -190,19 +187,6 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.serifBold,
     fontSize: FontSize.hero,
     lineHeight: 40,
-  },
-  inlineAction: {
-    backgroundColor: Colors.glass,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  inlineActionText: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
   },
   metaRow: {
     flexDirection: 'row',

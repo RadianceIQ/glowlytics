@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { ScannerAnimation } from '../../src/components/ScannerAnimation';
 import { OnboardingHero } from '../../src/components/OnboardingHero';
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     color: Colors.text,
     fontSize: FontSize.lg,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     marginBottom: Spacing.xs,
   },
   infoItem: {
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSize.xxl,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     color: Colors.text,
     textAlign: 'center',
     marginBottom: Spacing.sm,
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   regionLabel: {
     color: Colors.primary,
     fontSize: FontSize.xs,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     backgroundColor: Colors.background + 'CC',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { ScannerAnimation } from '../../src/components/ScannerAnimation';
 import { useStore } from '../../src/store/useStore';
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSize.xxl,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     color: Colors.text,
     textAlign: 'center',
     marginBottom: Spacing.sm,
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     color: Colors.text,
     fontSize: FontSize.md,
-    fontWeight: '700',
+    fontFamily: FontFamily.sansBold,
     textAlign: 'center',
     lineHeight: 28,
     overflow: 'hidden',
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
   deviceName: {
     color: Colors.text,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
   },
   deviceStatus: {
     color: Colors.success,

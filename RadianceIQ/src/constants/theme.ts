@@ -74,12 +74,12 @@ export const BorderRadius = {
 };
 
 export const FontFamily = {
-  sans: 'Outfit_400Regular',
-  sansMedium: 'Outfit_500Medium',
-  sansSemiBold: 'Outfit_600SemiBold',
-  sansBold: 'Outfit_700Bold',
-  serif: 'CormorantGaramond_600SemiBold',
-  serifBold: 'CormorantGaramond_700Bold',
+  sans: 'Switzer-Regular',
+  sansMedium: 'Switzer-Regular',
+  sansSemiBold: 'Switzer-Bold',
+  sansBold: 'Switzer-Bold',
+  serif: 'Switzer-Regular',
+  serifBold: 'Switzer-Bold',
 };
 
 export const Shadows = {

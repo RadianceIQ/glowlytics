@@ -1,7 +1,8 @@
 import React from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BorderRadius,
@@ -20,11 +21,13 @@ const TabGlyph: React.FC<{ icon: IconName; label: string; focused: boolean }> = 
   focused,
 }) => (
   <View style={styles.tabGlyph}>
-    <Feather
-      name={icon}
-      size={18}
-      color={focused ? Colors.primaryLight : Colors.textMuted}
-    />
+    <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+      <Feather
+        name={icon}
+        size={20}
+        color={focused ? Colors.text : Colors.textMuted}
+      />
+    </View>
     <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
   </View>
 );
@@ -39,11 +42,18 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarHideOnKeyboard: true,
+        tabBarBackground: () => (
+          <BlurView
+            intensity={40}
+            tint="dark"
+            style={[StyleSheet.absoluteFill, styles.blurFill]}
+          />
+        ),
         tabBarStyle: [
           styles.tabBar,
           {
-            height: 70 + Math.max(insets.bottom - 2, 0),
-            paddingBottom: Math.max(insets.bottom, Spacing.sm),
+            height: 64 + Math.max(insets.bottom - 4, 0),
+            paddingBottom: Math.max(insets.bottom - 4, Spacing.xs),
           },
         ],
       }}
@@ -83,9 +93,10 @@ export default function TabsLayout() {
               onPress={() => router.push('/scan/connect')}
               style={styles.cameraButton}
             >
-              <View style={styles.cameraInner}>
-                <Feather name="camera" size={17} color={Colors.backgroundDeep} />
-                <Text style={styles.cameraLabel}>Camera</Text>
+              <View style={styles.cameraOuter}>
+                <View style={styles.cameraInner}>
+                  <Feather name="camera" size={22} color={Colors.backgroundDeep} />
+                </View>
               </View>
             </Pressable>
           ),
@@ -117,53 +128,70 @@ const styles = StyleSheet.create({
     left: Spacing.md,
     right: Spacing.md,
     bottom: Spacing.md,
-    backgroundColor: Colors.glassStrong,
-    borderRadius: BorderRadius.xxl,
+    backgroundColor: 'rgba(8, 14, 24, 0.75)',
+    borderRadius: BorderRadius.full,
+    borderTopWidth: 0,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderTopWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     paddingTop: Spacing.xs,
-    ...Shadows.card,
+    elevation: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+  },
+  blurFill: {
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
   },
   tabGlyph: {
-    minWidth: 56,
+    minWidth: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
+  },
+  iconWrap: {
+    width: 36,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.full,
+  },
+  iconWrapActive: {
+    backgroundColor: 'rgba(199, 255, 250, 0.08)',
   },
   tabLabel: {
     color: Colors.textMuted,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    letterSpacing: 0.25,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: 10,
+    letterSpacing: 0.2,
   },
   tabLabelActive: {
-    color: Colors.primaryLight,
+    color: Colors.text,
   },
   cameraButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -14,
+    marginTop: -20,
   },
-  cameraInner: {
-    minWidth: 78,
-    minHeight: 50,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primary,
-    borderWidth: 1,
-    borderColor: 'rgba(199, 255, 250, 0.4)',
+  cameraOuter: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(8, 14, 24, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 1,
-    ...Shadows.glow,
+    borderWidth: 2,
+    borderColor: 'rgba(199, 255, 250, 0.12)',
   },
-  cameraLabel: {
-    color: Colors.backgroundDeep,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.xs,
-    letterSpacing: 0.2,
+  cameraInner: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.glow,
   },
 });

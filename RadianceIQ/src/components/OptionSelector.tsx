@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors, BorderRadius, FontSize, Spacing } from '../constants/theme';
+import { Colors, BorderRadius, FontSize, FontFamily, Spacing } from '../constants/theme';
 
 interface Option {
   label: string;
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   optionLabel: {
     color: Colors.text,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontFamily: FontFamily.sansSemiBold,
   },
   optionLabelSelected: {
     color: Colors.primary,

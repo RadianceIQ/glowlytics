@@ -4,16 +4,6 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { useFonts } from 'expo-font';
-import {
-  Outfit_400Regular,
-  Outfit_500Medium,
-  Outfit_600SemiBold,
-  Outfit_700Bold,
-} from '@expo-google-fonts/outfit';
-import {
-  CormorantGaramond_600SemiBold,
-  CormorantGaramond_700Bold,
-} from '@expo-google-fonts/cormorant-garamond';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../src/constants/theme';
 import { useStore } from '../src/store/useStore';
@@ -22,12 +12,8 @@ export default function RootLayout() {
   const loadPersistedData = useStore((s) => s.loadPersistedData);
   const loaded = useRef(false);
   const [fontsLoaded] = useFonts({
-    Outfit_400Regular,
-    Outfit_500Medium,
-    Outfit_600SemiBold,
-    Outfit_700Bold,
-    CormorantGaramond_600SemiBold,
-    CormorantGaramond_700Bold,
+    'Switzer-Regular': require('../assets/fonts/Switzer-Regular.ttf'),
+    'Switzer-Bold': require('../assets/fonts/Switzer-Bold.ttf'),
   });
 
   useEffect(() => {
