@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
 
-export default function HomeRedirect() {
+export default function CameraTab() {
   return <Redirect href="/today" />;
 }
