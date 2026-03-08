@@ -23,28 +23,6 @@ interface Props {
   primaryActionLabel: string;
 }
 
-const polarToCartesian = (cx: number, cy: number, radius: number, angle: number) => {
-  const radians = ((angle - 90) * Math.PI) / 180;
-  return {
-    x: cx + radius * Math.cos(radians),
-    y: cy + radius * Math.sin(radians),
-  };
-};
-
-const describeArc = (
-  cx: number,
-  cy: number,
-  radius: number,
-  startAngle: number,
-  endAngle: number
-) => {
-  const start = polarToCartesian(cx, cy, radius, endAngle);
-  const end = polarToCartesian(cx, cy, radius, startAngle);
-  const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
-
-  return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
-};
-
 const scoreColor = (score: number) => {
   if (score >= 85) return Colors.success;
   if (score >= 70) return Colors.primary;
@@ -102,9 +80,14 @@ export const SkinScoreHero: React.FC<Props> = ({
     }).start();
   }, [score, revealMotion]);
 
-  const progressEnd = 180 - (Math.max(0, Math.min(100, animatedScore)) / 100) * 180;
   const accent = scoreColor(score);
   const displayScore = Math.round(animatedScore);
+  const progressRatio = Math.max(0, Math.min(100, animatedScore)) / 100;
+  const arcLength = Math.PI * radius;
+  const progressLength = arcLength * progressRatio;
+  const gaugeCenterX = 120;
+  const gaugeCenterY = 120;
+  const gaugePath = `M ${gaugeCenterX - radius} ${gaugeCenterY} A ${radius} ${radius} 0 0 1 ${gaugeCenterX + radius} ${gaugeCenterY}`;
 
   const trendColor = trendDelta >= 0 ? Colors.success : Colors.error;
   const trendCopy = trendDelta === 0 ? 'No change' : `${trendDelta > 0 ? '+' : ''}${trendDelta} vs baseline`;
@@ -141,17 +124,18 @@ export const SkinScoreHero: React.FC<Props> = ({
             </LinearGradient>
           </Defs>
           <Path
-            d={describeArc(120, 120, radius, 180, 0)}
+            d={gaugePath}
             stroke={Colors.divider}
             strokeWidth={14}
             strokeLinecap="round"
             fill="none"
           />
           <Path
-            d={describeArc(120, 120, radius, 180, progressEnd)}
+            d={gaugePath}
             stroke="url(#skinGauge)"
             strokeWidth={14}
             strokeLinecap="round"
+            strokeDasharray={`${progressLength} ${arcLength}`}
             fill="none"
           />
         </Svg>
