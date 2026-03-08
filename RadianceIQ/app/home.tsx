@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import Svg, { Circle } from 'react-native-svg';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../src/components/AtmosphereScreen';
 import { ActionCard } from '../src/components/ActionCard';
 import { Button } from '../src/components/Button';
@@ -15,6 +17,62 @@ import {
   Spacing,
 } from '../src/constants/theme';
 import { useStore } from '../src/store/useStore';
+
+interface TopStat {
+  key: string;
+  label: string;
+  value: number;
+  color: string;
+  icon: string;
+}
+
+const clampScore = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+
+const ringSize = 78;
+const ringStroke = 5;
+
+const TopStatRing: React.FC<{ value: number; color: string; icon: string }> = ({ value, color, icon }) => {
+  const radius = (ringSize - ringStroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const ringSpan = circumference * 0.84;
+  const gap = circumference - ringSpan;
+  const progressSpan = ringSpan * (clampScore(value) / 100);
+  const center = ringSize / 2;
+  const rotation = `rotate(128 ${center} ${center})`;
+
+  return (
+    <View style={styles.statRingWrap}>
+      <Svg width={ringSize} height={ringSize}>
+        <Circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke={Colors.borderStrong}
+          strokeWidth={ringStroke}
+          strokeLinecap="round"
+          strokeDasharray={`${ringSpan} ${gap}`}
+          transform={rotation}
+        />
+        <Circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={ringStroke}
+          strokeLinecap="round"
+          strokeDasharray={`${progressSpan} ${circumference}`}
+          transform={rotation}
+        />
+      </Svg>
+      <View style={styles.statRingCenter} pointerEvents="none">
+        <Text style={styles.statValue}>{clampScore(value)}</Text>
+        <MaterialCommunityIcons name={icon as any} size={18} color={color} />
+      </View>
+    </View>
+  );
+};
 
 const formatMetricStatus = (value: number) => {
   if (value <= 25) return 'Calm';
@@ -31,6 +89,11 @@ export default function Home() {
 
   const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
   const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
+  const latestRecord = useMemo(() => {
+    if (dailyRecords.length === 0) return null;
+    const sorted = [...dailyRecords].sort((a, b) => a.date.localeCompare(b.date));
+    return sorted[sorted.length - 1];
+  }, [dailyRecords]);
 
   const streak = useMemo(() => {
     const sorted = [...dailyRecords].sort((a, b) => b.date.localeCompare(a.date));
@@ -68,6 +131,60 @@ export default function Home() {
   const acneHistory = outputHistory.map((output) => output.acne_score);
   const sunHistory = outputHistory.map((output) => output.sun_damage_score);
   const ageHistory = outputHistory.map((output) => output.skin_age_score);
+
+  const topStats = useMemo<TopStat[]>(() => {
+    const inflammationIndex = latestRecord?.scanner_indices.inflammation_index ?? 38;
+    const pigmentationIndex = latestRecord?.scanner_indices.pigmentation_index ?? 30;
+    const textureIndex = latestRecord?.scanner_indices.texture_index ?? 36;
+    const sleepBoost =
+      latestRecord?.sleep_quality === 'great' ? 8 : latestRecord?.sleep_quality === 'poor' ? -6 : 0;
+
+    const hydration = clampScore(100 - textureIndex * 0.72 + sleepBoost);
+    const elasticity = clampScore(
+      latestOutput ? 100 - latestOutput.skin_age_score * 0.9 : 100 - textureIndex * 0.82
+    );
+    const inflammation = clampScore(inflammationIndex);
+    const sunDamage = clampScore(latestOutput?.sun_damage_score ?? pigmentationIndex * 1.35);
+    const structure = clampScore(100 - textureIndex);
+
+    return [
+      {
+        key: 'hydration',
+        label: 'Hydration',
+        value: hydration,
+        color: Colors.primary,
+        icon: 'water-outline',
+      },
+      {
+        key: 'elasticity',
+        label: 'Elasticity',
+        value: elasticity,
+        color: Colors.secondary,
+        icon: 'arrow-expand-horizontal',
+      },
+      {
+        key: 'inflammation',
+        label: 'Inflammation',
+        value: inflammation,
+        color: Colors.error,
+        icon: 'fire',
+      },
+      {
+        key: 'sun_damage',
+        label: 'Sun Damage',
+        value: sunDamage,
+        color: Colors.warning,
+        icon: 'weather-sunny',
+      },
+      {
+        key: 'structure',
+        label: 'Structure',
+        value: structure,
+        color: Colors.info,
+        icon: 'waves',
+      },
+    ];
+  }, [latestOutput, latestRecord]);
 
   const goals = {
     acne: {
@@ -119,14 +236,14 @@ export default function Home() {
       </View>
 
       <View style={styles.summaryRow}>
-        {Object.values(goals).map((metric) => (
-          <View key={metric.label} style={styles.summaryChip}>
-            <Text style={[styles.summaryScore, { color: metric.color }]}>
-              {metric.score ?? '--'}
-            </Text>
-            <Text style={styles.summaryLabel}>{metric.label}</Text>
-          </View>
-        ))}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.summaryRowContent}>
+          {topStats.map((stat) => (
+            <View key={stat.key} style={styles.summaryStat}>
+              <TopStatRing value={stat.value} color={stat.color} icon={stat.icon} />
+              <Text style={styles.summaryLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </ScrollView>
       </View>
 
       <View style={styles.heroCard}>
@@ -305,30 +422,43 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   summaryRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
     marginBottom: Spacing.lg,
+    marginHorizontal: -Spacing.xs,
   },
-  summaryChip: {
-    flex: 1,
-    backgroundColor: Colors.glass,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: Spacing.md,
+  summaryRowContent: {
+    paddingHorizontal: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  summaryStat: {
+    width: 86,
     alignItems: 'center',
     gap: Spacing.xs,
   },
-  summaryScore: {
+  statRingWrap: {
+    width: ringSize,
+    height: ringSize,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statRingCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
+  statValue: {
+    color: Colors.text,
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xl,
+    lineHeight: 24,
+    marginBottom: 1,
   },
   summaryLabel: {
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 0.4,
+    textAlign: 'center',
   },
   heroCard: {
     position: 'relative',
