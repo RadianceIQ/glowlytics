@@ -40,6 +40,8 @@ interface AppState {
   loadPersistedData: () => Promise<void>;
   persistData: () => Promise<void>;
   resetAll: () => void;
+  loadDemoData: () => void;
+  isDemoMode: () => boolean;
 }
 
 const generateId = () => {
@@ -269,17 +271,7 @@ export const useStore = create<AppState>((set, get) => ({
         return;
       }
 
-      // Seed realistic usage data on first launch so home/report/detail flows are immediately populated.
-      const demo = createDemoSeed();
-      const seededState = {
-        user: normalizeUser(demo.user),
-        protocol: demo.protocol,
-        products: demo.products,
-        dailyRecords: demo.records,
-        modelOutputs: demo.outputs,
-      };
-      set(seededState);
-      await AsyncStorage.setItem('radianceiq_data', JSON.stringify(seededState));
+      // No persisted data — start clean (user chooses demo or onboarding from welcome screen)
     } catch (e) {
       console.log('Failed to load persisted data', e);
     }
@@ -308,5 +300,23 @@ export const useStore = create<AppState>((set, get) => ({
       scannerName: '',
     });
     AsyncStorage.removeItem('radianceiq_data');
+  },
+
+  loadDemoData: () => {
+    const demo = createDemoSeed();
+    const state = {
+      user: normalizeUser({ ...demo.user, onboarding_complete: true }),
+      protocol: demo.protocol,
+      products: demo.products,
+      dailyRecords: demo.records,
+      modelOutputs: demo.outputs,
+    };
+    set(state);
+    AsyncStorage.setItem('radianceiq_data', JSON.stringify(state));
+  },
+
+  isDemoMode: () => {
+    const { dailyRecords } = get();
+    return dailyRecords.length >= 14;
   },
 }));

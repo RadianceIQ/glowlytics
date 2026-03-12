@@ -20,11 +20,12 @@ export default function BaselineScan() {
   const addModelOutput = useStore((s) => s.addModelOutput);
   const cameraPermissionStatus = useStore((s) => s.user?.camera_permission_status);
   const updateUser = useStore((s) => s.updateUser);
-  const cameraRef = useRef<any>(null);
+  const cameraRef = useRef<CameraView>(null);
 
   const [phase, setPhase] = useState<Phase>('intro');
   const [scannerData, setScannerData] = useState<any>(null);
   const [photoTaken, setPhotoTaken] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (!permission) return;
@@ -51,6 +52,19 @@ export default function BaselineScan() {
 
   const handleTakePhoto = async () => {
     setPhotoTaken(true);
+
+    // Capture actual photo
+    if (cameraRef.current) {
+      try {
+        const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+        if (photo?.uri) {
+          setPhotoUri(photo.uri);
+        }
+      } catch {
+        // Photo capture failed, continue without it
+      }
+    }
+
     const quality = await simulatePhotoQualityCheck();
 
     if (quality.score >= 0.7) {
@@ -65,6 +79,7 @@ export default function BaselineScan() {
         },
         scanner_quality_flag: 'pass',
         scan_region: protocol?.scan_region || 'left_cheek',
+        photo_uri: photoUri || undefined,
         sunscreen_used: false,
         new_product_added: false,
       });

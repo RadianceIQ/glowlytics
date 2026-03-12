@@ -57,6 +57,7 @@ export interface ProductEntry {
   start_date: string;
   end_date?: string;
   notes?: string;
+  brand?: string;
 }
 
 export interface DailyRecord {

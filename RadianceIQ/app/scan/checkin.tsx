@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as FileSystem from 'expo-file-system';
 import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
@@ -13,6 +14,7 @@ export default function DailyCheckin() {
     inflammation: string;
     pigmentation: string;
     texture: string;
+    photoUri: string;
   }>();
 
   const store = useStore();
@@ -41,6 +43,22 @@ export default function DailyCheckin() {
 
   const canContinue = sunscreen !== null && newProduct !== null;
 
+  const persistPhoto = async (tempUri: string): Promise<string | undefined> => {
+    try {
+      const photosDir = `${FileSystem.documentDirectory}scan_photos/`;
+      const dirInfo = await FileSystem.getInfoAsync(photosDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(photosDir, { intermediates: true });
+      }
+      const filename = `scan_${Date.now()}.jpg`;
+      const destUri = `${photosDir}${filename}`;
+      await FileSystem.copyAsync({ from: tempUri, to: destUri });
+      return destUri;
+    } catch {
+      return undefined;
+    }
+  };
+
   const handleSeeResults = async () => {
     if (!user || !protocol) return;
     setLoading(true);
@@ -50,6 +68,12 @@ export default function DailyCheckin() {
       pigmentation_index: parseFloat(params.pigmentation || '30'),
       texture_index: parseFloat(params.texture || '35'),
     };
+
+    // Persist photo to permanent storage
+    let savedPhotoUri: string | undefined;
+    if (params.photoUri) {
+      savedPhotoUri = await persistPhoto(params.photoUri);
+    }
 
     const analysis = await analyzeSkiN({
       scannerData,
@@ -71,6 +95,8 @@ export default function DailyCheckin() {
       scanner_indices: scannerData,
       scanner_quality_flag: 'pass',
       scan_region: protocol.scan_region,
+      photo_uri: savedPhotoUri,
+      photo_quality_flag: 'pass',
       sunscreen_used: sunscreen === 'yes',
       new_product_added: newProduct === 'yes',
       period_status_confirmed: periodAccurate as any,

@@ -217,10 +217,15 @@ export default function Home() {
       <View style={styles.summaryRow}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.summaryRowContent}>
           {topStats.map((stat) => (
-            <View key={stat.key} style={styles.summaryStat}>
+            <TouchableOpacity
+              key={stat.key}
+              style={styles.summaryStat}
+              activeOpacity={0.7}
+              onPress={() => router.push({ pathname: '/signal/[key]', params: { key: stat.key } })}
+            >
               <TopStatRing value={stat.value} color={stat.color} icon={stat.icon} />
               <Text style={styles.summaryLabel}>{stat.label}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </ScrollView>
       </View>

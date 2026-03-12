@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -8,6 +8,8 @@ import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
 import { OnboardingHero } from '../../src/components/OnboardingHero';
 import { useStore } from '../../src/store/useStore';
+import { lookupBarcode, searchOpenBeautyFacts } from '../../src/services/productLookup';
+import { computeProductEffectiveness } from '../../src/services/ingredientDB';
 import type { UsageSchedule } from '../../src/types';
 
 const MOCK_PRODUCTS = [
@@ -26,6 +28,7 @@ export default function Products() {
   const addProduct = useStore((s) => s.addProduct);
   const removeProduct = useStore((s) => s.removeProduct);
   const products = useStore((s) => s.products);
+  const protocol = useStore((s) => s.protocol);
 
   const [permission, requestPermission] = useCameraPermissions();
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,12 +40,24 @@ export default function Products() {
   const [scannedProduct, setScannedProduct] = useState<typeof MOCK_PRODUCTS[0] | null>(null);
   const [scanNotFound, setScanNotFound] = useState(false);
   const processingRef = useRef(false);
+  const [manualName, setManualName] = useState('');
+  const [manualIngredients, setManualIngredients] = useState('');
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [searchResults, setSearchResults] = useState<Array<{ name: string; ingredients: string[] }>>([]);
+  const [searching, setSearching] = useState(false);
 
   const filteredProducts = searchQuery.length > 1
     ? MOCK_PRODUCTS.filter((product) =>
         product.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : [];
+
+  const allSearchResults = [
+    ...filteredProducts,
+    ...searchResults.filter(
+      (r) => !filteredProducts.some((fp) => fp.name === r.name)
+    ),
+  ];
 
   const handleAddProduct = () => {
     if (!selectedProduct || !schedule) return;
@@ -71,51 +86,45 @@ export default function Products() {
     setShowBarcodeScanner(false);
     setScanNotFound(false);
 
-    // Try Open Food Facts directly
-    try {
-      const offRes = await fetch(
-        `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(data)}.json`
-      );
-      const offData = await offRes.json();
-      if (offData.status === 1 && offData.product?.product_name) {
-        const p = offData.product;
-        setScannedProduct({
-          name: p.product_name,
-          ingredients: p.ingredients_text
-            ? p.ingredients_text.split(',').map((s: string) => s.trim()).filter(Boolean)
-            : [],
-        });
-        processingRef.current = false;
-        return;
-      }
-    } catch {
-      // Open Food Facts unreachable, try next
+    const result = await lookupBarcode(data);
+    if (result) {
+      setScannedProduct({
+        name: result.name,
+        ingredients: result.ingredients,
+      });
+    } else {
+      setScanNotFound(true);
     }
-
-    // Try UPCitemdb
-    try {
-      const upcRes = await fetch(
-        `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(data)}`
-      );
-      if (upcRes.ok) {
-        const upcData = await upcRes.json();
-        if (upcData.items && upcData.items.length > 0 && upcData.items[0].title) {
-          const item = upcData.items[0];
-          setScannedProduct({
-            name: item.title,
-            ingredients: [],
-          });
-          processingRef.current = false;
-          return;
-        }
-      }
-    } catch {
-      // UPCitemdb unreachable
-    }
-
-    // Nothing found
-    setScanNotFound(true);
     processingRef.current = false;
+  };
+
+  const handleTextSearch = async (query: string) => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await searchOpenBeautyFacts(query);
+      setSearchResults(results);
+    } catch {
+      setSearchResults([]);
+    }
+    setSearching(false);
+  };
+
+  const handleManualAdd = () => {
+    if (!manualName.trim()) return;
+    setScannedProduct({
+      name: manualName.trim(),
+      ingredients: manualIngredients
+        ? manualIngredients.split(',').map((s) => s.trim()).filter(Boolean)
+        : [],
+    });
+    setShowManualEntry(false);
+    setScanNotFound(false);
+    setManualName('');
+    setManualIngredients('');
   };
 
   const handleOpenBarcodeScanner = async () => {
@@ -261,12 +270,12 @@ export default function Products() {
             />
           </View>
         </View>
-      ) : scanNotFound ? (
+      ) : scanNotFound && !showManualEntry ? (
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Product not found</Text>
           <View style={styles.scannedProductCard}>
             <Text style={styles.notFoundText}>
-              We couldn't find a product matching this barcode. Try scanning again or search manually.
+              We couldn't find a product matching this barcode. Try scanning again, search by name, or enter manually.
             </Text>
             {scannedBarcode && (
               <Text style={styles.scannedBarcode}>Barcode: {scannedBarcode}</Text>
@@ -284,7 +293,7 @@ export default function Products() {
               }}
             />
             <Button
-              title="Search manually"
+              title="Search by name"
               variant="secondary"
               onPress={() => {
                 setScanNotFound(false);
@@ -292,6 +301,11 @@ export default function Products() {
                 processingRef.current = false;
                 setShowSearch(true);
               }}
+            />
+            <Button
+              title="Enter manually"
+              variant="secondary"
+              onPress={() => setShowManualEntry(true)}
             />
             <Button
               title="Back"
@@ -304,19 +318,64 @@ export default function Products() {
             />
           </View>
         </View>
+      ) : showManualEntry ? (
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Enter product manually</Text>
+          <TextInput
+            style={styles.searchInput}
+            value={manualName}
+            onChangeText={setManualName}
+            placeholder="Product name"
+            placeholderTextColor={Colors.textMuted}
+            autoFocus
+          />
+          <TextInput
+            style={styles.searchInput}
+            value={manualIngredients}
+            onChangeText={setManualIngredients}
+            placeholder="Ingredients (comma-separated, optional)"
+            placeholderTextColor={Colors.textMuted}
+          />
+          <Button
+            title="Add product"
+            onPress={handleManualAdd}
+            disabled={!manualName.trim()}
+          />
+          <Button
+            title="Cancel"
+            variant="ghost"
+            onPress={() => {
+              setShowManualEntry(false);
+              setScanNotFound(false);
+              setManualName('');
+              setManualIngredients('');
+              processingRef.current = false;
+            }}
+          />
+        </View>
       ) : (
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Search skincare products</Text>
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={(text) => {
+              setSearchQuery(text);
+              handleTextSearch(text);
+            }}
             placeholder="Search for a product..."
             placeholderTextColor={Colors.textMuted}
             autoFocus
           />
 
-          {filteredProducts.map((product) => (
+          {searching && (
+            <View style={{ paddingVertical: Spacing.sm, alignItems: 'center' }}>
+              <ActivityIndicator color={Colors.primary} size="small" />
+              <Text style={styles.helperText}>Searching online databases...</Text>
+            </View>
+          )}
+
+          {allSearchResults.map((product) => (
             <TouchableOpacity
               key={product.name}
               style={[
@@ -370,25 +429,47 @@ export default function Products() {
       {products.length > 0 && (
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Your Products</Text>
-          {products.map((product) => (
-            <View key={product.user_product_id} style={styles.productCard}>
-              <View style={styles.productCardHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.productName}>{product.product_name}</Text>
+          {products.map((product) => {
+            const effectiveness = protocol?.primary_goal
+              ? computeProductEffectiveness(product, protocol.primary_goal)
+              : null;
+            const badgeColor = effectiveness
+              ? effectiveness.score >= 75 ? '#5FD3AC'
+                : effectiveness.score >= 55 ? Colors.primary
+                : effectiveness.score >= 35 ? Colors.warning
+                : Colors.error
+              : null;
+
+            return (
+              <TouchableOpacity
+                key={product.user_product_id}
+                style={styles.productCard}
+                activeOpacity={0.7}
+                onPress={() => router.push({ pathname: '/product/[id]', params: { id: product.user_product_id } })}
+              >
+                <View style={styles.productCardHeader}>
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={styles.productName} numberOfLines={1}>{product.product_name}</Text>
+                    {effectiveness && badgeColor && (
+                      <View style={[styles.effectivenessPill, { backgroundColor: badgeColor + '20', borderColor: badgeColor + '40' }]}>
+                        <Text style={[styles.effectivenessLabel, { color: badgeColor }]}>{effectiveness.score}%</Text>
+                      </View>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => removeProduct(product.user_product_id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Feather name="trash-2" size={16} color={Colors.textMuted} />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  onPress={() => removeProduct(product.user_product_id)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Feather name="trash-2" size={16} color={Colors.textMuted} />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.productIngredients}>
-                {product.ingredients_list.join(', ')}
-              </Text>
-              <Text style={styles.productSchedule}>{product.usage_schedule}</Text>
-            </View>
-          ))}
+                <Text style={styles.productIngredients}>
+                  {product.ingredients_list.join(', ')}
+                </Text>
+                <Text style={styles.productSchedule}>{product.usage_schedule}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
@@ -572,6 +653,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     paddingHorizontal: Spacing.lg,
+  },
+  effectivenessPill: {
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+  },
+  effectivenessLabel: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xs,
   },
   footer: {
     marginTop: Spacing.sm,

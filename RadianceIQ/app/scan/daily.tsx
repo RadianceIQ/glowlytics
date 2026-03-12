@@ -15,11 +15,12 @@ export default function DailyScan() {
   const [permission, requestPermission] = useCameraPermissions();
   const protocol = useStore((s) => s.protocol);
   const dailyRecords = useStore((s) => s.dailyRecords);
-  const cameraRef = useRef<any>(null);
+  const cameraRef = useRef<CameraView>(null);
 
   const [phase, setPhase] = useState<Phase>('scan');
   const [scannerData, setScannerData] = useState<any>(null);
   const [photoTaken, setPhotoTaken] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const baselineRecord = dailyRecords.length > 0 ? dailyRecords[0] : null;
 
@@ -33,6 +34,19 @@ export default function DailyScan() {
 
   const handleTakePhoto = async () => {
     setPhotoTaken(true);
+
+    // Capture actual photo
+    if (cameraRef.current) {
+      try {
+        const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+        if (photo?.uri) {
+          setPhotoUri(photo.uri);
+        }
+      } catch {
+        // Photo capture failed, continue without it
+      }
+    }
+
     const quality = await simulatePhotoQualityCheck();
 
     if (quality.score >= 0.7) {
@@ -112,6 +126,7 @@ export default function DailyScan() {
                 inflammation: scannerData?.inflammation_index?.toString() || '40',
                 pigmentation: scannerData?.pigmentation_index?.toString() || '30',
                 texture: scannerData?.texture_index?.toString() || '35',
+                photoUri: photoUri || '',
               },
             })}
           />

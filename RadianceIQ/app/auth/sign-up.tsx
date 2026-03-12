@@ -1,0 +1,739 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  ScrollView,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useOAuth, useSignUp } from '@clerk/clerk-expo';
+import * as WebBrowser from 'expo-web-browser';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import {
+  Colors,
+  FontFamily,
+  FontSize,
+  Spacing,
+  BorderRadius,
+} from '../../src/constants/theme';
+
+WebBrowser.maybeCompleteAuthSession();
+
+const CALM_EASING = Easing.out(Easing.cubic);
+
+export default function SignUpScreen() {
+  const router = useRouter();
+  const { startOAuthFlow: startAppleOAuth } = useOAuth({ strategy: 'oauth_apple' });
+  const { startOAuthFlow: startGoogleOAuth } = useOAuth({ strategy: 'oauth_google' });
+  const { signUp, setActive, isLoaded } = useSignUp();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<'apple' | 'google' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+
+  // Staggered entrance animations
+  const orbOpacity = useSharedValue(0);
+  const orbScale = useSharedValue(0.85);
+  const brandOpacity = useSharedValue(0);
+  const brandTranslateY = useSharedValue(20);
+  const taglineOpacity = useSharedValue(0);
+  const taglineTranslateY = useSharedValue(20);
+  const oauthOpacity1 = useSharedValue(0);
+  const oauthTranslateY1 = useSharedValue(20);
+  const oauthOpacity2 = useSharedValue(0);
+  const oauthTranslateY2 = useSharedValue(20);
+  const dividerOpacity = useSharedValue(0);
+  const dividerScaleX = useSharedValue(0.6);
+  const emailOpacity = useSharedValue(0);
+  const emailTranslateY = useSharedValue(20);
+  const passwordOpacity = useSharedValue(0);
+  const passwordTranslateY = useSharedValue(20);
+  const buttonOpacity = useSharedValue(0);
+  const buttonTranslateY = useSharedValue(20);
+  const footerOpacity = useSharedValue(0);
+
+  // Verification animations
+  const verifyOpacity = useSharedValue(0);
+  const verifyScale = useSharedValue(0.95);
+
+  // Error shake
+  const errorTranslateX = useSharedValue(0);
+
+  // Content fade for success
+  const contentOpacity = useSharedValue(1);
+
+  useEffect(() => {
+    orbOpacity.value = withTiming(1, { duration: 600, easing: CALM_EASING });
+    orbScale.value = withTiming(1, { duration: 600, easing: CALM_EASING });
+    brandOpacity.value = withDelay(200, withTiming(1, { duration: 500, easing: CALM_EASING }));
+    brandTranslateY.value = withDelay(200, withTiming(0, { duration: 500, easing: CALM_EASING }));
+    taglineOpacity.value = withDelay(350, withTiming(1, { duration: 500, easing: CALM_EASING }));
+    taglineTranslateY.value = withDelay(350, withTiming(0, { duration: 500, easing: CALM_EASING }));
+    oauthOpacity1.value = withDelay(500, withTiming(1, { duration: 500, easing: CALM_EASING }));
+    oauthTranslateY1.value = withDelay(500, withTiming(0, { duration: 500, easing: CALM_EASING }));
+    oauthOpacity2.value = withDelay(620, withTiming(1, { duration: 500, easing: CALM_EASING }));
+    oauthTranslateY2.value = withDelay(620, withTiming(0, { duration: 500, easing: CALM_EASING }));
+    dividerOpacity.value = withDelay(740, withTiming(1, { duration: 400, easing: CALM_EASING }));
+    dividerScaleX.value = withDelay(740, withTiming(1, { duration: 400, easing: CALM_EASING }));
+    emailOpacity.value = withDelay(900, withTiming(1, { duration: 500, easing: CALM_EASING }));
+    emailTranslateY.value = withDelay(900, withTiming(0, { duration: 500, easing: CALM_EASING }));
+    passwordOpacity.value = withDelay(1020, withTiming(1, { duration: 500, easing: CALM_EASING }));
+    passwordTranslateY.value = withDelay(1020, withTiming(0, { duration: 500, easing: CALM_EASING }));
+    buttonOpacity.value = withDelay(1140, withTiming(1, { duration: 500, easing: CALM_EASING }));
+    buttonTranslateY.value = withDelay(1140, withTiming(0, { duration: 500, easing: CALM_EASING }));
+    footerOpacity.value = withDelay(1300, withTiming(1, { duration: 400, easing: CALM_EASING }));
+  }, []);
+
+  // Countdown timer for verification
+  useEffect(() => {
+    if (!pendingVerification) return;
+    setCountdown(60);
+    setCanResend(false);
+
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setCanResend(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [pendingVerification]);
+
+  // Trigger shake on error
+  useEffect(() => {
+    if (error) {
+      errorTranslateX.value = withSequence(
+        withTiming(-6, { duration: 60 }),
+        withTiming(6, { duration: 60 }),
+        withTiming(-3, { duration: 60 }),
+        withTiming(0, { duration: 80 }),
+      );
+    }
+  }, [error]);
+
+  const orbStyle = useAnimatedStyle(() => ({
+    opacity: orbOpacity.value,
+    transform: [{ scale: orbScale.value }],
+  }));
+  const brandStyle = useAnimatedStyle(() => ({
+    opacity: brandOpacity.value * contentOpacity.value,
+    transform: [{ translateY: brandTranslateY.value }],
+  }));
+  const taglineStyle = useAnimatedStyle(() => ({
+    opacity: taglineOpacity.value * contentOpacity.value,
+    transform: [{ translateY: taglineTranslateY.value }],
+  }));
+  const oauth1Style = useAnimatedStyle(() => ({
+    opacity: oauthOpacity1.value * contentOpacity.value,
+    transform: [{ translateY: oauthTranslateY1.value }],
+  }));
+  const oauth2Style = useAnimatedStyle(() => ({
+    opacity: oauthOpacity2.value * contentOpacity.value,
+    transform: [{ translateY: oauthTranslateY2.value }],
+  }));
+  const dividerStyle = useAnimatedStyle(() => ({
+    opacity: dividerOpacity.value * contentOpacity.value,
+    transform: [{ scaleX: dividerScaleX.value }],
+  }));
+  const emailStyle = useAnimatedStyle(() => ({
+    opacity: emailOpacity.value * contentOpacity.value,
+    transform: [{ translateY: emailTranslateY.value }],
+  }));
+  const passwordStyle = useAnimatedStyle(() => ({
+    opacity: passwordOpacity.value * contentOpacity.value,
+    transform: [{ translateY: passwordTranslateY.value }],
+  }));
+  const buttonStyle = useAnimatedStyle(() => ({
+    opacity: buttonOpacity.value * contentOpacity.value,
+    transform: [{ translateY: buttonTranslateY.value }],
+  }));
+  const footerStyle = useAnimatedStyle(() => ({
+    opacity: footerOpacity.value * contentOpacity.value,
+  }));
+  const errorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: errorTranslateX.value }],
+  }));
+  const verifyStyle = useAnimatedStyle(() => ({
+    opacity: verifyOpacity.value,
+    transform: [{ scale: verifyScale.value }],
+  }));
+
+  const handleOAuthSignUp = useCallback(
+    async (strategy: 'oauth_apple' | 'oauth_google') => {
+      try {
+        setError(null);
+        const isApple = strategy === 'oauth_apple';
+        setOauthLoading(isApple ? 'apple' : 'google');
+
+        const startFlow = isApple ? startAppleOAuth : startGoogleOAuth;
+        const { createdSessionId, setActive: oauthSetActive } = await startFlow();
+
+        if (createdSessionId) {
+          await oauthSetActive?.({ session: createdSessionId });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : 'An error occurred during sign up.';
+        if (!message.includes('cancel')) {
+          setError(message);
+        }
+      } finally {
+        setOauthLoading(null);
+      }
+    },
+    [startAppleOAuth, startGoogleOAuth],
+  );
+
+  const handleEmailSignUp = useCallback(async () => {
+    if (!isLoaded || !signUp) return;
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError('Please enter your email and password.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+
+    try {
+      setError(null);
+      setLoading(true);
+
+      await signUp.create({ emailAddress: trimmedEmail, password });
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+
+      // Transition to verification
+      contentOpacity.value = withTiming(0, { duration: 300 });
+      setTimeout(() => {
+        setPendingVerification(true);
+        verifyOpacity.value = withTiming(1, { duration: 500, easing: CALM_EASING });
+        verifyScale.value = withTiming(1, { duration: 500, easing: CALM_EASING });
+      }, 300);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Unable to create account.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [isLoaded, signUp, email, password]);
+
+  const handleVerification = useCallback(async () => {
+    if (!isLoaded || !signUp) return;
+
+    try {
+      setError(null);
+      setLoading(true);
+
+      const result = await signUp.attemptEmailAddressVerification({
+        code: verificationCode,
+      });
+
+      if (result.status === 'complete' && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Invalid verification code.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [isLoaded, signUp, setActive, verificationCode]);
+
+  const handleResendCode = useCallback(async () => {
+    if (!isLoaded || !signUp || !canResend) return;
+    try {
+      setError(null);
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      setCountdown(60);
+      setCanResend(false);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to resend code.';
+      setError(message);
+    }
+  }, [isLoaded, signUp, canResend]);
+
+  const isDisabled = loading || oauthLoading !== null;
+
+  if (pendingVerification) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
+        >
+          <Animated.View style={[styles.verifyContainer, verifyStyle]}>
+            <Text style={styles.verifyTitle}>Check your email</Text>
+            <Text style={styles.verifySubtitle}>
+              We sent a verification code to {email}
+            </Text>
+
+            {error ? (
+              <Animated.View style={[styles.errorContainer, errorStyle]}>
+                <Text style={styles.errorText}>{error}</Text>
+              </Animated.View>
+            ) : null}
+
+            <TextInput
+              style={styles.codeInput}
+              placeholder="Enter code"
+              placeholderTextColor={Colors.textDim}
+              value={verificationCode}
+              onChangeText={setVerificationCode}
+              keyboardType="number-pad"
+              autoFocus
+            />
+
+            <TouchableOpacity
+              style={[styles.signUpButton, isDisabled && styles.buttonDisabled]}
+              onPress={handleVerification}
+              disabled={isDisabled}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={Colors.background} />
+              ) : (
+                <Text style={styles.signUpButtonText}>Verify</Text>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.resendRow}>
+              {canResend ? (
+                <TouchableOpacity onPress={handleResendCode}>
+                  <Text style={styles.resendLink}>Resend code</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.countdownText}>
+                  Resend code in {countdown}s
+                </Text>
+              )}
+            </View>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Branding */}
+          <View style={styles.brandContainer}>
+            <Animated.View style={orbStyle}>
+              <LinearGradient
+                colors={[Colors.glowSecondary, Colors.glowPrimary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.logoOrb}
+              >
+                <View style={styles.logoInner}>
+                  <Text style={styles.logoLetter}>R</Text>
+                </View>
+              </LinearGradient>
+            </Animated.View>
+            <Animated.Text style={[styles.brandName, brandStyle]}>RadianceIQ</Animated.Text>
+            <Animated.Text style={[styles.brandTagline, taglineStyle]}>Create your account</Animated.Text>
+          </View>
+
+          {error ? (
+            <Animated.View style={[styles.errorContainer, errorStyle]}>
+              <Text style={styles.errorText}>{error}</Text>
+            </Animated.View>
+          ) : null}
+
+          {/* OAuth */}
+          <Animated.View style={oauth1Style}>
+            <TouchableOpacity
+              style={styles.appleButton}
+              onPress={() => handleOAuthSignUp('oauth_apple')}
+              disabled={isDisabled}
+              activeOpacity={0.8}
+            >
+              {oauthLoading === 'apple' ? (
+                <ActivityIndicator size="small" color="#000000" />
+              ) : (
+                <>
+                  <Text style={styles.appleIcon}>{'\uF8FF'}</Text>
+                  <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View style={oauth2Style}>
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={() => handleOAuthSignUp('oauth_google')}
+              disabled={isDisabled}
+              activeOpacity={0.8}
+            >
+              {oauthLoading === 'google' ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.googleIcon}>G</Text>
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Divider */}
+          <Animated.View style={[styles.divider, dividerStyle]}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </Animated.View>
+
+          {/* Email / Password */}
+          <Animated.View style={[styles.inputContainer, emailStyle]}>
+            <Text style={styles.inputLabel}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="you@example.com"
+              placeholderTextColor={Colors.textDim}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              editable={!isDisabled}
+            />
+          </Animated.View>
+
+          <Animated.View style={[styles.inputContainer, passwordStyle]}>
+            <Text style={styles.inputLabel}>Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="At least 8 characters"
+              placeholderTextColor={Colors.textDim}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete="new-password"
+              textContentType="newPassword"
+              editable={!isDisabled}
+            />
+          </Animated.View>
+
+          <Animated.View style={buttonStyle}>
+            <TouchableOpacity
+              style={[styles.signUpButton, isDisabled && styles.buttonDisabled]}
+              onPress={handleEmailSignUp}
+              disabled={isDisabled}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={Colors.background} />
+              ) : (
+                <Text style={styles.signUpButtonText}>Create account</Text>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Health disclaimer */}
+          <Animated.View style={[styles.disclaimer, footerStyle]}>
+            <Text style={styles.disclaimerText}>
+              RadianceIQ tracks skin metrics and trends. It does not provide medical diagnoses.
+            </Text>
+          </Animated.View>
+
+          {/* Footer */}
+          <Animated.View style={[styles.footer, footerStyle]}>
+            <Text style={styles.footerText}>
+              Already have an account?{' '}
+              <Text
+                style={styles.footerLink}
+                onPress={() => router.replace('/auth/sign-in')}
+              >
+                Sign in
+              </Text>
+            </Text>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  flex: {
+    flex: 1,
+  },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xxl,
+    paddingBottom: Spacing.xl,
+    justifyContent: 'center',
+    gap: Spacing.md,
+  },
+
+  // Branding
+  brandContainer: {
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  logoOrb: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius.full,
+    padding: 1,
+    marginBottom: Spacing.md,
+  },
+  logoInner: {
+    flex: 1,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(9, 16, 26, 0.82)',
+  },
+  logoLetter: {
+    color: Colors.text,
+    fontFamily: FontFamily.serifBold,
+    fontSize: 32,
+    lineHeight: 36,
+  },
+  brandName: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xxl,
+    letterSpacing: 0.5,
+  },
+  brandTagline: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+    marginTop: Spacing.xs,
+  },
+
+  // Error
+  errorContainer: {
+    backgroundColor: 'rgba(255, 122, 120, 0.12)',
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 122, 120, 0.3)',
+    padding: Spacing.md,
+  },
+  errorText: {
+    color: Colors.error,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+
+  // OAuth
+  appleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    height: 56,
+    borderRadius: 16,
+    gap: Spacing.sm,
+  },
+  appleIcon: {
+    fontSize: 20,
+    color: '#000000',
+  },
+  appleButtonText: {
+    color: '#000000',
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.md,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4285F4',
+    height: 56,
+    borderRadius: 16,
+    gap: Spacing.sm,
+  },
+  googleIcon: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    fontFamily: FontFamily.sansBold,
+  },
+  googleButtonText: {
+    color: '#FFFFFF',
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.md,
+  },
+
+  // Divider
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  dividerText: {
+    color: Colors.textDim,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    marginHorizontal: Spacing.md,
+  },
+
+  // Form
+  inputContainer: {
+    gap: Spacing.xs,
+  },
+  inputLabel: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+  },
+  input: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    height: 52,
+    paddingHorizontal: Spacing.md,
+    color: Colors.text,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+  },
+  signUpButton: {
+    backgroundColor: Colors.primary,
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signUpButtonText: {
+    color: Colors.background,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.md,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+
+  // Disclaimer
+  disclaimer: {
+    backgroundColor: Colors.glass,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+  },
+  disclaimerText: {
+    color: Colors.textDim,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.xs,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+
+  // Verification
+  verifyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  verifyTitle: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xxl,
+    textAlign: 'center',
+  },
+  verifySubtitle: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  codeInput: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    height: 56,
+    paddingHorizontal: Spacing.md,
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xl,
+    textAlign: 'center',
+    letterSpacing: 8,
+  },
+  resendRow: {
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  countdownText: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+  },
+  resendLink: {
+    color: Colors.secondary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+  },
+
+  // Footer
+  footer: {
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  footerText: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+  },
+  footerLink: {
+    color: Colors.secondary,
+    fontFamily: FontFamily.sansSemiBold,
+  },
+});

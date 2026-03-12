@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { Button } from '../../src/components/Button';
@@ -186,6 +186,33 @@ export default function GenerateReport() {
             highLabel="Now"
           />
         </View>
+      </ReportSection>
+
+      <ReportSection title="Representative photos">
+        {(() => {
+          const recordsWithPhotos = filteredRecords.filter((r) => r.photo_uri);
+          if (recordsWithPhotos.length === 0) {
+            return <Text style={styles.reportText}>No photos captured in this period.</Text>;
+          }
+          const selected: typeof recordsWithPhotos = [];
+          selected.push(recordsWithPhotos[0]);
+          if (recordsWithPhotos.length >= 3) {
+            selected.push(recordsWithPhotos[Math.floor(recordsWithPhotos.length / 2)]);
+          }
+          if (recordsWithPhotos.length >= 2) {
+            selected.push(recordsWithPhotos[recordsWithPhotos.length - 1]);
+          }
+          return (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRow}>
+              {selected.map((record) => (
+                <View key={record.daily_id} style={styles.photoCard}>
+                  <Image source={{ uri: record.photo_uri }} style={styles.photoImage} />
+                  <Text style={styles.photoDate}>{record.date}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          );
+        })()}
       </ReportSection>
 
       <ReportSection title="Products used">
@@ -395,6 +422,27 @@ const styles = StyleSheet.create({
   },
   metricStack: {
     gap: Spacing.sm,
+  },
+  photoRow: {
+    flexDirection: 'row',
+    marginTop: Spacing.xs,
+  },
+  photoCard: {
+    alignItems: 'center',
+    marginRight: Spacing.md,
+    gap: Spacing.xs,
+  },
+  photoImage: {
+    width: 100,
+    height: 130,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceHighlight,
+  },
+  photoDate: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xs,
+    marginTop: Spacing.xxs,
   },
   productRow: {
     gap: Spacing.xs,
