@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glowlytics — Your Skin. Understood.</title>
+  <meta name="description" content="AI-powered skin health tracking made by doctors. Understand your acne, sun damage, and skin age with clinical-grade analysis.">
+  <meta property="og:title" content="Glowlytics — Your Skin. Understood.">
+  <meta property="og:description" content="AI-powered skin health tracking made by doctors. Get early access.">
+  <meta property="og:image" content="https://glowlytics.ai/logo-full.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" type="image/png" href="logo-emblem.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400;1,9..40,500&display=swap" rel="stylesheet">
+  <style>
+    /* =====================================================
+       RESET & BASE
+    ===================================================== */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --purple: #8A6FE8;
+      --purple-light: #A891F0;
+      --teal: #5CE0D8;
+      --teal-mid: #39B5BF;
+      --teal-dark: #2a9aa3;
+      --dark: #0a1628;
+      --dark-2: #0e1e2e;
+      --dark-3: #1a2b3c;
+      --text-muted: #7a8f9e;
+      --text-mid: #5a6f7e;
+      --card-bg: #f7fafb;
+      --white: #ffffff;
+      --border: rgba(0,0,0,0.055);
+      --radius-card: 28px;
+      --shadow-card: 0 2px 4px rgba(0,0,0,0.04), 0 12px 40px rgba(0,0,0,0.09), 0 2px 12px rgba(0,0,0,0.05);
+      --shadow-card-hover: 0 4px 8px rgba(0,0,0,0.06), 0 24px 60px rgba(0,0,0,0.13), 0 4px 20px rgba(0,0,0,0.07);
+      --shadow-phone: 0 8px 16px rgba(0,0,0,0.12), 0 40px 100px rgba(0,0,0,0.24), 0 0 0 1px rgba(255,255,255,0.04);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #ffffff;
+      color: var(--dark-3);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    /* =====================================================
+       HERO OUTER — NIGHT SKY WITH DAWN AURORA
+    ===================================================== */
+    .hero-outer {
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 0%, rgba(138,111,232,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(92,224,216,0.12) 0%, transparent 55%),
+        radial-gradient(ellipse 100% 60% at 50% 100%, rgba(57,181,191,0.22) 0%, rgba(30,100,130,0.15) 40%, transparent 70%),
+        linear-gradient(180deg,
+          #060d1a 0%,
+          #080f1e 12%,
+          #091222 22%,
+          #0a1628 38%,
+          #0d1e35 55%,
+          #112644 68%,
+          #1a3850 80%,
+          #2a5060 90%,
+          #3a6870 100%
+        );
+      position: relative;
+      padding: 0 24px 0;
+      overflow: hidden;
+    }
+
+    /* Dense star field — multiple layers */
+    .hero-outer::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        /* Large bright stars */
+        radial-gradient(1.8px 1.8px at 8% 6%, rgba(255,255,255,0.85), transparent),
+        radial-gradient(2px 2px at 19% 3%, rgba(255,255,255,0.9), transparent),
+        radial-gradient(1.5px 1.5px at 34% 9%, rgba(255,255,255,0.7), transparent),
+        radial-gradient(2px 2px at 52% 4%, rgba(255,255,255,0.85), transparent),
+        radial-gradient(1.8px 1.8px at 67% 7%, rgba(255,255,255,0.75), transparent),
+        radial-gradient(2.2px 2.2px at 83% 3%, rgba(255,255,255,0.9), transparent),
+        radial-gradient(1.5px 1.5px at 93% 11%, rgba(255,255,255,0.65), transparent),
+        /* Medium stars */
+        radial-gradient(1.2px 1.2px at 5% 14%, rgba(255,255,255,0.55), transparent),
+        radial-gradient(1.3px 1.3px at 14% 19%, rgba(255,255,255,0.45), transparent),
+        radial-gradient(1px 1px at 25% 13%, rgba(255,255,255,0.5), transparent),
+        radial-gradient(1.2px 1.2px at 39% 17%, rgba(255,255,255,0.4), transparent),
+        radial-gradient(1.4px 1.4px at 47% 11%, rgba(255,255,255,0.55), transparent),
+        radial-gradient(1.1px 1.1px at 61% 15%, rgba(255,255,255,0.45), transparent),
+        radial-gradient(1.3px 1.3px at 72% 20%, rgba(255,255,255,0.4), transparent),
+        radial-gradient(1px 1px at 86% 16%, rgba(255,255,255,0.5), transparent),
+        radial-gradient(1.2px 1.2px at 97% 8%, rgba(255,255,255,0.45), transparent),
+        /* Small faint stars */
+        radial-gradient(1px 1px at 11% 26%, rgba(255,255,255,0.3), transparent),
+        radial-gradient(1px 1px at 22% 31%, rgba(255,255,255,0.25), transparent),
+        radial-gradient(1px 1px at 44% 24%, rgba(255,255,255,0.35), transparent),
+        radial-gradient(1px 1px at 57% 29%, rgba(255,255,255,0.28), transparent),
+        radial-gradient(1px 1px at 76% 27%, rgba(255,255,255,0.22), transparent),
+        radial-gradient(1px 1px at 90% 33%, rgba(255,255,255,0.3), transparent),
+        radial-gradient(1px 1px at 3% 32%, rgba(255,255,255,0.2), transparent),
+        radial-gradient(1px 1px at 31% 36%, rgba(255,255,255,0.18), transparent),
+        radial-gradient(1px 1px at 64% 38%, rgba(255,255,255,0.22), transparent),
+        /* Tinted stars — purple and teal */
+        radial-gradient(1.5px 1.5px at 16% 10%, rgba(180,160,255,0.6), transparent),
+        radial-gradient(1.2px 1.2px at 73% 5%, rgba(130,230,220,0.5), transparent),
+        radial-gradient(1px 1px at 42% 8%, rgba(160,200,255,0.45), transparent),
+        radial-gradient(1.3px 1.3px at 88% 22%, rgba(180,160,255,0.35), transparent);
+      pointer-events: none;
+    }
+
+    /* Dawn glow rising from bottom of sky */
+    .hero-outer::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: -20%;
+      right: -20%;
+      height: 55%;
+      background:
+        radial-gradient(ellipse 70% 70% at 35% 100%, rgba(138,111,232,0.14) 0%, transparent 60%),
+        radial-gradient(ellipse 80% 80% at 65% 100%, rgba(57,181,191,0.18) 0%, transparent 65%),
+        radial-gradient(ellipse 140% 60% at 50% 100%, rgba(200,240,238,0.2) 0%, rgba(140,210,215,0.08) 40%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* =====================================================
+       WHITE HERO CARD
+    ===================================================== */
+    .hero-card {
+      position: relative;
+      z-index: 2;
+      max-width: 1100px;
+      margin: 24px auto 0;
+      background: rgba(247, 250, 251, 0.985);
+      border-radius: 36px 36px 0 0;
+      box-shadow:
+        0 -1px 0 rgba(255,255,255,0.12),
+        0 0 0 1px rgba(255,255,255,0.06),
+        inset 0 1px 0 rgba(255,255,255,0.9);
+      overflow: visible;
+    }
+
+    /* =====================================================
+       NAV (inside white card)
+    ===================================================== */
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 22px 44px;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+
+    .nav-logo img {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+    }
+
+    .nav-logo-text {
+      font-size: 17px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--purple) 0%, var(--teal-mid) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.3px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+    }
+
+    .nav-links a {
+      color: var(--text-mid);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s ease;
+      letter-spacing: -0.1px;
+    }
+
+    .nav-links a:hover { color: var(--dark-2); }
+
+    .nav-cta {
+      background: var(--dark-2) !important;
+      color: #fff !important;
+      padding: 10px 22px !important;
+      border-radius: 999px !important;
+      font-weight: 600 !important;
+      font-size: 13.5px !important;
+      letter-spacing: -0.1px !important;
+      transition: transform 0.18s ease, box-shadow 0.18s ease !important;
+    }
+
+    .nav-cta:hover {
+      transform: translateY(-1px) !important;
+      box-shadow: 0 6px 20px rgba(14,30,46,0.2) !important;
+    }
+
+    /* =====================================================
+       HERO CONTENT
+    ===================================================== */
+    .hero-content {
+      text-align: center;
+      padding: 60px 44px 52px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(138,111,232,0.08);
+      border: 1px solid rgba(138,111,232,0.16);
+      border-radius: 999px;
+      padding: 6px 14px 6px 10px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--purple);
+      letter-spacing: 0.1px;
+      margin-bottom: 26px;
+    }
+
+    .hero-badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--purple);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.7); }
+    }
+
+    .hero-content h1 {
+      font-size: 64px;
+      font-weight: 800;
+      line-height: 1.04;
+      letter-spacing: -3px;
+      color: var(--dark-2);
+      margin-bottom: 20px;
+    }
+
+    .hero-content h1 .accent {
+      background: linear-gradient(135deg, var(--purple) 0%, var(--teal-mid) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-content .subtitle {
+      font-size: 17px;
+      color: var(--text-mid);
+      line-height: 1.72;
+      max-width: 430px;
+      margin: 0 auto 36px;
+      font-weight: 400;
+      letter-spacing: -0.1px;
+    }
+
+    .hero-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--dark-2);
+      color: #fff;
+      padding: 16px 38px;
+      border-radius: 999px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      font-family: inherit;
+      border: none;
+      cursor: pointer;
+      letter-spacing: -0.2px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+      box-shadow: 0 2px 8px rgba(14,30,46,0.12), 0 8px 24px rgba(14,30,46,0.16);
+    }
+
+    .hero-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(14,30,46,0.18), 0 16px 40px rgba(14,30,46,0.22);
+      background: #18304a;
+    }
+
+    .hero-btn svg {
+      transition: transform 0.2s ease;
+    }
+
+    .hero-btn:hover svg {
+      transform: translateX(3px);
+    }
+
+    /* =====================================================
+       SHOWCASE — phone + floating cards
+    ===================================================== */
+    .showcase {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 24px 44px 0;
+      min-height: 580px;
+    }
+
+    /* Phone mockup */
+    .phone {
+      width: 265px;
+      flex-shrink: 0;
+      border-radius: 40px;
+      overflow: hidden;
+      border: 5px solid #111928;
+      box-shadow: var(--shadow-phone);
+      position: relative;
+      z-index: 3;
+      background: #060B12;
+      transition: transform 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .phone::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 90px;
+      height: 26px;
+      background: #111928;
+      border-radius: 0 0 18px 18px;
+      z-index: 10;
+    }
+
+    .phone:hover {
+      transform: translateY(-4px) scale(1.005);
+      box-shadow:
+        0 8px 20px rgba(0,0,0,0.16),
+        0 50px 120px rgba(0,0,0,0.30),
+        0 0 0 1px rgba(255,255,255,0.05);
+    }
+
+    .phone img {
+      width: 100%;
+      display: block;
+    }
+
+    /* Floating cards — shared */
+    .fc {
+      position: absolute;
+      background: var(--white);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      z-index: 4;
+      border: 1px solid var(--border);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .fc:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-card-hover);
+    }
+
+    /* Left top: social proof */
+    .fc-social {
+      left: 5%;
+      top: 10%;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+    }
+
+    .avatars {
+      display: flex;
+      flex-shrink: 0;
+    }
+
+    .avatars span {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 2.5px solid var(--white);
+      margin-left: -10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .avatars span:first-child { margin-left: 0; }
+    .av1 { background: linear-gradient(135deg, #8A6FE8, #6B8AFF); }
+    .av2 { background: linear-gradient(135deg, #5CE0D8, #39B5BF); }
+    .av3 { background: linear-gradient(135deg, #F2B56A, #E8906A); }
+    .av4 { background: #e2e8ed; color: #7a8f9e !important; font-size: 11px !important; font-weight: 600 !important; }
+
+    .social-meta .num {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--dark-2);
+      letter-spacing: -0.3px;
+      line-height: 1.2;
+    }
+
+    .social-meta .lbl {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-top: 1px;
+    }
+
+    /* Left bottom: score ring */
+    .fc-ring {
+      left: 2%;
+      top: 46%;
+      padding: 24px 28px;
+      text-align: center;
+    }
+
+    .ring-wrap {
+      width: 118px;
+      height: 118px;
+      margin: 0 auto 12px;
+      position: relative;
+    }
+
+    .ring-wrap svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .ring-track {
+      fill: none;
+      stroke: #edf1f4;
+      stroke-width: 9;
+    }
+
+    .ring-fill {
+      fill: none;
+      stroke: url(#ringGrad);
+      stroke-width: 9;
+      stroke-linecap: round;
+      stroke-dasharray: 232 314;
+      stroke-dashoffset: 0;
+      transition: stroke-dasharray 1.2s ease;
+    }
+
+    .ring-val {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .ring-val .big {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--dark-2);
+      display: block;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .ring-val .small {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.2px;
+      margin-top: 2px;
+      display: block;
+    }
+
+    .ring-legend {
+      font-size: 11.5px;
+      color: var(--text-mid);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .ring-legend .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 22px;
+    }
+
+    .ring-legend .row span:last-child {
+      font-weight: 600;
+      color: var(--dark-3);
+    }
+
+    .dot-i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 5px;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
+    .dot-g { background: var(--teal); }
+    .dot-m { background: #dce4e9; }
+
+    /* Right top: stats grid */
+    .fc-stats {
+      right: 4%;
+      top: 8%;
+      padding: 22px 26px;
+      min-width: 230px;
+    }
+
+    .fc-stats-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .fc-stats-title span {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--dark-2);
+      letter-spacing: -0.2px;
+    }
+
+    .fc-stats-title .arr {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #f0f4f6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .fc-stats-title .arr:hover { background: #e4eaed; }
+
+    .sg {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .sg-cell {
+      text-align: center;
+      padding: 10px 8px;
+      border-radius: 14px;
+      background: #f7fafb;
+      transition: background 0.2s;
+    }
+
+    .sg-cell:hover { background: #eef3f5; }
+
+    .sg-cell .sg-icon {
+      font-size: 18px;
+      display: block;
+      margin-bottom: 4px;
+      line-height: 1;
+    }
+
+    .sg-cell .sg-val {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--dark-2);
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+
+    .sg-cell .sg-lbl {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-top: 2px;
+    }
+
+    /* Right bottom: recommendation snippet */
+    .fc-tag {
+      right: 3%;
+      top: 54%;
+      max-width: 240px;
+      padding: 20px 24px;
+    }
+
+    .fc-tag-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--teal-mid);
+      margin-bottom: 7px;
+    }
+
+    .fc-tag p {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--dark-3);
+      line-height: 1.58;
+    }
+
+    /* =====================================================
+       ABOUT SECTION
+    ===================================================== */
+    .about {
+      background: var(--card-bg);
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 96px 44px 48px;
+      text-align: center;
+      border-radius: 0;
+    }
+
+    .about-eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--teal-mid);
+      margin-bottom: 28px;
+      opacity: 0.9;
+    }
+
+    .about-body {
+      font-size: 30px;
+      font-weight: 500;
+      color: var(--dark-3);
+      line-height: 1.56;
+      max-width: 660px;
+      margin: 0 auto 0;
+      letter-spacing: -0.6px;
+    }
+
+    .about-body .strong { font-weight: 700; color: var(--dark-2); }
+    .about-body .faded { color: #a0b2bf; }
+    .about-body .grad {
+      background: linear-gradient(135deg, var(--purple) 0%, var(--teal-mid) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 700;
+    }
+
+    /* =====================================================
+       TRUST STRIP
+    ===================================================== */
+    .trust-strip {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 44px 56px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: var(--card-bg);
+      border-radius: 0 0 32px 32px;
+    }
+
+    .trust-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 18px;
+      border-radius: 999px;
+      background: var(--white);
+      border: 1px solid rgba(0,0,0,0.07);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--dark-3);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      letter-spacing: -0.1px;
+    }
+
+    .trust-icon {
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    /* =====================================================
+       CTA / WAITLIST SECTION
+    ===================================================== */
+    .cta {
+      background: var(--white);
+      padding: 88px 24px 80px;
+      text-align: center;
+    }
+
+    .cta-inner {
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    .cta h2 {
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: -1.8px;
+      margin-bottom: 12px;
+      color: var(--dark-2);
+      line-height: 1.08;
+    }
+
+    .cta h2 .accent {
+      background: linear-gradient(135deg, var(--purple) 0%, var(--teal-mid) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .cta-sub {
+      font-size: 16px;
+      color: var(--text-mid);
+      margin-bottom: 36px;
+      line-height: 1.65;
+      font-weight: 400;
+    }
+
+    /* Email form */
+    .form-wrap {
+      position: relative;
+    }
+
+    .email-form {
+      display: flex;
+      gap: 10px;
+      max-width: 460px;
+      margin: 0 auto;
+      background: #f0f4f7;
+      border-radius: 20px;
+      padding: 7px 7px 7px 20px;
+      border: 1.5px solid transparent;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .email-form:focus-within {
+      border-color: rgba(138,111,232,0.35);
+      box-shadow: 0 0 0 4px rgba(138,111,232,0.08);
+      background: #fff;
+    }
+
+    .email-form input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--dark-2);
+      outline: none;
+      min-width: 0;
+      padding: 9px 0;
+      font-weight: 400;
+    }
+
+    .email-form input::placeholder { color: #a8bac6; }
+
+    .email-form button {
+      padding: 12px 24px;
+      background: var(--dark-2);
+      border: none;
+      border-radius: 14px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      letter-spacing: -0.2px;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      flex-shrink: 0;
+    }
+
+    .email-form button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(14,30,46,0.22);
+      background: #18304a;
+    }
+
+    .email-form button:active {
+      transform: translateY(0);
+    }
+
+    .form-note {
+      font-size: 12px;
+      color: #b0c0ca;
+      margin-top: 14px;
+      font-weight: 400;
+    }
+
+    /* Form success state */
+    .form-ok {
+      display: none;
+      max-width: 460px;
+      margin: 0 auto;
+      padding: 24px 28px;
+      background: linear-gradient(135deg, rgba(138,111,232,0.06) 0%, rgba(57,181,191,0.06) 100%);
+      border: 1px solid rgba(92,224,216,0.25);
+      border-radius: 20px;
+      animation: successSlide 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    @keyframes successSlide {
+      from { opacity: 0; transform: translateY(12px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .form-ok-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple) 0%, var(--teal-mid) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 14px;
+      box-shadow: 0 4px 16px rgba(138,111,232,0.3);
+    }
+
+    .form-ok-icon svg {
+      animation: checkDraw 0.4s ease 0.15s forwards;
+      opacity: 0;
+    }
+
+    @keyframes checkDraw {
+      from { opacity: 0; transform: scale(0.5); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .form-ok-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--dark-2);
+      margin-bottom: 6px;
+      letter-spacing: -0.3px;
+    }
+
+    .form-ok-sub {
+      font-size: 14px;
+      color: var(--text-mid);
+      line-height: 1.6;
+    }
+
+    /* =====================================================
+       FOOTER
+    ===================================================== */
+    footer {
+      background: var(--white);
+      border-top: 1px solid rgba(0,0,0,0.05);
+      max-width: 100%;
+      padding: 28px 44px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    footer .c {
+      font-size: 12.5px;
+      color: #b0c0ca;
+      font-weight: 400;
+    }
+
+    footer .fl {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    footer .fl a {
+      font-size: 12.5px;
+      color: #b0c0ca;
+      text-decoration: none;
+      font-weight: 400;
+      transition: color 0.2s;
+    }
+
+    footer .fl a:hover { color: var(--text-mid); }
+
+    /* =====================================================
+       ANIMATIONS — load and scroll
+    ===================================================== */
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(22px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes riseScale {
+      from { opacity: 0; transform: translateY(18px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes floatCard {
+      from { opacity: 0; transform: translateY(14px) scale(0.965); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Passive float animation for cards */
+    @keyframes floatBob {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+
+    .an { opacity: 0; animation: rise 0.7s cubic-bezier(0.22, 0.78, 0.5, 1) forwards; }
+    .an1 { animation-delay: 0.04s; }
+    .an2 { animation-delay: 0.14s; }
+    .an3 { animation-delay: 0.26s; }
+    .an4 { animation-delay: 0.38s; }
+
+    .fn { opacity: 0; animation: floatCard 0.6s cubic-bezier(0.22, 0.78, 0.5, 1) forwards; }
+    .fn1 { animation-delay: 0.5s; }
+    .fn2 { animation-delay: 0.66s; }
+    .fn3 { animation-delay: 0.82s; }
+    .fn4 { animation-delay: 0.98s; }
+
+    /* Scroll reveal */
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 0.7s cubic-bezier(0.22, 0.78, 0.5, 1), transform 0.7s cubic-bezier(0.22, 0.78, 0.5, 1);
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal-d1 { transition-delay: 0.05s; }
+    .reveal-d2 { transition-delay: 0.15s; }
+    .reveal-d3 { transition-delay: 0.28s; }
+    .reveal-d4 { transition-delay: 0.4s; }
+
+    /* Ambient float on cards (desktop only, reduced-motion safe) */
+    @media (prefers-reduced-motion: no-preference) {
+      .fc-social { animation: floatCard 0.6s cubic-bezier(0.22, 0.78, 0.5, 1) 0.5s both; }
+      .fc-ring { animation: floatCard 0.6s cubic-bezier(0.22, 0.78, 0.5, 1) 0.66s both; }
+      .fc-stats { animation: floatCard 0.6s cubic-bezier(0.22, 0.78, 0.5, 1) 0.82s both; }
+      .fc-tag { animation: floatCard 0.6s cubic-bezier(0.22, 0.78, 0.5, 1) 0.98s both; }
+    }
+
+    /* =====================================================
+       RESPONSIVE — TABLET
+    ===================================================== */
+    @media (max-width: 960px) {
+      .hero-card {
+        border-radius: 28px 28px 0 0;
+        margin-top: 18px;
+      }
+
+      .nav { padding: 18px 28px; }
+      .nav-links a:not(.nav-cta) { display: none; }
+      .nav-logo-text { display: inline; }
+
+      .hero-content { padding: 48px 28px 44px; }
+      .hero-content h1 { font-size: 48px; letter-spacing: -2px; }
+      .hero-content .subtitle { font-size: 16px; max-width: 380px; }
+
+      .showcase {
+        padding: 18px 28px 0;
+        min-height: 480px;
+      }
+
+      .phone { width: 240px; }
+
+      .fc { display: none; }
+
+      .about { padding: 72px 28px 60px; }
+      .about-body { font-size: 26px; }
+
+      .trust-strip { padding: 28px 28px 48px; }
+
+      footer { padding: 24px 28px; }
+    }
+
+    /* =====================================================
+       RESPONSIVE — MOBILE
+    ===================================================== */
+    @media (max-width: 600px) {
+      .hero-outer { padding: 0 16px; }
+
+      .hero-card {
+        border-radius: 22px 22px 0 0;
+        margin-top: 14px;
+      }
+
+      .nav {
+        padding: 16px 20px;
+      }
+
+      .nav-logo img { width: 30px; height: 30px; }
+      .nav-logo-text { font-size: 15px; }
+
+      .nav-cta {
+        padding: 9px 16px !important;
+        font-size: 13px !important;
+      }
+
+      .hero-content {
+        padding: 40px 20px 36px;
+      }
+
+      .hero-content h1 {
+        font-size: 38px;
+        letter-spacing: -1.5px;
+        line-height: 1.06;
+      }
+
+      .hero-content .subtitle {
+        font-size: 15.5px;
+        max-width: 320px;
+        margin-bottom: 30px;
+      }
+
+      .hero-badge { font-size: 11.5px; padding: 5px 12px 5px 9px; }
+
+      .hero-btn {
+        padding: 15px 32px;
+        font-size: 14.5px;
+      }
+
+      .showcase {
+        padding: 20px 20px 0;
+        min-height: 400px;
+        justify-content: center;
+      }
+
+      .phone {
+        width: 210px;
+        border-radius: 32px;
+        border-width: 4px;
+      }
+
+      .phone::before {
+        width: 70px;
+        height: 20px;
+      }
+
+      .about {
+        padding: 60px 20px 50px;
+      }
+
+      .about-body {
+        font-size: 22px;
+        letter-spacing: -0.4px;
+      }
+
+      .trust-strip {
+        padding: 20px 20px 44px;
+        gap: 8px;
+      }
+
+      .trust-pill {
+        font-size: 11.5px;
+        padding: 8px 14px;
+      }
+
+      .cta {
+        padding: 72px 20px 68px;
+      }
+
+      .cta h2 {
+        font-size: 34px;
+        letter-spacing: -1.2px;
+      }
+
+      .cta-sub {
+        font-size: 15px;
+        margin-bottom: 28px;
+      }
+
+      .email-form {
+        flex-direction: column;
+        background: transparent;
+        padding: 0;
+        gap: 12px;
+        border: none !important;
+        box-shadow: none !important;
+      }
+
+      .email-form input {
+        background: #f0f4f7;
+        border: 1.5px solid transparent;
+        border-radius: 14px;
+        padding: 15px 18px;
+        font-size: 15px;
+        transition: border-color 0.2s, background 0.2s;
+      }
+
+      .email-form input:focus {
+        border-color: rgba(138,111,232,0.35);
+        background: #fff;
+        outline: none;
+        box-shadow: 0 0 0 4px rgba(138,111,232,0.08);
+      }
+
+      .email-form button {
+        padding: 15px 24px;
+        border-radius: 14px;
+        font-size: 15px;
+        width: 100%;
+      }
+
+      footer {
+        flex-direction: column;
+        text-align: center;
+        padding: 24px 20px;
+        gap: 10px;
+      }
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== HERO ===== -->
+<div class="hero-outer">
+  <div class="hero-card">
+
+    <!-- NAV -->
+    <nav class="nav">
+      <a href="/" class="nav-logo">
+        <img src="logo-emblem.png" alt="Glowlytics">
+        <span class="nav-logo-text">Glowlytics</span>
+      </a>
+      <div class="nav-links">
+        <a href="#about">About</a>
+        <a href="#access" class="nav-cta">Get Early Access</a>
+      </div>
+    </nav>
+
+    <!-- HERO CONTENT -->
+    <div class="hero-content">
+      <div class="hero-badge an an1">
+        <span class="hero-badge-dot"></span>
+        Made by doctors, for patients
+      </div>
+      <h1 class="an an2">Your skin.<br><span class="accent">Understood.</span></h1>
+      <p class="subtitle an an3">AI-powered skin health tracking that helps you understand acne, sun damage, and inflammation — with insights informed by dermatology research.</p>
+      <a href="#access" class="hero-btn an an4">
+        Get Early Access
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </div>
+
+    <!-- SHOWCASE -->
+    <div class="showcase">
+
+      <!-- Left top: social proof -->
+      <div class="fc fc-social">
+        <div class="avatars">
+          <span class="av1">M</span>
+          <span class="av2">S</span>
+          <span class="av3">A</span>
+          <span class="av4">+</span>
+        </div>
+        <div class="social-meta">
+          <div class="num">500+</div>
+          <div class="lbl">On the waitlist</div>
+        </div>
+      </div>
+
+      <!-- Left bottom: score ring -->
+      <div class="fc fc-ring">
+        <div class="ring-wrap">
+          <svg viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#8A6FE8"/>
+                <stop offset="100%" stop-color="#5CE0D8"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-track" cx="60" cy="60" r="50"/>
+            <circle class="ring-fill" cx="60" cy="60" r="50"/>
+          </svg>
+          <div class="ring-val">
+            <span class="big">74</span>
+            <span class="small">Skin score</span>
+          </div>
+        </div>
+        <div class="ring-legend">
+          <div class="row">
+            <span><span class="dot-i dot-g"></span>Healthy</span>
+            <span>74%</span>
+          </div>
+          <div class="row">
+            <span><span class="dot-i dot-m"></span>Monitor</span>
+            <span>26%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phone -->
+      <div class="phone an an3">
+        <img src="app-screenshot.png" alt="Glowlytics app showing skin analysis dashboard">
+      </div>
+
+      <!-- Right top: skin signals -->
+      <div class="fc fc-stats">
+        <div class="fc-stats-title">
+          <span>Skin Signals</span>
+          <span class="arr">&rsaquo;</span>
+        </div>
+        <div class="sg">
+          <div class="sg-cell">
+            <span class="sg-icon">&#x1F4A7;</span>
+            <div class="sg-val">73</div>
+            <div class="sg-lbl">Hydration</div>
+          </div>
+          <div class="sg-cell">
+            <span class="sg-icon">&#x1F525;</span>
+            <div class="sg-val">49</div>
+            <div class="sg-lbl">Inflammation</div>
+          </div>
+          <div class="sg-cell">
+            <span class="sg-icon">&#x2600;&#xFE0F;</span>
+            <div class="sg-val">44</div>
+            <div class="sg-lbl">Sun Damage</div>
+          </div>
+          <div class="sg-cell">
+            <span class="sg-icon">&#x1F30A;</span>
+            <div class="sg-val">62</div>
+            <div class="sg-lbl">Structure</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right bottom: recommendation -->
+      <div class="fc fc-tag">
+        <div class="fc-tag-label">Today's Insight</div>
+        <p>Mild inflammation noted in T-zone. Barrier repair recommended before PM routine.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===== ABOUT ===== -->
+<section class="about" id="about">
+  <span class="about-eyebrow reveal reveal-d1">Made by Doctors</span>
+  <p class="about-body reveal reveal-d2">
+    <span class="faded">Most people notice their skin changing</span>
+    <span class="strong"> but never know why.</span>
+    <span class="faded"> We built Glowlytics for those who deserve</span>
+    <span class="grad"> a real answer.</span>
+    <span class="faded"> Not a filter. Not a guess.</span>
+    <span class="strong"> A smarter way to understand your skin — </span>
+    <span class="faded">every single day.</span>
+  </p>
+</section>
+
+<!-- ===== TRUST STRIP ===== -->
+<div class="trust-strip">
+  <div class="trust-pill reveal reveal-d1">
+    <span class="trust-icon">&#x1F9EC;</span>
+    Evidence-Based
+  </div>
+  <div class="trust-pill reveal reveal-d2">
+    <span class="trust-icon">&#x1FA7A;</span>
+    Made by Doctors
+  </div>
+  <div class="trust-pill reveal reveal-d3">
+    <span class="trust-icon">&#x1F512;</span>
+    Privacy-First
+  </div>
+  <div class="trust-pill reveal reveal-d4">
+    <span class="trust-icon">&#x26A0;&#xFE0F;</span>
+    Non-Diagnostic
+  </div>
+</div>
+
+<!-- ===== CTA ===== -->
+<section class="cta" id="access">
+  <div class="cta-inner">
+    <h2 class="reveal reveal-d1">Be the first to <span class="accent">glow.</span></h2>
+    <p class="cta-sub reveal reveal-d2">Join the waitlist for early access, founding member pricing, and a personalized skin report on launch day.</p>
+
+    <div class="form-wrap reveal reveal-d3">
+      <form class="email-form" id="waitlist-form" onsubmit="handleSubmit(event)">
+        <input type="email" id="email-input" placeholder="Enter your email" autocomplete="email" required>
+        <button type="submit" id="submit-btn">Join Waitlist</button>
+      </form>
+      <p class="form-note" id="form-note">No spam, ever. Unsubscribe in one click.</p>
+
+      <div class="form-ok" id="form-ok">
+        <div class="form-ok-icon">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <path d="M4 11l5 5 9-9" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="form-ok-title">You're on the list.</div>
+        <div class="form-ok-sub">We'll reach out when Glowlytics opens — plus a founding member welcome gift.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="footer-inner">
+    <span class="c">&copy; 2026 BDQ Holdings LLC. All rights reserved.</span>
+    <div class="fl">
+      <a href="/privacy">Privacy Policy</a>
+      <a href="mailto:drmustafa@bdqholdings.com">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  /* ============================
+     WAITLIST FORM
+  ============================ */
+  function handleSubmit(e) {
+    e.preventDefault();
+    var form = document.getElementById('waitlist-form');
+    var input = document.getElementById('email-input');
+    var btn = document.getElementById('submit-btn');
+    var note = document.getElementById('form-note');
+    var ok = document.getElementById('form-ok');
+    var email = input.value.trim();
+
+    if (!email) return;
+
+    btn.textContent = 'Joining...';
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+
+    // Persist locally
+    try {
+      var list = JSON.parse(localStorage.getItem('gl_wl') || '[]');
+      list.push({ email: email, t: new Date().toISOString() });
+      localStorage.setItem('gl_wl', JSON.stringify(list));
+    } catch(err) {}
+
+    // Fire and forget to API — show success regardless
+    fetch('https://glowlytics-api-production.up.railway.app/api/waitlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    }).catch(function() {});
+
+    // Show success state with smooth transition
+    setTimeout(function() {
+      form.style.display = 'none';
+      note.style.display = 'none';
+      ok.style.display = 'block';
+    }, 320);
+  }
+
+  /* ============================
+     SCROLL REVEAL
+  ============================ */
+  (function() {
+    var els = document.querySelectorAll('.reveal');
+    if (!els.length) return;
+
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -32px 0px' });
+
+    els.forEach(function(el) { observer.observe(el); });
+  })();
+</script>
+
+</body>
+</html>

@@ -1,8 +1,9 @@
-# RadianceIQ - Product Requirements Document
+# Glowlytics - Product Requirements Document
 
 ## Overview
-RadianceIQ is a skin health tracking app that enables users to gain insights into their skin health via their phone camera (with optional biophotonic scanner support). The app tracks acne, sun damage, and skin age over time, correlating results with lifestyle factors, product usage, and menstrual cycle data to provide actionable, non-diagnostic insights.
+Glowlytics is a skin health tracking app that enables users to gain insights into their skin health via their phone camera (with optional biophotonic scanner support). The app tracks acne, sun damage, and skin age over time, correlating results with lifestyle factors, product usage, and menstrual cycle data to provide actionable, non-diagnostic insights.
 
+**Domain:** glowlytics.ai
 **Production v1.0 Target:** App Store-ready release with authentication, validated scoring algorithms, and backend data sync.
 
 ---
@@ -20,9 +21,11 @@ RadianceIQ is a skin health tracking app that enables users to gain insights int
 - **Express.js** API server with JWT authentication middleware
 - **PostgreSQL** database
 - **Open Beauty Facts API** - skincare product ingredients lookup via barcode (waterfall: Open Beauty Facts → Open Food Facts → UPCitemdb → NIH DailyMed)
-- **Vision LLM API** (Claude/GPT-4V) for skin image analysis (optional, with local fallback)
-- **RAG-enabled model** connected to AAD (American Academy of Dermatology) and ACOG guidelines (planned)
+- **Vision LLM API** — Fine-tuned GPT-4o for skin image analysis with condition detection (9 types × 8 facial zones), personalized feedback, local fallback
+- **RAG pipeline** — Pinecone vector DB + OpenAI text-embedding-3-small, 19 curated AAD/ACOG guideline chunks, auto-queried on each scan for evidence-based recommendations
+- **On-device photo quality** — expo-face-detector for real face detection (fill %, centering, angle validation)
 - Scanner data: **deterministic simulation** with seeded PRNG for reproducible readings
+- **Gamification engine** — XP system (6 levels), 15 achievement badges, weekly challenges, personal bests tracking
 
 ### Authentication & Authorization
 - **Provider:** Clerk (3rd-party OAuth service)
@@ -42,61 +45,76 @@ RadianceIQ is a skin health tracking app that enables users to gain insights int
 
 ## User Journeys
 
-### Journey 1: First-Time Setup to Baseline (2-4 minutes)
-**Goal:** Get to first results with minimal typing; everything else is optional.
+### Journey 1: Onboarding — Progressive Profile Collection (< 90 seconds)
+**Goal:** Collect comprehensive lifestyle and demographic context through a calming, one-question-per-page flow inspired by Headspace. Product scanning and baseline scan happen post-onboarding as guided first-actions.
 
-#### Step 1 - Welcome + Safety Framing
-- "Measures skin metrics + trends. Not diagnostic."
-- CTA: **Start**
+**Design principles:**
+- One question per screen (progressive disclosure)
+- Max per screen: 1 heading, 1 subtext, 1 primary action, 1 alternative/skip
+- Fade-with-rise transitions (no lateral slides)
+- Geometric organic SVG illustrations per screen
+- Dot progress indicator (adapts to dynamic flow length)
+- Apple HIG compliant: permissions requested in-context with pre-permission screens
 
-#### Step 2 - Essentials
-- Age (tap selector)
-- Coarse location: "Enable location" OR "Enter ZIP"
-- Period basics:
-  - "Do you get periods?" Yes / No / Prefer not to say
-  - If yes: last period start date + typical cycle length (default 28)
-- CTA: **Continue**
+#### Screen 1 — Welcome
+- "A few questions to make this yours."
+- "Glowlytics adapts to your skin, your lifestyle, and your goals. This takes under two minutes."
+- CTA: **Let's go** / Skip: "I'll set this up later"
 
-#### Step 3 - Primary Goal (drives defaults)
-- Pick one: Acne / Sun Damage / Skin Age
-- CTA: **Next**
+#### Screen 2 — Age Range
+- "How old are you?"
+- 2×3 grid: Under 18 / 18-24 / 25-34 / 35-44 / 45-54 / 55+
 
-#### Step 4 - Region Selection (recommended then confirm)
-- App recommends scanning region based on goal:
-  - Acne: "Where is it worst?" (forehead/cheeks/jawline/mixed) -> recommend that region
-  - Sun damage: recommend upper cheek/temple (or whole face)
-  - Skin age: recommend crow's feet/under-eye/cheek texture zone
-- User can tap to change region on face map
-- CTA: **Confirm scanning area**
+#### Screen 3 — Biological Sex
+- "What's your biological sex?"
+- 3 cards: Male / Female / Intersex-Other
+- Branching: Female → inserts menstrual screens into flow
 
-#### Step 5 - Products (no typing)
-- Options: Scan barcode / Take product photo / Search (fallback)
-- After capture: show matched product + ingredients + usage frequency (AM/PM)
-- CTA: **Done** (always allow **Skip for now**)
+#### Screen 4 — Location
+- "Where are you located?"
+- Options: "Use my location" (expo-location) or "Enter my region" (ZIP input)
+- Privacy: "Only your region is stored."
 
-#### Step 6 - Guided Baseline Scan
-- Scanner reading: simulated live prompt "Hold steady" + success confirmation
-- Photo capture coaching:
-  - On-screen outline to match framing
-  - Live checks: centered / lighting OK / blur OK / angle match
-  - If fail: single tip ("Turn toward light", "Move closer", etc.)
-- CTA: **Save baseline**
+#### Screen 5 — Skin Goal
+- "What's your biggest skin concern?"
+- 3 cards with descriptions: Acne & Breakouts / Sun Damage & Pigmentation / Aging & Texture
+- Illustration changes per selection
 
-#### Step 7 - Baseline Results
-- 3 tiles: Acne / Sun damage / Skin age (baseline values)
-- "Trend starts after 3 scans"
-- CTA: **Set daily reminder** (optional)
+#### Screen 6 — Menstrual Cycle (female only)
+- "Do you have a menstrual cycle?"
+- 4 cards: Yes regular / Yes irregular / No / Prefer not to say
+- Branching: Yes → shows cycle details screen
 
-#### Step 8 - Boost Accuracy (optional progressive profiling)
-- "Improve insights with 30 seconds of context. Skip anytime."
-- Quick toggles (optional):
-  - Smoker: Yes/No
-  - Drink frequency: 0 / 1-2 / 3+
-- Connect device (optional):
-  - Apple Health / wearable via HealthKit & HealthConnect
-  - Sleep quality (yesterday): Poor/OK/Great
-  - Stress (yesterday): Low/Med/High
-- CTA: **Done / Skip**
+#### Screen 7 — Cycle Details (if yes to Screen 6)
+- "A bit more about your cycle."
+- Last period date, cycle length (21-25 / 26-30 / 31+ / Not sure)
+- Hormonal birth control: Yes/No + type selector (Pill/IUD/Patch/Ring/Injection/Implant)
+
+#### Screen 8 — Supplements & HRT
+- "Are you taking anything that affects your skin?"
+- Multi-select chips: Vitamin D, Vitamin C/Retinol, Omega-3, Collagen, Biotin, Zinc, HRT, TRT, None, Other
+
+#### Screen 9 — Exercise
+- "How active are you?"
+- 4 cards: Rarely / 1-2×/week / 3-4×/week / 5+×/week
+
+#### Screen 10 — Shower Frequency
+- "How often do you shower or wash your face?"
+- 5 cards: Once daily / Twice / 3+ / Every other day / Less
+
+#### Screen 11 — Hand Washing
+- "How often do you wash your hands?"
+- 4 cards: Rarely / A few times / After every meal / Very frequently
+
+#### Screen 12 — Camera Permission
+- "Glowlytics needs your camera to track your skin."
+- Trust signal card explaining photo privacy
+- CTA: **Enable camera access** (triggers system dialog)
+
+#### Screen 13 — Ready
+- "You're ready to start tracking."
+- Luminous orb animation
+- CTA: **Take my baseline scan** / **Explore first** → Home
 
 ---
 
@@ -351,7 +369,7 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 
 ### App Store Technical Requirements
 - EAS Build for native binary generation
-- Bundle identifier: com.radianceiq.app (production)
+- Bundle identifier: com.glowlytics.app (production)
 - Associated domains for Clerk universal links
 - Privacy nutrition labels in App Store Connect
 - Sign in with Apple required (when offering Google sign-in)
@@ -434,36 +452,46 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 
 ---
 
-## Onboarding & Permissions Implementation Update (Current)
+## Onboarding Implementation (Current)
 
-### Actual onboarding order (implemented)
-1. Essentials
-2. Goal
-3. Region
-4. Products
-5. Permissions prep
-6. Baseline scan
-7. Accuracy/boost
+### Onboarding flow (13 screens, progressive disclosure)
+1. Welcome
+2. Age Range (2×3 grid)
+3. Biological Sex (branching: female → menstrual screens)
+4. Location (geolocation or ZIP)
+5. Skin Goal (3 cards with dynamic illustration)
+6. Menstrual Cycle (female only)
+7. Cycle Details (if yes to #6: date, length, birth control)
+8. Supplements & HRT (multi-select chips)
+9. Exercise Frequency
+10. Shower Frequency
+11. Hand Washing
+12. Camera Permission (pre-permission screen + system dialog)
+13. Ready (luminous orb animation → home)
 
-### Permission timing and scope
-- **Camera:** Requested in-context at baseline scan start, treated as required for scan capture, and persisted on the user profile.
-- **HealthKit / Health Connect:** Introduced in a dedicated pre-scan education step and remains optional/non-blocking.
-- **v1 health scope (read-only):** sleep, resting heart rate, and heart-rate variability.
-- **Deferred from health sync in v1:** cycle/menstrual data (remains self-entered in onboarding).
+### Flow architecture
+- Dynamic flow array via `buildOnboardingFlow(sex, menstrualStatus)` in `src/services/onboardingFlow.ts`
+- Flow stored in Zustand: `onboardingFlow[]` + `onboardingFlowIndex`
+- Conditional screens (menstrual/cycle-details) inserted based on sex answer
+- Dot progress indicator adapts to actual flow length
+- Product scanning and baseline scan moved to post-onboarding first-launch actions
 
-### Native build constraint
-- Native health packages removed for Expo Go compatibility; health data is fully mocked.
-- UX surfaces explicit unavailable/unsupported messaging when health APIs are not accessible.
-- Real HealthKit/Health Connect integration deferred to EAS/bare workflow builds.
+### Design patterns (Headspace-inspired)
+- One question per screen, max 1 heading + 1 subtext + 1 primary CTA + 1 skip
+- Fade transitions between screens (no lateral slides)
+- Staggered fade-with-rise entrance: illustration (0ms) → heading (120ms) → subtext (220ms) → content (300ms) → buttons (400ms)
+- Geometric organic SVG illustrations per screen, teal-dominant on dark background
+- `OnboardingTransition` wrapper component for consistent layout and animations
+- `OnboardingOptionCard`, `OnboardingGridOption`, `OnboardingChip` for selections
 
-### State model additions
-- `camera_permission_status` is persisted on the user profile.
-- `health_connection` is persisted with normalized status/state metadata covering source, requested/granted types, sync skip state, and timestamps.
+### Permission timing
+- **Camera:** Requested on Screen 12 after trust justification, persisted on user profile
+- **Location:** Requested on Screen 4 when user chooses "Use my location"
+- Both follow Apple HIG "explain before you request" pattern
 
-### Compliance guardrails
-- Health access is always optional for onboarding completion and first baseline result.
-- Permission rationale copy is shown before prompts.
-- Denial paths avoid dead ends and provide a settings-recovery action where available.
+### UserProfile extensions
+- `sex`, `menstrual_status`, `on_hormonal_birth_control`, `birth_control_type`
+- `supplements[]`, `exercise_frequency`, `shower_frequency`, `hand_washing_frequency`
 
 ## Authentication Flow
 
@@ -472,7 +500,7 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 - When Clerk is configured:
   - `!isLoaded` → animated splash (index.tsx)
   - `!isSignedIn` → redirect to `/auth/sign-in`
-  - `isSignedIn` + `!onboarding_complete` → redirect to `/onboarding/essentials`
+  - `isSignedIn` + `!onboarding_complete` → redirect to `/onboarding/welcome`
   - `isSignedIn` + `onboarding_complete` → render normal tab navigation
 - When Clerk is not configured: demo mode with onboarding/demo buttons
 

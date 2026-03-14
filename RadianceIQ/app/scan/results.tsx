@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import Animated, { FadeIn, FadeInDown, FadeInRight, ZoomIn } from 'react-native-reanimated';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { ActionCard } from '../../src/components/ActionCard';
 import { Button } from '../../src/components/Button';
@@ -23,12 +24,10 @@ const getStatusLabel = (value: number) => {
   return 'Watch';
 };
 
-export default function Results() {
+export default function Results({ hideBottomAction }: { hideBottomAction?: boolean } = {}) {
   const router = useRouter();
   const allOutputs = useStore((s) => s.modelOutputs);
   const dailyRecords = useStore((s) => s.dailyRecords);
-  const disconnectScanner = useStore((s) => s.disconnectScanner);
-
   const latestOutput = allOutputs.length > 0 ? allOutputs[allOutputs.length - 1] : null;
 
   const outputHistory = useMemo(() => {
@@ -46,7 +45,7 @@ export default function Results() {
         <View style={styles.emptyBlock}>
           <Text style={styles.emptyTitle}>No results yet</Text>
           <Text style={styles.emptyCopy}>
-            Capture a scan first so RadianceIQ can generate your trend summary.
+            Capture a scan first so Glowlytics can generate your trend summary.
           </Text>
         </View>
         <Button title="Go back" onPress={() => router.back()} />
@@ -60,83 +59,114 @@ export default function Results() {
   const ageDelta = baseline ? latestOutput.skin_age_score - baseline.skin_age_score : 0;
 
   const latestDaily = dailyRecords.length > 0 ? dailyRecords[dailyRecords.length - 1] : null;
-  const explanation = getExplanation(latestOutput, {
+  const templateExplanation = getExplanation(latestOutput, {
     sunscreen: latestDaily?.sunscreen_used ?? true,
     cycleWindow: latestOutput.primary_driver === 'cycle window',
     newProduct: latestDaily?.new_product_added ?? false,
     sleepQuality: latestDaily?.sleep_quality,
   });
+  const explanation = latestOutput.personalized_feedback || templateExplanation;
 
   const handleDone = () => {
-    disconnectScanner();
     router.replace('/(tabs)/today');
   };
 
   return (
     <AtmosphereScreen>
-      <View style={styles.header}>
+      {/* Header: FadeIn + slide from top, 0ms delay */}
+      <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
         <Text style={styles.eyebrow}>Results</Text>
-        <Text style={styles.title}>Today’s scan outcome</Text>
-      </View>
+        <Text style={styles.title}>Today's scan outcome</Text>
+      </Animated.View>
 
-      <View style={styles.metaRow}>
+      <Animated.View entering={FadeIn.duration(400).delay(100)} style={styles.metaRow}>
         <Text style={styles.metaText}>
           Driver: {(latestOutput.primary_driver || 'daily insight').replace(/_/g, ' ')}
         </Text>
-      </View>
+      </Animated.View>
 
-      <FacialMesh
-        acneScore={latestOutput.acne_score}
-        sunDamageScore={latestOutput.sun_damage_score}
-        skinAgeScore={latestOutput.skin_age_score}
-      />
+      {/* FacialMesh: scale-up + fade, 200ms delay */}
+      <Animated.View entering={ZoomIn.duration(600).delay(200)}>
+        <FacialMesh
+          acneScore={latestOutput.acne_score}
+          sunDamageScore={latestOutput.sun_damage_score}
+          skinAgeScore={latestOutput.skin_age_score}
+          conditions={latestOutput.conditions}
+        />
+      </Animated.View>
 
-      <View style={{ marginTop: Spacing.lg }}>
+      {/* ActionCard: slide from bottom + fade, 400ms delay */}
+      <Animated.View entering={FadeInDown.duration(500).delay(400)} style={{ marginTop: Spacing.lg }}>
         <ActionCard
           driver={latestOutput.primary_driver || 'daily insight'}
           action={explanation}
           supportingText={latestOutput.recommended_action}
         />
-      </View>
+      </Animated.View>
 
+      {/* RAG recommendations: cascade in from bottom, 100ms stagger */}
+      {latestOutput.rag_recommendations && latestOutput.rag_recommendations.length > 0 && (
+        <Animated.View entering={FadeInDown.duration(500).delay(500)} style={styles.ragSection}>
+          <Text style={styles.ragTitle}>Evidence-based guidelines</Text>
+          {latestOutput.rag_recommendations.map((rec, i) => (
+            <Animated.View key={i} entering={FadeInDown.duration(400).delay(600 + i * 100)} style={styles.ragCard}>
+              <View style={styles.ragCategoryBadge}>
+                <Text style={styles.ragCategoryText}>
+                  {rec.category.replace(/_/g, ' ')}
+                </Text>
+              </View>
+              <Text style={styles.ragText}>{rec.text}</Text>
+            </Animated.View>
+          ))}
+        </Animated.View>
+      )}
+
+      {/* ScoreTiles: slide from right, 100ms stagger, 600ms base delay */}
       <View style={styles.metricStack}>
-        <ScoreTile
-          label="Acne"
-          score={latestOutput.acne_score}
-          delta={acneDelta}
-          color={Colors.acne}
-          sparklineData={outputHistory.map((output) => output.acne_score)}
-          compact
-          lowLabel="Baseline"
-          highLabel="Today"
-          statusLabel={getStatusLabel(latestOutput.acne_score)}
-        />
-        <ScoreTile
-          label="Sun Damage"
-          score={latestOutput.sun_damage_score}
-          delta={sunDelta}
-          color={Colors.sunDamage}
-          sparklineData={outputHistory.map((output) => output.sun_damage_score)}
-          compact
-          lowLabel="Baseline"
-          highLabel="Today"
-          statusLabel={getStatusLabel(latestOutput.sun_damage_score)}
-        />
-        <ScoreTile
-          label="Skin Age"
-          score={latestOutput.skin_age_score}
-          delta={ageDelta}
-          color={Colors.skinAge}
-          sparklineData={outputHistory.map((output) => output.skin_age_score)}
-          compact
-          lowLabel="Baseline"
-          highLabel="Today"
-          statusLabel={getStatusLabel(latestOutput.skin_age_score)}
-        />
+        <Animated.View entering={FadeInRight.duration(500).delay(600)}>
+          <ScoreTile
+            label="Acne"
+            score={latestOutput.acne_score}
+            delta={acneDelta}
+            color={Colors.acne}
+            sparklineData={outputHistory.map((output) => output.acne_score)}
+            compact
+            lowLabel="Baseline"
+            highLabel="Today"
+            statusLabel={getStatusLabel(latestOutput.acne_score)}
+          />
+        </Animated.View>
+        <Animated.View entering={FadeInRight.duration(500).delay(700)}>
+          <ScoreTile
+            label="Sun Damage"
+            score={latestOutput.sun_damage_score}
+            delta={sunDelta}
+            color={Colors.sunDamage}
+            sparklineData={outputHistory.map((output) => output.sun_damage_score)}
+            compact
+            lowLabel="Baseline"
+            highLabel="Today"
+            statusLabel={getStatusLabel(latestOutput.sun_damage_score)}
+          />
+        </Animated.View>
+        <Animated.View entering={FadeInRight.duration(500).delay(800)}>
+          <ScoreTile
+            label="Skin Age"
+            score={latestOutput.skin_age_score}
+            delta={ageDelta}
+            color={Colors.skinAge}
+            sparklineData={outputHistory.map((output) => output.skin_age_score)}
+            compact
+            lowLabel="Baseline"
+            highLabel="Today"
+            statusLabel={getStatusLabel(latestOutput.skin_age_score)}
+          />
+        </Animated.View>
       </View>
 
+      {/* Escalation alert: slide from bottom, 800ms delay */}
       {latestOutput.escalation_flag ? (
-        <View style={styles.alertStrip}>
+        <Animated.View entering={FadeInDown.duration(500).delay(900)} style={styles.alertStrip}>
           <Text style={styles.alertTitle}>Worth escalating</Text>
           <Text style={styles.alertCopy}>
             Your trend changed quickly for this baseline. This is not diagnostic, but it is worth packaging for clinician context.
@@ -147,25 +177,14 @@ export default function Results() {
             size="sm"
             onPress={() => router.push('/report/generate')}
           />
-        </View>
+        </Animated.View>
       ) : null}
 
-      <View style={styles.disconnectStrip}>
-        <View>
-          <Text style={styles.disconnectTitle}>Scanner session</Text>
-          <Text style={styles.disconnectCopy}>
-            Disconnect now, or keep the simulated device live for another pass.
-          </Text>
-        </View>
-        <View style={styles.disconnectActions}>
-          <Button title="Disconnect" onPress={handleDone} size="sm" />
-          <Button title="Keep live" variant="ghost" onPress={() => router.replace('/(tabs)/today')} size="sm" />
-        </View>
-      </View>
-
-      <View style={styles.bottomAction}>
-        <Button title="Log done" onPress={handleDone} size="lg" />
-      </View>
+      {!hideBottomAction && (
+        <Animated.View entering={FadeInDown.duration(400).delay(1000)} style={styles.bottomAction}>
+          <Button title="Continue" onPress={handleDone} size="lg" />
+        </Animated.View>
+      )}
     </AtmosphereScreen>
   );
 }
@@ -228,30 +247,49 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     lineHeight: 22,
   },
-  disconnectStrip: {
+  ragSection: {
     marginTop: Spacing.lg,
-    backgroundColor: Colors.glass,
+    backgroundColor: Colors.glassStrong,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  disconnectTitle: {
-    color: Colors.text,
+  ragTitle: {
+    color: Colors.primaryLight,
     fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.md,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
   },
-  disconnectCopy: {
-    marginTop: Spacing.xs,
+  ragCard: {
+    backgroundColor: Colors.glass,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  ragCategoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+  },
+  ragCategoryText: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  ragText: {
     color: Colors.textSecondary,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
     lineHeight: 20,
-  },
-  disconnectActions: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
   },
   bottomAction: {
     marginTop: Spacing.lg,

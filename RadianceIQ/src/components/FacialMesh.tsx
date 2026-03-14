@@ -9,20 +9,38 @@ import {
   Shadows,
   Spacing,
 } from '../constants/theme';
+import type { DetectedCondition } from '../types';
 
 interface HotZone {
   label: string;
   severity: 'low' | 'moderate' | 'elevated';
-  region: 'forehead' | 'left_cheek' | 'right_cheek' | 'nose' | 'chin' | 'jaw';
+  region: 'forehead' | 'left_cheek' | 'right_cheek' | 'nose' | 'chin' | 'jaw' | 'under_eye' | 'temple';
+  conditionName?: string;
 }
 
 interface Props {
   acneScore: number;
   sunDamageScore: number;
   skinAgeScore: number;
+  conditions?: DetectedCondition[];
 }
 
-const severityColor = (severity: HotZone['severity']) => {
+const CONDITION_COLORS: Record<string, string> = {
+  acne: '#FF4444',
+  hyperpigmentation: '#F2B56A',
+  fine_lines: '#B68AFF',
+  rosacea: '#FF7A78',
+  dehydration: '#4DA6FF',
+  sun_spots: '#FFB347',
+  texture_irregularity: '#7DE7E1',
+  dark_circles: '#9B8EC4',
+  enlarged_pores: '#E8A87C',
+};
+
+const severityColor = (severity: HotZone['severity'], conditionName?: string) => {
+  if (conditionName && CONDITION_COLORS[conditionName]) {
+    return CONDITION_COLORS[conditionName];
+  }
   switch (severity) {
     case 'elevated':
       return Colors.error;
@@ -44,9 +62,34 @@ const regionCenter: Record<HotZone['region'], { cx: number; cy: number }> = {
   nose: { cx: CX, cy: 185 },
   chin: { cx: CX, cy: 310 },
   jaw: { cx: CX, cy: 280 },
+  under_eye: { cx: 120, cy: 175 },
+  temple: { cx: 70, cy: 110 },
 };
 
-function deriveHotZones(acne: number, sun: number, age: number): HotZone[] {
+function deriveHotZones(acne: number, sun: number, age: number, conditions?: DetectedCondition[]): HotZone[] {
+  // When conditions are provided, use them for precise zone mapping
+  if (conditions && conditions.length > 0) {
+    const zones: HotZone[] = [];
+    for (const condition of conditions) {
+      for (const zone of condition.zones) {
+        const severity: HotZone['severity'] =
+          zone.severity === 'severe' ? 'elevated' :
+          zone.severity === 'moderate' ? 'moderate' : 'low';
+        zones.push({
+          label: condition.name.replace(/_/g, ' '),
+          severity,
+          region: zone.region as HotZone['region'],
+          conditionName: condition.name,
+        });
+      }
+    }
+    if (zones.length === 0) {
+      zones.push({ label: 'All clear', severity: 'low', region: 'nose' });
+    }
+    return zones;
+  }
+
+  // Fallback: threshold-based logic when no conditions data available
   const zones: HotZone[] = [];
   if (acne > 40)
     zones.push({ label: 'Acne activity', severity: acne > 70 ? 'elevated' : 'moderate', region: 'left_cheek' });
@@ -328,18 +371,18 @@ function buildEdges(tris: [number, number, number][]): [number, number][] {
 
 const edges = buildEdges(T);
 
-export const FacialMesh: React.FC<Props> = ({ acneScore, sunDamageScore, skinAgeScore }) => {
-  const hotZones = deriveHotZones(acneScore, sunDamageScore, skinAgeScore);
+export const FacialMesh: React.FC<Props> = ({ acneScore, sunDamageScore, skinAgeScore, conditions }) => {
+  const hotZones = deriveHotZones(acneScore, sunDamageScore, skinAgeScore, conditions);
 
   return (
     <View style={styles.card}>
       <Text style={styles.eyebrow}>Facial Analysis</Text>
       <View style={styles.meshContainer}>
-        <Svg width={280} height={370} viewBox="-5 -20 310 380">
+        <Svg width={280} height={278} viewBox="-5 -20 310 380">
           <Defs>
             {hotZones.map((zone, i) => {
               const c = regionCenter[zone.region];
-              const color = severityColor(zone.severity);
+              const color = severityColor(zone.severity, zone.conditionName);
               return (
                 <RadialGradient key={`g${i}`} id={`hz${i}`} cx={c.cx} cy={c.cy} r="50" gradientUnits="userSpaceOnUse">
                   <Stop offset="0%" stopColor={color} stopOpacity="0.55" />
@@ -387,7 +430,7 @@ export const FacialMesh: React.FC<Props> = ({ acneScore, sunDamageScore, skinAge
           {/* Hot zone overlays */}
           {hotZones.map((zone, i) => {
             const c = regionCenter[zone.region];
-            const color = severityColor(zone.severity);
+            const color = severityColor(zone.severity, zone.conditionName);
             return (
               <G key={`hz-${i}`}>
                 <Circle cx={c.cx} cy={c.cy} r={50} fill={`url(#hz${i})`} />
@@ -401,15 +444,19 @@ export const FacialMesh: React.FC<Props> = ({ acneScore, sunDamageScore, skinAge
       </View>
 
       <View style={styles.legend}>
-        {hotZones.map((zone, i) => (
-          <View key={i} style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: severityColor(zone.severity) }]} />
-            <Text style={styles.legendLabel}>{zone.label}</Text>
-            <Text style={[styles.legendSeverity, { color: severityColor(zone.severity) }]}>
-              {zone.severity}
-            </Text>
-          </View>
-        ))}
+        {hotZones.map((zone, i) => {
+          const color = severityColor(zone.severity, zone.conditionName);
+          const displayLabel = zone.label.charAt(0).toUpperCase() + zone.label.slice(1);
+          return (
+            <View key={i} style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: color }]} />
+              <Text style={styles.legendLabel}>{displayLabel}</Text>
+              <Text style={[styles.legendSeverity, { color }]}>
+                {zone.severity}
+              </Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );

@@ -30,45 +30,11 @@ function AuthRedirector() {
   }
 
   if (!onboardingComplete) {
-    return <Redirect href="/onboarding/essentials" />;
+    return <Redirect href="/onboarding/welcome" />;
   }
 
   // Signed in + onboarding complete → redirect to tabs
   return <Redirect href="/(tabs)/today" />;
-}
-
-function AppContent() {
-  const loadPersistedData = useStore((s) => s.loadPersistedData);
-  const loaded = useRef(false);
-
-  useEffect(() => {
-    if (!loaded.current) {
-      loaded.current = true;
-      setTimeout(() => loadPersistedData(), 0);
-    }
-  }, []);
-
-  return (
-    <SafeAreaProvider>
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: Colors.background },
-            animation: 'slide_from_right',
-          }}
-        >
-          <Stack.Screen name="index" options={{ animation: 'fade' }} />
-          <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
-          <Stack.Screen name="auth" options={{ animation: 'fade' }} />
-          <Stack.Screen name="product" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="signal" options={{ animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="privacy-policy" options={{ animation: 'slide_from_right' }} />
-        </Stack>
-      </View>
-    </SafeAreaProvider>
-  );
 }
 
 function ClerkGatedApp() {
@@ -98,7 +64,8 @@ function ClerkGatedApp() {
           <Stack.Screen name="index" options={{ animation: 'fade' }} />
           <Stack.Screen name="auth" options={{ animation: 'fade' }} />
           <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
-          <Stack.Screen name="onboarding" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+          <Stack.Screen name="scan" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="product" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="signal" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="privacy-policy" options={{ animation: 'slide_from_right' }} />
@@ -119,20 +86,14 @@ export default function RootLayout() {
     return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
   }
 
-  // If Clerk key is configured, wrap with ClerkProvider for auth
-  if (env.CLERK_PUBLISHABLE_KEY) {
-    return (
-      <ClerkProvider
-        publishableKey={env.CLERK_PUBLISHABLE_KEY}
-        tokenCache={tokenCache}
-      >
-        <ClerkLoaded>
-          <ClerkGatedApp />
-        </ClerkLoaded>
-      </ClerkProvider>
-    );
-  }
-
-  // Fallback: run without Clerk if key not set (demo mode)
-  return <AppContent />;
+  return (
+    <ClerkProvider
+      publishableKey={env.CLERK_PUBLISHABLE_KEY}
+      tokenCache={tokenCache}
+    >
+      <ClerkLoaded>
+        <ClerkGatedApp />
+      </ClerkLoaded>
+    </ClerkProvider>
+  );
 }

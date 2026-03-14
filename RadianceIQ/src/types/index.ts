@@ -11,6 +11,19 @@ export type PermissionStatus = 'not_requested' | 'granted' | 'denied' | 'blocked
 export type HealthSource = 'apple_health' | 'health_connect';
 export type HealthDataType = 'sleep' | 'resting_heart_rate' | 'heart_rate_variability';
 
+// Onboarding profile types
+export type BiologicalSex = 'male' | 'female' | 'other' | 'prefer_not';
+export type MenstrualStatus = 'regular' | 'irregular' | 'no' | 'prefer_not';
+export type ExerciseFrequency = 'rarely' | '1-2_weekly' | '3-4_weekly' | '5+_weekly';
+export type ShowerFrequency = 'once_daily' | 'twice_daily' | '3+_daily' | 'every_other' | 'less';
+export type HandWashingFrequency = 'rarely' | 'few_daily' | 'after_meals' | 'very_frequent';
+export type BirthControlType = 'pill' | 'iud' | 'patch' | 'ring' | 'injection' | 'implant';
+
+export type OnboardingScreenName =
+  | 'welcome' | 'age-range' | 'sex' | 'location' | 'skin-goal'
+  | 'menstrual' | 'cycle-details' | 'supplements' | 'exercise'
+  | 'shower-frequency' | 'hand-washing' | 'camera-permission' | 'ready';
+
 export interface HealthConnectionState {
   status: PermissionStatus;
   source?: HealthSource;
@@ -25,10 +38,18 @@ export interface HealthConnectionState {
 export interface UserProfile {
   user_id: string;
   age_range: string;
+  sex?: BiologicalSex;
   location_coarse: string;
   period_applicable: PeriodApplicable;
   period_last_start_date?: string;
   cycle_length_days: number;
+  menstrual_status?: MenstrualStatus;
+  on_hormonal_birth_control?: 'yes' | 'no' | 'prefer_not';
+  birth_control_type?: BirthControlType;
+  supplements?: string[];
+  exercise_frequency?: ExerciseFrequency;
+  shower_frequency?: ShowerFrequency;
+  hand_washing_frequency?: HandWashingFrequency;
   smoker_status?: boolean;
   drink_baseline_frequency?: string;
   wearable_connected: boolean;
@@ -93,9 +114,80 @@ export interface ModelOutput {
   primary_driver?: string;
   recommended_action: string;
   escalation_flag: boolean;
+  conditions?: DetectedCondition[];
+  rag_recommendations?: RagRecommendation[];
+  personalized_feedback?: string;
 }
 
 export interface ScanResult {
   daily: DailyRecord;
   output: ModelOutput;
+}
+
+// Condition detection
+export type ConditionName = 'acne' | 'hyperpigmentation' | 'fine_lines' | 'rosacea' |
+  'dehydration' | 'sun_spots' | 'texture_irregularity' | 'dark_circles' | 'enlarged_pores';
+
+export type FacialRegion = 'forehead' | 'left_cheek' | 'right_cheek' | 'nose' | 'chin' | 'jaw' | 'under_eye' | 'temple';
+
+export type ConditionSeverity = 'mild' | 'moderate' | 'severe';
+
+export interface ConditionZone {
+  region: FacialRegion;
+  severity: ConditionSeverity;
+}
+
+export interface DetectedCondition {
+  name: ConditionName;
+  severity: ConditionSeverity;
+  zones: ConditionZone[];
+  description: string;
+}
+
+export interface RagRecommendation {
+  text: string;
+  category: string;
+  relevance: number;
+}
+
+// Gamification
+export type BadgeId = 'first_scan' | 'streak_7' | 'streak_30' | 'streak_60' |
+  'sunscreen_champion' | 'perfect_week' | 'sleep_warrior' | 'product_expert' |
+  'early_bird' | 'consistency_king' |
+  'level_novice' | 'level_enthusiast' | 'level_expert' | 'level_master' | 'level_scientist';
+
+export type LevelName = 'Beginner' | 'Novice' | 'Enthusiast' | 'Expert' | 'Master' | 'Skin Scientist';
+
+export interface Badge {
+  id: BadgeId;
+  name: string;
+  description: string;
+  earned_at?: string;
+  xp_reward: number;
+}
+
+export interface WeeklyChallenge {
+  id: string;
+  title: string;
+  description: string;
+  target: number;
+  progress: number;
+  xp_reward: number;
+  expires_at: string;
+  completed: boolean;
+}
+
+export interface PersonalBests {
+  longest_streak: number;
+  lowest_acne: number;
+  highest_skin_score: number;
+  most_consistent_week: number;
+}
+
+export interface GamificationState {
+  xp: number;
+  level: LevelName;
+  badges: Badge[];
+  weekly_challenges: WeeklyChallenge[];
+  personal_bests: PersonalBests;
 }

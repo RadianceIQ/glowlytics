@@ -4,8 +4,17 @@ import { v4 as uuidv4 } from 'uuid';
 import type {
   UserProfile, ScanProtocol, ProductEntry, DailyRecord,
   ModelOutput, PrimaryGoal, ScanRegion, HealthConnectionState,
+  GamificationState, Badge, WeeklyChallenge, LevelName,
+  OnboardingScreenName,
 } from '../types';
-import { createDemoSeed } from '../services/demoData';
+import {
+  getLevelForXP,
+  getXPForScan,
+  checkBadgeEligibility,
+  BADGE_DEFINITIONS,
+  updatePersonalBests as computePersonalBests,
+  generateWeeklyChallenges as generateChallenges,
+} from '../services/gamification';
 
 interface AppState {
   // User
@@ -17,13 +26,19 @@ interface AppState {
 
   // Onboarding state
   onboardingStep: number;
+  onboardingFlow: OnboardingScreenName[];
+  onboardingFlowIndex: number;
 
-  // Scanner connection (simulated)
-  scannerConnected: boolean;
-  scannerName: string;
+  // Pending scan result (processing→checkin handoff)
+  pendingScanResult: Partial<ModelOutput> | null;
+
+  // Gamification
+  gamification: GamificationState;
 
   // Actions
   setOnboardingStep: (step: number) => void;
+  setOnboardingFlow: (flow: OnboardingScreenName[]) => void;
+  setOnboardingFlowIndex: (index: number) => void;
   createUser: (data: Partial<UserProfile>) => void;
   updateUser: (data: Partial<UserProfile>) => void;
   updateHealthConnection: (data: Partial<HealthConnectionState>) => void;
@@ -32,16 +47,18 @@ interface AppState {
   removeProduct: (id: string) => void;
   addDailyRecord: (record: Omit<DailyRecord, 'daily_id' | 'user_id'>) => DailyRecord;
   addModelOutput: (output: Omit<ModelOutput, 'output_id'>) => void;
-  connectScanner: (name: string) => void;
-  disconnectScanner: () => void;
+  setPendingScanResult: (result: Partial<ModelOutput> | null) => void;
+  clearPendingScanResult: () => void;
   getStreak: () => number;
   getLatestOutput: () => ModelOutput | null;
   getOutputHistory: (days: number) => ModelOutput[];
   loadPersistedData: () => Promise<void>;
   persistData: () => Promise<void>;
   resetAll: () => void;
-  loadDemoData: () => void;
-  isDemoMode: () => boolean;
+  awardXP: (amount: number) => void;
+  checkAndAwardBadges: () => void;
+  updatePersonalBests: () => void;
+  generateWeeklyChallenges: () => void;
 }
 
 const generateId = () => {
@@ -59,16 +76,40 @@ const defaultHealthConnection = (): HealthConnectionState => ({
   sync_skipped: false,
 });
 
+const defaultGamification = (): GamificationState => ({
+  xp: 0,
+  level: 'Beginner',
+  badges: [],
+  weekly_challenges: [],
+  personal_bests: {
+    longest_streak: 0,
+    lowest_acne: 100,
+    highest_skin_score: 0,
+    most_consistent_week: 0,
+  },
+});
+
+// Re-export getLevelForXP from gamification service as local alias
+const levelForXP = getLevelForXP;
+
 const normalizeUser = (user?: Partial<UserProfile> | null): UserProfile | null => {
   if (!user) return null;
 
   return {
     user_id: user.user_id || generateId(),
     age_range: user.age_range || '',
+    sex: user.sex,
     location_coarse: user.location_coarse || '',
     period_applicable: user.period_applicable || 'prefer_not',
     period_last_start_date: user.period_last_start_date,
     cycle_length_days: user.cycle_length_days || 28,
+    menstrual_status: user.menstrual_status,
+    on_hormonal_birth_control: user.on_hormonal_birth_control,
+    birth_control_type: user.birth_control_type,
+    supplements: user.supplements,
+    exercise_frequency: user.exercise_frequency,
+    shower_frequency: user.shower_frequency,
+    hand_washing_frequency: user.hand_washing_frequency,
     smoker_status: user.smoker_status,
     drink_baseline_frequency: user.drink_baseline_frequency,
     wearable_connected: user.wearable_connected || false,
@@ -92,10 +133,14 @@ export const useStore = create<AppState>((set, get) => ({
   dailyRecords: [],
   modelOutputs: [],
   onboardingStep: 0,
-  scannerConnected: false,
-  scannerName: '',
+  onboardingFlow: ['welcome', 'age-range', 'sex', 'location', 'skin-goal', 'supplements', 'exercise', 'shower-frequency', 'hand-washing', 'camera-permission', 'ready'],
+  onboardingFlowIndex: 0,
+  pendingScanResult: null,
+  gamification: defaultGamification(),
 
   setOnboardingStep: (step) => set({ onboardingStep: step }),
+  setOnboardingFlow: (flow) => set({ onboardingFlow: flow }),
+  setOnboardingFlowIndex: (index) => set({ onboardingFlowIndex: index }),
 
   createUser: (data) => {
     const user = normalizeUser({
@@ -201,6 +246,17 @@ export const useStore = create<AppState>((set, get) => ({
     };
     set((s) => ({ dailyRecords: [...s.dailyRecords, entry] }));
     get().persistData();
+
+    // Calculate context items logged for XP bonus
+    let contextItems = 0;
+    if (record.sleep_quality) contextItems++;
+    if (record.stress_level) contextItems++;
+    if (record.drinks_yesterday) contextItems++;
+
+    const streak = get().getStreak();
+    const xp = getXPForScan(streak, contextItems);
+    get().awardXP(xp);
+    get().checkAndAwardBadges();
     return entry;
   },
 
@@ -211,10 +267,11 @@ export const useStore = create<AppState>((set, get) => ({
     };
     set((s) => ({ modelOutputs: [...s.modelOutputs, entry] }));
     get().persistData();
+    get().updatePersonalBests();
   },
 
-  connectScanner: (name) => set({ scannerConnected: true, scannerName: name }),
-  disconnectScanner: () => set({ scannerConnected: false, scannerName: '' }),
+  setPendingScanResult: (result) => set({ pendingScanResult: result }),
+  clearPendingScanResult: () => set({ pendingScanResult: null }),
 
   getStreak: () => {
     const records = get().dailyRecords.sort((a, b) => b.date.localeCompare(a.date));
@@ -249,9 +306,96 @@ export const useStore = create<AppState>((set, get) => ({
     return get().modelOutputs.filter((o) => dailyIds.has(o.daily_id));
   },
 
+  awardXP: (amount) => {
+    set((s) => {
+      const newXP = s.gamification.xp + amount;
+      return {
+        gamification: {
+          ...s.gamification,
+          xp: newXP,
+          level: levelForXP(newXP),
+        },
+      };
+    });
+    get().persistData();
+  },
+
+  checkAndAwardBadges: () => {
+    const { gamification, dailyRecords, modelOutputs, products } = get();
+    const streak = get().getStreak();
+
+    const newBadgeIds = checkBadgeEligibility(
+      gamification,
+      dailyRecords,
+      modelOutputs,
+      products,
+      streak,
+    );
+
+    if (newBadgeIds.length === 0) return;
+
+    const newBadges: Badge[] = newBadgeIds.map((id) => {
+      const def = BADGE_DEFINITIONS[id];
+      return {
+        id,
+        name: def.name,
+        description: def.description,
+        earned_at: new Date().toISOString(),
+        xp_reward: def.xp_reward,
+      };
+    });
+
+    const bonusXP = newBadges.reduce((sum, b) => sum + b.xp_reward, 0);
+    set((s) => {
+      const newXP = s.gamification.xp + bonusXP;
+      return {
+        gamification: {
+          ...s.gamification,
+          badges: [...s.gamification.badges, ...newBadges],
+          xp: newXP,
+          level: levelForXP(newXP),
+        },
+      };
+    });
+    get().persistData();
+  },
+
+  updatePersonalBests: () => {
+    const { modelOutputs, dailyRecords, gamification } = get();
+    if (modelOutputs.length === 0) return;
+
+    const streak = get().getStreak();
+    const updatedBests = computePersonalBests(
+      gamification.personal_bests,
+      dailyRecords,
+      modelOutputs,
+      streak,
+    );
+
+    set((s) => ({
+      gamification: {
+        ...s.gamification,
+        personal_bests: updatedBests,
+      },
+    }));
+    get().persistData();
+  },
+
+  generateWeeklyChallenges: () => {
+    const { gamification } = get();
+    const challenges = generateChallenges(gamification.weekly_challenges);
+    set((s) => ({
+      gamification: {
+        ...s.gamification,
+        weekly_challenges: challenges,
+      },
+    }));
+    get().persistData();
+  },
+
   loadPersistedData: async () => {
     try {
-      const data = await AsyncStorage.getItem('radianceiq_data');
+      const data = await AsyncStorage.getItem('glowlytics_data');
       const parsed = data ? JSON.parse(data) : null;
       const hasPersistedSession = Boolean(
         parsed?.user ||
@@ -267,11 +411,12 @@ export const useStore = create<AppState>((set, get) => ({
           products: parsed.products || [],
           dailyRecords: parsed.dailyRecords || [],
           modelOutputs: parsed.modelOutputs || [],
+          gamification: parsed.gamification || defaultGamification(),
         });
         return;
       }
 
-      // No persisted data — start clean (user chooses demo or onboarding from welcome screen)
+      // No persisted data — start clean
     } catch (e) {
       console.log('Failed to load persisted data', e);
     }
@@ -279,9 +424,9 @@ export const useStore = create<AppState>((set, get) => ({
 
   persistData: async () => {
     try {
-      const { user, protocol, products, dailyRecords, modelOutputs } = get();
-      await AsyncStorage.setItem('radianceiq_data', JSON.stringify({
-        user, protocol, products, dailyRecords, modelOutputs,
+      const { user, protocol, products, dailyRecords, modelOutputs, gamification } = get();
+      await AsyncStorage.setItem('glowlytics_data', JSON.stringify({
+        user, protocol, products, dailyRecords, modelOutputs, gamification,
       }));
     } catch (e) {
       console.log('Failed to persist data', e);
@@ -296,27 +441,9 @@ export const useStore = create<AppState>((set, get) => ({
       dailyRecords: [],
       modelOutputs: [],
       onboardingStep: 0,
-      scannerConnected: false,
-      scannerName: '',
+      pendingScanResult: null,
+      gamification: defaultGamification(),
     });
-    AsyncStorage.removeItem('radianceiq_data');
-  },
-
-  loadDemoData: () => {
-    const demo = createDemoSeed();
-    const state = {
-      user: normalizeUser({ ...demo.user, onboarding_complete: true }),
-      protocol: demo.protocol,
-      products: demo.products,
-      dailyRecords: demo.records,
-      modelOutputs: demo.outputs,
-    };
-    set(state);
-    AsyncStorage.setItem('radianceiq_data', JSON.stringify(state));
-  },
-
-  isDemoMode: () => {
-    const { dailyRecords } = get();
-    return dailyRecords.length >= 14;
+    AsyncStorage.removeItem('glowlytics_data');
   },
 }));

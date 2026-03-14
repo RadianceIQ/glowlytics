@@ -1,265 +1,52 @@
-RadianceIQ - Production Build Progress Tracker
-=============================================
-Last Updated: 2026-03-12 (session 7 - ship-ready status sync)
+Glowlytics - Build Progress
+===========================
+Last Updated: 2026-03-14
 
-DECISIONS MADE:
-- Platform: React Native (Expo SDK 54) — downgraded from SDK 55 for compatibility
-- Auth: Clerk (@clerk/clerk-expo v2) — Apple + Google OAuth + Email/Password
-- Scanner: Deterministic simulation with seeded PRNG (mulberry32)
-- Scoring: Validated heuristics (GAGS, SCORAD, VISIA, Fitzpatrick) — no Math.random()
-- ML Models: Fine-tuned GPT-4o (ft:gpt-4o-2024-08-06:personal:radianceiq-skin:DHBaOo20) via backend proxy
-- HealthKit: Fully mocked for Expo Go — native packages removed, will wire for EAS/bare builds later
-- Scope: All 3 journeys + auth + backend sync + App Store readiness
-- Clerk domain: true-sunbeam-60.clerk.accounts.dev
-- Repo: https://github.com/RadianceIQ/cornell-hackathon.git
+MILESTONES:
+1. Project setup + foundation (Expo SDK 54, TypeScript, Expo Router)
+2. Auth: Clerk (Apple + Google + Email/Password), JWT backend auth
+3. 3 user journeys: onboarding, daily scan, report
+4. Vision: Fine-tuned GPT-4o via backend proxy
+5. RAG: Pinecone + AAD/ACOG guidelines
+6. Deterministic scoring (GAGS, SCORAD, VISIA)
+7. Gamification: XP, 6 levels, 15 badges, weekly challenges
+8. Photo persistence + on-device quality checks
+9. Renamed RadianceIQ → Glowlytics (glowlytics.ai)
+10. Onboarding redesigned: 13 screens, Headspace-inspired progressive disclosure
+11. Backend deployed to Railway (https://glowlytics-api-production.up.railway.app)
+12. EAS build config with env vars for dev/preview/production profiles
 
-=============================================
-PHASE 1: Project Setup & Foundation
-=============================================
-[x] Initialize Expo project with TypeScript
-[x] Set up navigation (expo-router file-based routing)
-[x] Set up PostgreSQL database + schema (backend/db-init.js)
-[x] Set up backend API (Express - backend/server.js)
-[x] Set up state management (Zustand + AsyncStorage persistence)
-[x] Design system / theme setup (colors, typography, spacing)
-[x] Git repo initialized + pushed to GitHub
+CURRENT STATUS:
+- 203 tests passing, 0 TypeScript errors
+- 49 screens, 20 components, 13 services
+- Backend live on Railway with PostgreSQL, health check passing
+- EAS project linked (f56f9712-7cc3-48a3-ba5d-710c5e469c3d)
 
-=============================================
-PHASE 2: Journey 1 - First-Time Setup & Baseline
-=============================================
-[x] Welcome screen (safety framing + Start CTA) - app/index.tsx
-[x] Essentials screen (age, location, period basics) - app/onboarding/essentials.tsx
-[x] Primary goal selection screen (Acne/Sun damage/Skin age) - app/onboarding/goal.tsx
-[x] Region selection screen (face map + recommendations) - app/onboarding/region.tsx
-[x] Products screen (barcode scan / photo / search) - app/onboarding/products.tsx
-[x] Open Beauty Facts API integration (backend proxy endpoint)
-[x] Guided baseline scan screen (camera + coaching overlay) - app/onboarding/baseline-scan.tsx
-[x] Photo capture with quality checks (centering, lighting, blur)
-[x] Mock scanner reading with "Hold steady" UX
-[x] Baseline results screen (3 score tiles)
-[x] Boost accuracy screen (progressive profiling) - app/onboarding/boost.tsx
-[x] HealthKit/HealthConnect mocked for Expo Go (native packages removed, pure mock in healthPermissions.ts)
-
-=============================================
-PHASE 3: Journey 2 - Daily Scan & Results
-=============================================
-[x] Home screen (Today's Scan CTA, streak, last scores) - app/home.tsx
-[x] Daily scan screen (region reminder, photo capture) - app/scan/daily.tsx
-[x] Mock scanner connection flow (simulated) - app/scan/connect.tsx
-[x] Daily check-in screen (sunscreen, new product, period status) - app/scan/checkin.tsx
-[x] Optional context inputs (sleep, stress, drinks)
-[x] Results screen (3 scores + delta + sparkline) - app/scan/results.tsx
-[x] Confidence indicator - src/components/ConfidenceBadge.tsx
-[x] Action card logic (contextual single recommendation) - src/services/skinAnalysis.ts
-[x] Score computation + trend tracking (simulated via skinAnalysis service)
-[x] Vision LLM API integration via backend proxy — fine-tuned GPT-4o model
-
-=============================================
-PHASE 4: Journey 3 - Share Report
-=============================================
-[x] Report trigger / time range selection - app/report/generate.tsx
-[x] Report preview screen (auto-generated)
-[x] Trend charts (sparkline-based visualization)
-[x] Products + ingredients summary
-[x] Context overlays (period, sunscreen, sleep/stress)
-[x] Export/share functionality (stub with Alert)
-[x] Representative photos display (first/middle/last from period)
-
-=============================================
-PHASE 5: Backend & Data
-=============================================
-[x] PostgreSQL schema creation (all 6 tables) - backend/db-init.js
-[x] User profile CRUD API
-[x] Scan protocol CRUD API
-[x] Product catalog CRUD API
-[x] Daily record CRUD API
-[x] Model outputs API
-[x] Report generation API
-[x] Results explanation template engine - src/services/skinAnalysis.ts
-[x] RAG pipeline with Pinecone — 18 AAD/ACOG guideline chunks, semantic search via embeddings
-
-=============================================
-PHASE 6: Device Connection (Simulated)
-=============================================
-[x] Connect scanner gate screen (simulated) - app/scan/connect.tsx
-[x] Discovery animation + device selection
-[x] Connection confirmation flow
-[x] Scanner busy state
-[x] Connection lost / reconnect screen - app/scan/connection-lost.tsx
-[x] Disconnect / handoff after scan - in results screen
-
-=============================================
-PHASE 7: Polish & Demo Prep
-=============================================
-[x] Seed demo data (14 days of scan history) - src/services/demoData.ts
-[x] End-to-end flow testing (web + iOS bundles compile clean)
-[x] UI polish + animations (ScannerAnimation component)
-[x] Pushed to GitHub origin
-[x] Demo script preparation — DEMO_SCRIPT.md (7-minute structured walkthrough)
-
-=============================================
-PHASE 8: Production Readiness (session 4)
-=============================================
-[x] Clerk authentication (Sign in with Apple, Google, Email/Password)
-[x] Auth screens (sign-in.tsx, sign-up.tsx with email verification)
-[x] ClerkProvider wrapping root layout
-[x] SecureStore token cache for session persistence
-[x] Deterministic scoring algorithms (removed all Math.random())
-[x] Validated heuristics grounded in GAGS, SCORAD, VISIA, Fitzpatrick
-[x] Seeded PRNG (mulberry32) for reproducible scanner readings
-[x] Typed API service layer (src/services/api.ts)
-[x] Backend auth middleware (JWT verification via Clerk JWKS)
-[x] SQL injection fix on PATCH /api/users/:id
-[x] Dev-mode auth bypass for local development
-[x] EAS build configuration in app.json
-[x] Apple Sign-In entitlement + bundle ID update
-[x] Dark mode userInterfaceStyle + proper splash background
-[x] Comprehensive unit tests: scoring (30+ tests), insights, scanner, product lookup
-[x] PRD updated for production
-[x] env.ts extended with Clerk + API base URL
-[x] .env.example created
-[x] Wire Clerk publishable key in frontend .env
-[x] Wire Clerk secret key + issuer URL in backend .env
-[x] Backend dotenv integration for env loading
-[x] Backend .gitignore for .env protection
-[x] Wire setAuthTokenProvider in app startup — Clerk getToken() → api.ts
-[x] Privacy policy page — app/privacy-policy.tsx (BDQ Holdings LLC, GDPR/CCPA)
-[x] App Store submission assets — app-store-metadata.json (iPhone 15 Pro Max specs)
-
-=============================================
-BUILD STATUS: PRODUCTION TRANSITION IN PROGRESS
-=============================================
-- 37 screen files (app/) — auth, onboarding, scan, report, product, signal, tabs, skin-metric
-- 13 component files (src/components/)
-- 10 service files (src/services/) — added ingredientDB.ts, visionAPI.ts, productLookup.ts, api.ts, permissionState.ts, healthPermissions.ts
-- 1 utility file (src/utils/) — animations.ts
-- 3 config files (src/config/) — env.ts, tokenCache.ts, clerk.ts
-- 1 store file (src/store/)
-- 1 types file (src/types/)
-- 1 theme file (src/constants/)
-- 4 backend files (backend/) — server.js, db-init.js, package.json, .gitignore
-- 10 test suites, 120 tests (all passing)
-- Auth: Clerk with Apple + Google + Email OAuth
-- Scoring: Deterministic, validated heuristics with full test coverage
-- iOS simulator: Expo Go SDK 54 bundling and running clean
-
-BUGS FIXED:
-- Missing react-native-worklets dependency (required by react-native-reanimated v4)
-- Infinite re-render loop on web: React 19 + Zustand v5 useSyncExternalStore conflict
-- NitroModules crash in Expo Go: removed native packages, pure mocks
-- Non-deterministic scoring: removed all Math.random() from analysis engine
-- SQL injection in user PATCH: added field whitelisting
-- WorkletsError mismatch: react-native-worklets JS 0.7.4 vs Expo Go native 0.5.1 — pinned to 0.5.1 with override
-- Duplicate navigator in _layout.tsx: AuthGatedContent rendered its own Stack — replaced with AuthRedirector (Redirect-only)
-
-SDK MIGRATION (session 3):
-- Downgraded Expo SDK 55 → 54 (expo ~54.0.0, react 19.1.0, react-native 0.81.5)
-- App bundles and runs clean (1305 modules, <1s bundle time)
-
-=============================================
-PHASE 9: Auth Flow Polish
-=============================================
-[x] Root auth gate in _layout.tsx (AuthRedirector with Redirect)
-[x] Animated splash screen (orb scale, glow pulse, brand fadeIn)
-[x] Sign-in staggered entrance animations (Headspace-paced)
-[x] Sign-in error shake animation
-[x] Sign-in success animation (content fade + orb glow + haptic)
-[x] Sign-in "Forgot password?" link
-[x] Sign-up staggered entrance animations
-[x] Sign-up verification countdown timer (60s)
-[x] Sign-up resend code button (enabled after timer)
-[x] Forgot password screen (email → code + new password)
-[x] Auth layout calm transitions (fade_from_bottom, 400ms)
-[x] Profile sign-out with Clerk signOut()
-[x] Profile account card with Clerk user email
-[x] expo-haptics dependency added
-[x] Shared animation utilities (src/utils/animations.ts)
-
-=============================================
-PHASE 10: Product Intelligence
-=============================================
-[x] Ingredient knowledge base (~45 ingredients) - src/services/ingredientDB.ts
-[x] Ingredient matching (canonical, alias, substring)
-[x] Personalized product effectiveness scoring algorithm
-[x] Product blurb template engine
-[x] Usage tips by ingredient category
-[x] Product effectiveness badges on profile tab
-[x] Product effectiveness badges on onboarding products screen
-[x] Product detail screen - app/product/[id].tsx
-[x] Product route layout - app/product/_layout.tsx
-[x] Ingredient DB unit tests (16 tests)
-[x] brand? field added to ProductEntry type
-
-=============================================
-PHASE 11: Signal Detail Screens
-=============================================
-[x] Signal colors defined (structure, hydration, inflammation, sunDamage, elasticity)
-[x] Home screen rings made tappable → navigate to signal detail
-[x] Export deriveCompositeSignals from skinInsights.ts
-[x] computeSignalHistory function (14-day window)
-[x] Signal detail screen - app/signal/[key].tsx
-[x] Signal route layout - app/signal/_layout.tsx
-[x] Large animated SVG gauge
-[x] Contributing factors horizontal bars
-[x] 14-day trend line chart
-[x] Personalized recommendations by level
-[x] Related products by signal relevance
-[x] Signal history unit tests (11 tests)
-
-=============================================
-PHASE 12: Final Features (session 6)
-=============================================
-[x] Wire setAuthTokenProvider — Clerk getToken() injected into api.ts on app startup
-[x] Vision API backend proxy — POST /api/vision/analyze with fine-tuned GPT-4o model
-[x] Frontend visionAPI.ts refactored to call backend (API key removed from client)
-[x] env.ts cleaned — removed OPENAI_API_KEY and VISION_MODEL_ENDPOINT from frontend
-[x] Photo persistence — scan photos saved to documentDirectory/scan_photos/ via expo-file-system
-[x] Photo URI stored in DailyRecord.photo_uri on each scan
-[x] Representative photos in report — first/middle/last photos displayed in clinician export
-[x] Privacy policy screen — app/privacy-policy.tsx (BDQ Holdings LLC, 11 sections, GDPR/CCPA)
-[x] Privacy policy linked from profile tab (shield icon)
-[x] Privacy policy route registered in both layout stacks
-[x] RAG pipeline — backend/rag.js with Pinecone vector DB
-[x] 18 curated AAD/ACOG guideline chunks (acne, sun protection, retinoids, SPF, etc.)
-[x] RAG seed endpoint (POST /api/rag/seed) and query endpoint (POST /api/rag/query)
-[x] OpenAI text-embedding-3-small for semantic search embeddings
-[x] App Store metadata — app-store-metadata.json (description, keywords, iPhone 15 Pro Max specs)
-[x] Demo script — DEMO_SCRIPT.md (7-minute structured walkthrough with talking points)
-[x] Backend dependencies: @pinecone-database/pinecone, openai
-
-=============================================
-BUILD STATUS: SHIP-READY
-=============================================
-- 38 screen files (app/) — added privacy-policy.tsx
-- 13 component files (src/components/)
-- 10 service files (src/services/) — visionAPI now calls backend proxy
-- 1 utility file (src/utils/) — animations.ts
-- 3 config files (src/config/) — env.ts (simplified), tokenCache.ts, clerk.ts
-- 1 store file (src/store/)
-- 1 types file (src/types/)
-- 1 theme file (src/constants/)
-- 5 backend files (backend/) — server.js, db-init.js, rag.js, package.json, .gitignore
-- Auth: Clerk with mandatory sign-in + token wired to API client
-- Vision: Fine-tuned GPT-4o via backend proxy (API key server-side only)
-- RAG: Pinecone + AAD/ACOG guidelines with semantic search
-- Photo: Persistent storage + representative photos in reports
-- Privacy: Full policy screen (BDQ Holdings LLC, GDPR/CCPA)
-- App Store: Metadata ready (iPhone 15 Pro Max, description, keywords)
-- Demo: 7-minute script with talking points and backup plans
-- Testing: 120 tests across 10 suites (all passing)
+COMPLETED:
+[x] Backend deployment to Railway
+[x] Railway env vars (Clerk, OpenAI, Pinecone, Vision model)
+[x] Railway PostgreSQL provisioned
+[x] Health check endpoint (/health)
+[x] EAS project initialized
+[x] eas.json with dev/preview/production profiles
+[x] New Architecture enabled (required by reanimated v4)
+[x] Clerk publishable key added to all EAS build profiles
 
 REMAINING (App Store submission checklist):
-[x] Pinecone API key provisioned and wired in backend/.env
-[ ] EAS build: run `eas build --platform ios` to produce .ipa binary
-[ ] Apple Developer account: ensure enrollment is active ($99/year)
-[ ] App Store Connect: create app record with bundle ID com.radianceiq.app
+[ ] !! CRITICAL: Replace Clerk TEST keys with PRODUCTION keys before App Store submission !!
+    - eas.json: swap pk_test_* → pk_live_* in all profiles
+    - Railway: swap sk_test_* → sk_live_* and update CLERK_ISSUER_URL to production Clerk instance
+    - Create production Clerk instance at dashboard.clerk.com
+[ ] EAS preview build: verify app boots + connects to Railway backend
+[ ] App Store Connect: create app record with bundle ID com.glowlytics.app
 [ ] Screenshots: capture 5 screens on iPhone 15 Pro Max (1290x2796)
-[ ] Privacy policy hosting: deploy privacy-policy.tsx content to https://radianceiq.com/privacy (or any public URL)
+[ ] Privacy policy hosting: deploy privacy-policy.tsx content to https://glowlytics.ai/privacy
 [ ] App Store Connect metadata: paste description/keywords from app-store-metadata.json
 [ ] Content rating questionnaire: complete in App Store Connect (12+, medical info: yes)
-[ ] TestFlight: upload .ipa, add internal testers, run smoke test
-[ ] Backend deployment: deploy Express server to production (Railway/Render/Fly.io)
-[ ] Production env vars: CLERK keys, DATABASE_URL, OPENAI_API_KEY, PINECONE keys on prod server
-[ ] Seed Pinecone: POST /api/rag/seed on production backend
+[ ] eas submit config: fill in ascAppId and appleTeamId in eas.json
+[ ] Production EAS build: eas build --profile production --platform ios
+[ ] TestFlight: eas submit --platform ios --latest
+[ ] Smoke test all 3 journeys on TestFlight (onboarding → scan → results)
+[ ] Seed Pinecone on production: POST /api/rag/seed (needs auth bypass or service token)
 [ ] Legal review of privacy policy (recommended before public launch)
 [ ] Submit for App Review

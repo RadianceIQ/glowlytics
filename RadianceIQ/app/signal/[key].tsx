@@ -512,6 +512,24 @@ export default function SignalDetailScreen() {
           ))}
         </Animated.View>
 
+        {/* ---- Clinical Guidelines from RAG ---- */}
+        {latestOutput?.rag_recommendations && latestOutput.rag_recommendations.length > 0 && (
+          <Animated.View style={[styles.card, recsAnim]}>
+            <Text style={styles.cardTitle}>Clinical Guidelines</Text>
+            {latestOutput.rag_recommendations.map((rec, i) => (
+              <View key={i} style={styles.recRow}>
+                <View style={[styles.recDot, { backgroundColor: Colors.primary }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.recText, { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: 2 }]}>
+                    {rec.category.replace(/_/g, ' ').toUpperCase()}
+                  </Text>
+                  <Text style={styles.recText}>{rec.text}</Text>
+                </View>
+              </View>
+            ))}
+          </Animated.View>
+        )}
+
         <View style={{ height: Spacing.xxl }} />
       </ScrollView>
     </SafeAreaView>

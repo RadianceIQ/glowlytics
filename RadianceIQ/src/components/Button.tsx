@@ -127,13 +127,13 @@ const styles = StyleSheet.create({
   },
   primaryShell: {
     borderWidth: 1,
-    borderColor: 'rgba(199, 255, 250, 0.22)',
+    borderColor: 'rgba(199, 255, 250, 0.28)',
     ...Shadows.glow,
   },
   secondaryShell: {
     backgroundColor: Colors.glass,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(125, 231, 225, 0.12)',
   },
   ghostShell: {
     backgroundColor: 'transparent',

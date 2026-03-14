@@ -16,6 +16,7 @@ interface Props {
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   showsVerticalScrollIndicator?: boolean;
+  variant?: 'default' | 'warm' | 'focused';
 }
 
 export const AtmosphereScreen: React.FC<Props> = ({
@@ -24,6 +25,7 @@ export const AtmosphereScreen: React.FC<Props> = ({
   style,
   contentContainerStyle,
   showsVerticalScrollIndicator = false,
+  variant = 'default',
 }) => {
   const insets = useSafeAreaInsets();
   const contentStyle = [
@@ -47,14 +49,22 @@ export const AtmosphereScreen: React.FC<Props> = ({
         colors={[Colors.glowSecondary, 'transparent']}
         start={{ x: 0.05, y: 0.05 }}
         end={{ x: 0.8, y: 0.8 }}
-        style={styles.topGlow}
+        style={[styles.topGlow, variant === 'focused' && { opacity: 0.35 }]}
       />
       <LinearGradient
         colors={[Colors.glowPrimary, 'transparent']}
         start={{ x: 0.2, y: 0 }}
         end={{ x: 0.8, y: 1 }}
-        style={styles.midGlow}
+        style={[styles.midGlow, variant === 'focused' && { opacity: 0.25 }]}
       />
+      {variant === 'warm' && (
+        <LinearGradient
+          colors={[Colors.glowAmber, 'transparent']}
+          start={{ x: 0.85, y: 0.9 }}
+          end={{ x: 0.2, y: 0.3 }}
+          style={styles.warmGlow}
+        />
+      )}
       <View style={styles.gridOverlay} pointerEvents="none" />
       <LinearGradient
         colors={['transparent', 'rgba(2, 5, 10, 0.65)']}
@@ -121,5 +131,14 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 240,
+  },
+  warmGlow: {
+    position: 'absolute',
+    bottom: -60,
+    right: -80,
+    width: 320,
+    height: 280,
+    borderRadius: BorderRadius.full,
+    opacity: 0.65,
   },
 });

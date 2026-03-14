@@ -111,7 +111,7 @@ export default function MetricAssessmentDetail() {
             Run at least one scan to unlock this detailed assessment.
           </Text>
         </View>
-        <Button title="Start scan" onPress={() => router.push('/scan/connect')} />
+        <Button title="Start scan" onPress={() => router.push('/scan/camera')} />
       </AtmosphereScreen>
     );
   }

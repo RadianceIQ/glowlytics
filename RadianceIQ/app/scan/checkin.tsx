@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
+import Animated, { FadeIn, FadeOut, FadeInDown } from 'react-native-reanimated';
+import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
 import { useStore } from '../../src/store/useStore';
-import { analyzeSkiN } from '../../src/services/skinAnalysis';
 
 export default function DailyCheckin() {
   const router = useRouter();
@@ -20,7 +21,8 @@ export default function DailyCheckin() {
   const store = useStore();
   const user = useStore((s) => s.user);
   const protocol = useStore((s) => s.protocol);
-  const modelOutputs = useStore((s) => s.modelOutputs);
+  const dailyRecords = useStore((s) => s.dailyRecords);
+  const pendingScanResult = useStore((s) => s.pendingScanResult);
 
   const [sunscreen, setSunscreen] = useState<string | null>(null);
   const [newProduct, setNewProduct] = useState<string | null>(null);
@@ -30,6 +32,14 @@ export default function DailyCheckin() {
   const [stress, setStress] = useState<string | null>(null);
   const [drinks, setDrinks] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [xpFeedback, setXpFeedback] = useState<{ xp: number; badge?: string } | null>(null);
+
+  // Auto-expand optional context for first 3 scans as a nudge
+  useEffect(() => {
+    if (dailyRecords.length < 3) {
+      setShowContext(true);
+    }
+  }, []);
 
   // Estimate cycle day
   const estimatedCycleDay = (() => {
@@ -45,14 +55,11 @@ export default function DailyCheckin() {
 
   const persistPhoto = async (tempUri: string): Promise<string | undefined> => {
     try {
-      const photosDir = `${FileSystem.documentDirectory}scan_photos/`;
-      const dirInfo = await FileSystem.getInfoAsync(photosDir);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(photosDir, { intermediates: true });
-      }
+      const photosDir = `${FileSystemLegacy.documentDirectory}scan_photos/`;
+      await FileSystemLegacy.makeDirectoryAsync(photosDir, { intermediates: true });
       const filename = `scan_${Date.now()}.jpg`;
       const destUri = `${photosDir}${filename}`;
-      await FileSystem.copyAsync({ from: tempUri, to: destUri });
+      await FileSystemLegacy.copyAsync({ from: tempUri, to: destUri });
       return destUri;
     } catch {
       return undefined;
@@ -75,19 +82,20 @@ export default function DailyCheckin() {
       savedPhotoUri = await persistPhoto(params.photoUri);
     }
 
-    const analysis = await analyzeSkiN({
-      scannerData,
-      userProfile: user,
-      protocol,
-      previousOutputs: modelOutputs,
-      dailyContext: {
-        sunscreen_used: sunscreen === 'yes',
-        new_product_added: newProduct === 'yes',
-        cycle_day_estimated: estimatedCycleDay || undefined,
-        sleep_quality: sleep || undefined,
-        stress_level: stress || undefined,
-      },
-    });
+    // Use analysis from processing screen (pendingScanResult) or fallback
+    const analysis = pendingScanResult || {
+      acne_score: 50,
+      sun_damage_score: 40,
+      skin_age_score: 45,
+      confidence: 'low' as const,
+      primary_driver: 'general tracking',
+      recommended_action: 'Continue daily scans for more data.',
+      escalation_flag: false,
+    };
+
+    // Capture XP and badge count before the scan
+    const xpBefore = store.gamification.xp;
+    const badgesBefore = store.gamification.badges.length;
 
     const dailyRecord = store.addDailyRecord({
       date: new Date().toISOString().split('T')[0],
@@ -108,45 +116,95 @@ export default function DailyCheckin() {
 
     store.addModelOutput({
       daily_id: dailyRecord.daily_id,
-      ...analysis,
+      acne_score: analysis.acne_score ?? 50,
+      sun_damage_score: analysis.sun_damage_score ?? 40,
+      skin_age_score: analysis.skin_age_score ?? 45,
+      confidence: (analysis as any).confidence || 'low',
+      primary_driver: (analysis as any).primary_driver,
+      recommended_action: (analysis as any).recommended_action || '',
+      escalation_flag: (analysis as any).escalation_flag || false,
+      conditions: (analysis as any).conditions,
+      rag_recommendations: (analysis as any).rag_recommendations,
+      personalized_feedback: (analysis as any).personalized_feedback,
     });
 
+    // Clear pending result
+    store.clearPendingScanResult();
+
     setLoading(false);
-    router.push('/scan/results');
+
+    // Check for XP gains and new badges
+    const currentState = useStore.getState();
+    const xpGained = currentState.gamification.xp - xpBefore;
+    const newBadges = currentState.gamification.badges.slice(badgesBefore);
+    const latestBadgeName = newBadges.length > 0 ? newBadges[newBadges.length - 1].name : undefined;
+
+    if (xpGained > 0 || latestBadgeName) {
+      setXpFeedback({ xp: xpGained, badge: latestBadgeName });
+      setTimeout(() => {
+        setXpFeedback(null);
+        router.push('/scan/results');
+      }, 1500);
+    } else {
+      router.push('/scan/results');
+    }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <Text style={styles.title}>Quick check-in</Text>
-      <Text style={styles.subtitle}>A few quick taps before your results.</Text>
+    <>
+    {xpFeedback && (
+      <Animated.View
+        entering={FadeIn.duration(300)}
+        exiting={FadeOut.duration(300)}
+        style={styles.xpOverlay}
+      >
+        <View style={styles.xpOverlayContent}>
+          {xpFeedback.xp > 0 && (
+            <Text style={styles.xpGainText}>+{xpFeedback.xp} XP</Text>
+          )}
+          {xpFeedback.badge && (
+            <Text style={styles.badgeEarnedText}>Badge earned: {xpFeedback.badge}!</Text>
+          )}
+        </View>
+      </Animated.View>
+    )}
+    <AtmosphereScreen>
+      <Animated.View entering={FadeInDown.duration(400).delay(0)}>
+        <Text style={styles.title}>Quick check-in</Text>
+        <Text style={styles.subtitle}>A few quick taps before your results.</Text>
+      </Animated.View>
 
       {/* Sunscreen */}
-      <Text style={styles.sectionLabel}>Sunscreen today?</Text>
-      <OptionSelector
-        options={[
-          { label: 'Yes', value: 'yes' },
-          { label: 'No', value: 'no' },
-        ]}
-        selected={sunscreen}
-        onSelect={setSunscreen}
-        horizontal
-      />
+      <Animated.View entering={FadeInDown.duration(400).delay(100)}>
+        <Text style={styles.sectionLabel}>Sunscreen today?</Text>
+        <OptionSelector
+          options={[
+            { label: 'Yes', value: 'yes' },
+            { label: 'No', value: 'no' },
+          ]}
+          selected={sunscreen}
+          onSelect={setSunscreen}
+          horizontal
+        />
+      </Animated.View>
 
       {/* New product */}
-      <Text style={styles.sectionLabel}>Any new product since yesterday?</Text>
-      <OptionSelector
-        options={[
-          { label: 'Yes', value: 'yes' },
-          { label: 'No', value: 'no' },
-        ]}
-        selected={newProduct}
-        onSelect={setNewProduct}
-        horizontal
-      />
+      <Animated.View entering={FadeInDown.duration(400).delay(200)}>
+        <Text style={styles.sectionLabel}>Any new product since yesterday?</Text>
+        <OptionSelector
+          options={[
+            { label: 'Yes', value: 'yes' },
+            { label: 'No', value: 'no' },
+          ]}
+          selected={newProduct}
+          onSelect={setNewProduct}
+          horizontal
+        />
+      </Animated.View>
 
       {/* Period status */}
       {user?.period_applicable === 'yes' && estimatedCycleDay && (
-        <>
+        <Animated.View entering={FadeInDown.duration(400).delay(300)}>
           <Text style={styles.sectionLabel}>Period status</Text>
           <View style={styles.cycleDayCard}>
             <Text style={styles.cycleDayText}>
@@ -162,19 +220,21 @@ export default function DailyCheckin() {
               horizontal
             />
           </View>
-        </>
+        </Animated.View>
       )}
 
       {/* Optional context */}
       {!showContext ? (
-        <TouchableOpacity
-          style={styles.contextToggle}
-          onPress={() => setShowContext(true)}
-        >
-          <Text style={styles.contextToggleText}>Add context (optional)</Text>
-        </TouchableOpacity>
+        <Animated.View entering={FadeInDown.duration(400).delay(400)}>
+          <TouchableOpacity
+            style={styles.contextToggle}
+            onPress={() => setShowContext(true)}
+          >
+            <Text style={styles.contextToggleText}>Add context (optional)</Text>
+          </TouchableOpacity>
+        </Animated.View>
       ) : (
-        <View style={styles.contextSection}>
+        <Animated.View entering={FadeInDown.duration(400).delay(400)} style={styles.contextSection}>
           <Text style={styles.sectionLabel}>Sleep (yesterday)</Text>
           <OptionSelector
             options={[
@@ -210,7 +270,7 @@ export default function DailyCheckin() {
             onSelect={setDrinks}
             horizontal
           />
-        </View>
+        </Animated.View>
       )}
 
       <View style={styles.bottom}>
@@ -221,20 +281,12 @@ export default function DailyCheckin() {
           loading={loading}
         />
       </View>
-    </ScrollView>
+    </AtmosphereScreen>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  contentContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 60,
-    paddingBottom: Spacing.xxl,
-  },
   title: {
     fontSize: FontSize.xxl,
     fontFamily: FontFamily.sansBold,
@@ -280,5 +332,32 @@ const styles = StyleSheet.create({
   },
   bottom: {
     marginTop: Spacing.xl,
+  },
+  xpOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+    backgroundColor: 'rgba(6, 11, 18, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  xpOverlayContent: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  xpGainText: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.hero,
+  },
+  badgeEarnedText: {
+    color: Colors.warning,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.lg,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.xl,
   },
 });

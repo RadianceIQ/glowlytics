@@ -261,11 +261,11 @@ export default function SignInScreen() {
                 style={styles.logoOrb}
               >
                 <View style={styles.logoInner}>
-                  <Text style={styles.logoLetter}>R</Text>
+                  <Text style={styles.logoLetter}>G</Text>
                 </View>
               </LinearGradient>
             </Animated.View>
-            <Animated.Text style={[styles.brandName, brandStyle]}>RadianceIQ</Animated.Text>
+            <Animated.Text style={[styles.brandName, brandStyle]}>Glowlytics</Animated.Text>
             <Animated.Text style={[styles.brandTagline, welcomeStyle]}>Welcome back</Animated.Text>
           </View>
 

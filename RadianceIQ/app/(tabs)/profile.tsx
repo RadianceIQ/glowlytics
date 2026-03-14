@@ -16,6 +16,8 @@ import {
   buildOverallSkinInsight,
   getLatestDailyForOutput,
 } from '../../src/services/skinInsights';
+import { LevelProgressBar } from '../../src/components/LevelProgressBar';
+import { BadgeShowcase } from '../../src/components/BadgeShowcase';
 
 let useUser: (() => { user: { primaryEmailAddress?: { emailAddress?: string } } | null | undefined }) | undefined;
 let useClerk: (() => { signOut: () => Promise<void> }) | undefined;
@@ -25,7 +27,7 @@ try {
   useUser = clerk.useUser;
   useClerk = clerk.useClerk;
 } catch {
-  // Clerk not available in demo mode
+  // Clerk not available
 }
 
 const InfoRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
@@ -56,14 +58,12 @@ export default function ProfileTab() {
   const products = useStore((s) => s.products);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const modelOutputs = useStore((s) => s.modelOutputs);
-  const loadDemoData = useStore((s) => s.loadDemoData);
+  const gamification = useStore((s) => s.gamification);
   const resetAll = useStore((s) => s.resetAll);
 
   const clerkUser = useUser ? useUser() : null;
   const clerk = useClerk ? useClerk() : null;
   const clerkEmail = clerkUser?.user?.primaryEmailAddress?.emailAddress;
-
-  const isDemo = dailyRecords.length >= 14;
 
   const periodLabel =
     user?.period_applicable === 'yes'
@@ -109,39 +109,21 @@ export default function ProfileTab() {
           },
         ],
       );
-    } else {
-      handleSwitchToNew();
     }
   };
 
-  const handleSwitchToNew = () => {
+  const handleResetAllData = () => {
     Alert.alert(
-      'Switch to new user',
-      'This will clear all data and start fresh from the welcome screen.',
+      'Reset all data',
+      'This will permanently delete all your scan history, products, and settings. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Reset',
+          text: 'Delete everything',
           style: 'destructive',
           onPress: () => {
             resetAll();
             router.replace('/');
-          },
-        },
-      ],
-    );
-  };
-
-  const handleLoadDemo = () => {
-    Alert.alert(
-      'Load demo data',
-      'This will replace your current data with 21 days of simulated scan history.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Load',
-          onPress: () => {
-            loadDemoData();
           },
         },
       ],
@@ -178,6 +160,15 @@ export default function ProfileTab() {
           <Feather name="shield" size={16} color={Colors.primaryLight} />
           <Text style={styles.modeButtonText}>Privacy Policy</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.modeButton, styles.modeButtonDestructive]}
+          onPress={handleResetAllData}
+          activeOpacity={0.7}
+        >
+          <Feather name="trash-2" size={16} color={Colors.error} />
+          <Text style={[styles.modeButtonText, { color: Colors.error }]}>Reset all data</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Demographics */}
@@ -200,6 +191,21 @@ export default function ProfileTab() {
         <InfoRow label="Goal" value={protocol?.primary_goal?.replace(/_/g, ' ') || '—'} />
         <InfoRow label="Region" value={protocol?.scan_region?.replace(/_/g, ' ') || '—'} />
         <InfoRow label="Total scans" value={String(dailyRecords.length)} />
+      </View>
+
+      {/* Achievements */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Achievements</Text>
+        <LevelProgressBar xp={gamification.xp} />
+        <BadgeShowcase earnedBadges={gamification.badges} />
+
+        {/* Personal bests */}
+        <View style={styles.personalBests}>
+          <InfoRow label="Longest streak" value={`${gamification.personal_bests.longest_streak} days`} />
+          <InfoRow label="Lowest acne" value={gamification.personal_bests.lowest_acne < 100 ? String(gamification.personal_bests.lowest_acne) : '--'} />
+          <InfoRow label="Best skin score" value={gamification.personal_bests.highest_skin_score > 0 ? String(gamification.personal_bests.highest_skin_score) : '--'} />
+          <InfoRow label="Best week consistency" value={gamification.personal_bests.most_consistent_week > 0 ? `${gamification.personal_bests.most_consistent_week} / 7 days` : '--'} />
+        </View>
       </View>
 
       {/* Products */}
@@ -241,46 +247,6 @@ export default function ProfileTab() {
           >
             <Feather name="plus" size={16} color={Colors.primaryLight} />
             <Text style={styles.addButtonText}>Add a Product</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* User Mode Toggle */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>User mode</Text>
-          <View style={styles.modeBadge}>
-            <View style={[styles.modeDot, isDemo ? styles.modeDotDemo : styles.modeDotCustom]} />
-            <Text style={styles.modeBadgeText}>{isDemo ? 'Demo' : 'Custom'}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.modeDescription}>
-          {isDemo
-            ? 'Running with simulated scan history. Switch to new user to start fresh.'
-            : 'Running with your own data. Load demo to explore the full experience.'}
-        </Text>
-
-        <View style={styles.modeActions}>
-          {isDemo ? (
-            <TouchableOpacity style={styles.modeButton} onPress={handleSwitchToNew} activeOpacity={0.7}>
-              <Feather name="user-plus" size={16} color={Colors.primaryLight} />
-              <Text style={styles.modeButtonText}>Switch to new user</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.modeButton} onPress={handleLoadDemo} activeOpacity={0.7}>
-              <Feather name="database" size={16} color={Colors.primaryLight} />
-              <Text style={styles.modeButtonText}>Load demo data</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.modeButton, styles.modeButtonSecondary]}
-            onPress={handleSwitchToNew}
-            activeOpacity={0.7}
-          >
-            <Feather name="refresh-cw" size={16} color={Colors.warning} />
-            <Text style={[styles.modeButtonText, { color: Colors.warning }]}>Reset all data</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -422,44 +388,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
 
-  // Mode toggle
-  modeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.glassStrong,
-    borderRadius: BorderRadius.full,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-  },
-  modeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  modeDotDemo: {
-    backgroundColor: Colors.secondary,
-  },
-  modeDotCustom: {
-    backgroundColor: Colors.primary,
-  },
-  modeBadgeText: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  modeDescription: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.sm,
-    lineHeight: 20,
-  },
-  modeActions: {
-    gap: Spacing.sm,
-    marginTop: Spacing.xs,
-  },
   modeButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -472,14 +400,20 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
   },
-  modeButtonSecondary: {
-    borderColor: 'rgba(255, 200, 87, 0.2)',
-    backgroundColor: 'rgba(255, 200, 87, 0.06)',
+  modeButtonDestructive: {
+    borderColor: 'rgba(255, 122, 120, 0.2)',
+    backgroundColor: 'rgba(255, 122, 120, 0.06)',
   },
   modeButtonText: {
     color: Colors.primaryLight,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.sm,
+  },
+  personalBests: {
+    marginTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.divider,
+    paddingTop: Spacing.sm,
   },
   footerSpacer: {
     height: Spacing.xl,

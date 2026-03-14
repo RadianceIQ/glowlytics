@@ -97,7 +97,7 @@ export default function SkinMetricsScreen() {
           <Text style={styles.emptyCopy}>
             Run your first scan to unlock acne, sun damage, and skin age assessments.
           </Text>
-          <Button title="Start first scan" onPress={() => router.push('/scan/connect')} />
+          <Button title="Start first scan" onPress={() => router.push('/scan/camera')} />
         </View>
       )}
 

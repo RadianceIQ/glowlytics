@@ -1,5 +1,5 @@
 // src/services/api.ts
-// Typed API client for RadianceIQ backend with Clerk auth token injection
+// Typed API client for Glowlytics backend with Clerk auth token injection
 
 import type {
   UserProfile, ScanProtocol, ProductEntry, DailyRecord,

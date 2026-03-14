@@ -1,4 +1,4 @@
-# RadianceIQ -- Demo Script
+# Glowlytics -- Demo Script
 
 **Total runtime:** ~7 minutes
 **Target audience:** Investors, judges, clinicians, prospective users
@@ -10,7 +10,7 @@
 **Action:** Launch the app from the home screen.
 
 **Talking points:**
-- "RadianceIQ turns your daily skincare routine into measurable, clinician-grade data."
+- "Glowlytics turns your daily skincare routine into measurable, clinician-grade data."
 - The animated splash screen sets the tone -- this is a polished, production-quality product.
 - Point out the dark theme with teal accent palette, designed for morning routines in low light.
 
@@ -154,13 +154,13 @@
 **Action:** Return to the home screen for the final shot.
 
 **Talking points:**
-- "Let me leave you with what makes RadianceIQ different."
+- "Let me leave you with what makes Glowlytics different."
 - **Deterministic scoring** -- no random fluctuation. Real signal, not noise.
 - **120 passing tests** across 10 suites -- this is production-grade software, not a hackathon sketch.
 - **Clerk authentication** with Apple/Google OAuth -- enterprise-ready from day one.
 - **Fine-tuned GPT-4o** integration ready for the vision pipeline -- the ML backbone is architected, not bolted on.
 - **Clinician-ready reports** that bridge the gap between consumer self-care and professional dermatology.
-- "RadianceIQ: better skin starts with better data."
+- "Glowlytics: better skin starts with better data."
 
 ---
 

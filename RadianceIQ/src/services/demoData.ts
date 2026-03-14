@@ -1,4 +1,4 @@
-import type { DailyRecord, ModelOutput, ProductEntry, UserProfile, ScanProtocol } from '../types';
+import type { DailyRecord, ModelOutput, ProductEntry, UserProfile, ScanProtocol, GamificationState } from '../types';
 
 const daysAgo = (n: number): string => {
   const d = new Date();
@@ -195,11 +195,85 @@ export const createDemoHistory = (): { records: DailyRecord[]; outputs: ModelOut
   return { records, outputs };
 };
 
+export const createDemoGamification = (): GamificationState => {
+  const now = new Date();
+  const expiresAt = new Date(now);
+  expiresAt.setDate(expiresAt.getDate() + 5);
+
+  return {
+    xp: 420,
+    level: 'Enthusiast',
+    badges: [
+      {
+        id: 'first_scan',
+        name: 'First Steps',
+        description: 'Complete your first scan',
+        earned_at: daysAgo(21) + 'T09:00:00.000Z',
+        xp_reward: 25,
+      },
+      {
+        id: 'streak_7',
+        name: 'Week Warrior',
+        description: 'Maintain a 7-day scan streak',
+        earned_at: daysAgo(14) + 'T09:00:00.000Z',
+        xp_reward: 25,
+      },
+      {
+        id: 'sunscreen_champion',
+        name: 'Sun Shield',
+        description: 'Use sunscreen 7 days in a row',
+        earned_at: daysAgo(10) + 'T09:00:00.000Z',
+        xp_reward: 25,
+      },
+      {
+        id: 'sleep_warrior',
+        name: 'Sleep Champion',
+        description: 'Log great sleep 5 times',
+        earned_at: daysAgo(7) + 'T09:00:00.000Z',
+        xp_reward: 25,
+      },
+      {
+        id: 'level_novice',
+        name: 'Rising Star',
+        description: 'Reach Novice level',
+        earned_at: daysAgo(18) + 'T09:00:00.000Z',
+        xp_reward: 25,
+      },
+      {
+        id: 'level_enthusiast',
+        name: 'Skin Enthusiast',
+        description: 'Reach Enthusiast level',
+        earned_at: daysAgo(5) + 'T09:00:00.000Z',
+        xp_reward: 25,
+      },
+    ],
+    weekly_challenges: [
+      {
+        id: 'demo_challenge_1',
+        title: 'Scan Squad',
+        description: 'Complete 3 scans this week',
+        target: 3,
+        progress: 2,
+        xp_reward: 50,
+        expires_at: expiresAt.toISOString(),
+        completed: false,
+      },
+    ],
+    personal_bests: {
+      longest_streak: 12,
+      lowest_acne: 28,
+      highest_skin_score: 74,
+      most_consistent_week: 6,
+    },
+  };
+};
+
 export const createDemoSeed = () => {
   const user = createDemoUser();
   const protocol = createDemoProtocol();
   const products = createDemoProducts();
   const { records, outputs } = createDemoHistory();
+  const gamification = createDemoGamification();
 
-  return { user, protocol, products, records, outputs };
+  return { user, protocol, products, records, outputs, gamification };
 };

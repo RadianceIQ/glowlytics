@@ -15,17 +15,6 @@ jest.mock('uuid', () => ({
 // Mock react-native-get-random-values
 jest.mock('react-native-get-random-values', () => {});
 
-// Mock demoData to avoid complex seed
-jest.mock('../../services/demoData', () => ({
-  createDemoSeed: () => ({
-    user: null,
-    protocol: null,
-    products: [],
-    records: [],
-    outputs: [],
-  }),
-}));
-
 const resetStore = () => {
   useStore.setState({
     user: null,
@@ -34,8 +23,19 @@ const resetStore = () => {
     dailyRecords: [],
     modelOutputs: [],
     onboardingStep: 0,
-    scannerConnected: false,
-    scannerName: '',
+    pendingScanResult: null,
+    gamification: {
+      xp: 0,
+      level: 'Beginner',
+      badges: [],
+      weekly_challenges: [],
+      personal_bests: {
+        longest_streak: 0,
+        lowest_acne: 100,
+        highest_skin_score: 0,
+        most_consistent_week: 0,
+      },
+    },
   });
 };
 
@@ -97,9 +97,6 @@ describe('useStore', () => {
       });
 
       const today = new Date().toISOString().split('T')[0];
-      const fiveDaysAgo = new Date();
-      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-      const fiveDaysAgoStr = fiveDaysAgo.toISOString().split('T')[0];
 
       // Add a record for today
       const record1 = useStore.getState().addDailyRecord({
@@ -179,6 +176,17 @@ describe('useStore', () => {
 
       useStore.getState().removeProduct(products[0].user_product_id);
       expect(useStore.getState().products).toHaveLength(0);
+    });
+  });
+
+  describe('pendingScanResult', () => {
+    it('sets and clears pending scan result', () => {
+      const mockResult = { acne_score: 45, sun_damage_score: 30 };
+      useStore.getState().setPendingScanResult(mockResult);
+      expect(useStore.getState().pendingScanResult).toEqual(mockResult);
+
+      useStore.getState().clearPendingScanResult();
+      expect(useStore.getState().pendingScanResult).toBeNull();
     });
   });
 });

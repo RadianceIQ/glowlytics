@@ -40,6 +40,19 @@ export const Colors = {
   glowPrimary: 'rgba(125, 231, 225, 0.22)',
   glowSecondary: 'rgba(138, 149, 255, 0.20)',
   glowAmber: 'rgba(242, 181, 106, 0.18)',
+
+  // Nature / earth accents
+  forest: '#2D8B6E',
+  moss: '#7BAE7F',
+  clay: '#C5A880',
+
+  // Additional glows
+  glowSage: 'rgba(95, 211, 172, 0.18)',
+  glowCoral: 'rgba(255, 122, 120, 0.15)',
+  glowForest: 'rgba(45, 139, 110, 0.20)',
+
+  // Warm glass variant
+  glassWarm: 'rgba(30, 25, 18, 0.78)',
 };
 
 export const Spacing = {
@@ -123,4 +136,7 @@ export const Motion = {
   fast: 140,
   base: 220,
   slow: 320,
+  graceful: 600,
+  dramatic: 800,
+  breathe: 2000,
 };

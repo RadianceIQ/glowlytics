@@ -1,5 +1,5 @@
 import type { ScannerReading } from './mockScanner';
-import type { Confidence, DailyRecord, ModelOutput, UserProfile, ScanProtocol } from '../types';
+import type { Confidence, DailyRecord, ModelOutput, UserProfile, ScanProtocol, DetectedCondition, RagRecommendation } from '../types';
 import { analyzeWithVisionAPI } from './visionAPI';
 import { env } from '../config/env';
 
@@ -307,10 +307,14 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
   primary_driver: string;
   recommended_action: string;
   escalation_flag: boolean;
+  conditions?: DetectedCondition[];
+  rag_recommendations?: RagRecommendation[];
+  personalized_feedback?: string;
 }> => {
   // Try real Vision API via backend proxy if API base URL is configured and photo is available
   if (env.API_BASE_URL && input.photoUri) {
     try {
+      console.log('[Glowlytics] Calling Vision API at:', env.API_BASE_URL);
       const result = await analyzeWithVisionAPI(input.photoUri, {
         primary_goal: input.protocol.primary_goal,
         scan_region: input.protocol.scan_region,
@@ -319,6 +323,8 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
         stress_level: input.dailyContext.stress_level,
         scan_count: input.previousOutputs.length,
       });
+
+      console.log('[Glowlytics] Vision API success — scores from fine-tuned GPT-4o model');
 
       // Check for escalation
       let escalation = false;
@@ -332,13 +338,28 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
         }
       }
 
-      return { ...result, escalation_flag: escalation };
+      return {
+        ...result,
+        escalation_flag: escalation,
+        conditions: result.conditions,
+        rag_recommendations: result.rag_recommendations,
+        personalized_feedback: result.personalized_feedback,
+      };
     } catch (err) {
-      console.warn('Vision API failed, falling back to local analysis:', err);
+      console.warn('[Glowlytics] Vision API failed — falling back to LOCAL heuristic analysis (NOT the fine-tuned model):', err);
+      console.warn('[Glowlytics] To use the fine-tuned model, ensure the backend is running: cd backend && node server.js');
+    }
+  } else {
+    if (!input.photoUri) {
+      console.warn('[Glowlytics] No photo URI provided — using LOCAL heuristic analysis');
+    }
+    if (!env.API_BASE_URL) {
+      console.warn('[Glowlytics] No API_BASE_URL configured — using LOCAL heuristic analysis');
     }
   }
 
   // Fallback to local simulated analysis
+  console.log('[Glowlytics] Using LOCAL heuristic analysis (mock scanner data, NOT fine-tuned model)');
   return analyzeSkiN(input);
 };
 
@@ -346,6 +367,11 @@ export const getExplanation = (
   output: ModelOutput,
   context: { sunscreen: boolean; cycleWindow: boolean; newProduct: boolean; sleepQuality?: string }
 ): string => {
+  // If personalized feedback from Vision API / RAG is available, use it
+  if (output.personalized_feedback) {
+    return output.personalized_feedback;
+  }
+
   // Template A: Acne
   if (output.primary_driver === 'cycle window') {
     return 'Your acne metric rose during your predicted cycle window. This pattern often reflects hormonal variation. Consider keeping your routine stable for the next few days and avoid introducing new actives.';

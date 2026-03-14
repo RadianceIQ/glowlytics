@@ -367,11 +367,11 @@ export default function SignUpScreen() {
                 style={styles.logoOrb}
               >
                 <View style={styles.logoInner}>
-                  <Text style={styles.logoLetter}>R</Text>
+                  <Text style={styles.logoLetter}>G</Text>
                 </View>
               </LinearGradient>
             </Animated.View>
-            <Animated.Text style={[styles.brandName, brandStyle]}>RadianceIQ</Animated.Text>
+            <Animated.Text style={[styles.brandName, brandStyle]}>Glowlytics</Animated.Text>
             <Animated.Text style={[styles.brandTagline, taglineStyle]}>Create your account</Animated.Text>
           </View>
 
@@ -475,7 +475,7 @@ export default function SignUpScreen() {
           {/* Health disclaimer */}
           <Animated.View style={[styles.disclaimer, footerStyle]}>
             <Text style={styles.disclaimerText}>
-              RadianceIQ tracks skin metrics and trends. It does not provide medical diagnoses.
+              Glowlytics tracks skin metrics and trends. It does not provide medical diagnoses.
             </Text>
           </Animated.View>
 

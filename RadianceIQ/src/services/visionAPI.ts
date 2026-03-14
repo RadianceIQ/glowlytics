@@ -1,5 +1,5 @@
 import { env } from '../config/env';
-import type { Confidence } from '../types';
+import type { Confidence, DetectedCondition, RagRecommendation } from '../types';
 
 export interface VisionAnalysisResult {
   acne_score: number;
@@ -8,13 +8,16 @@ export interface VisionAnalysisResult {
   confidence: Confidence;
   primary_driver: string;
   recommended_action: string;
+  conditions?: DetectedCondition[];
+  rag_recommendations?: RagRecommendation[];
+  personalized_feedback?: string;
 }
 
 async function imageToBase64(uri: string): Promise<string> {
-  // Dynamically import expo-file-system to read image as base64
-  const FileSystem = await import('expo-file-system');
+  // Use the legacy API — SDK 54 deprecated the top-level readAsStringAsync
+  const FileSystem = await import('expo-file-system/legacy');
   const base64 = await FileSystem.readAsStringAsync(uri, {
-    encoding: 'base64',
+    encoding: FileSystem.EncodingType.Base64,
   });
   return base64;
 }
@@ -66,5 +69,8 @@ export async function analyzeWithVisionAPI(
     confidence: (['low', 'med', 'high'].includes(result.confidence) ? result.confidence : 'low') as Confidence,
     primary_driver: result.primary_driver || 'general tracking',
     recommended_action: result.recommended_action || 'Continue daily scans for more data.',
+    conditions: result.conditions,
+    rag_recommendations: result.rag_recommendations,
+    personalized_feedback: result.personalized_feedback,
   };
 }

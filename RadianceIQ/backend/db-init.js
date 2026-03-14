@@ -1,7 +1,7 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/radianceiq',
+  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/glowlytics',
 });
 
 const schema = `
@@ -102,10 +102,19 @@ CREATE TABLE IF NOT EXISTS report_artifacts (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Waitlist signups (landing page)
+CREATE TABLE IF NOT EXISTS waitlist (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(320) NOT NULL UNIQUE,
+  source VARCHAR(50) DEFAULT 'landing',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_daily_records_user_date ON daily_records(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_model_outputs_daily ON model_outputs(daily_id);
 CREATE INDEX IF NOT EXISTS idx_products_user ON product_catalog(user_id);
+CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist(email);
 `;
 
 async function init() {

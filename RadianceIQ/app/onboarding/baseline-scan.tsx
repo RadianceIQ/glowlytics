@@ -1,21 +1,42 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  withRepeat,
+  withSequence,
+  FadeIn,
+  Easing,
+} from 'react-native-reanimated';
+import { Feather } from '@expo/vector-icons';
 import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/Button';
-import { ScannerAnimation } from '../../src/components/ScannerAnimation';
 import { OnboardingHero } from '../../src/components/OnboardingHero';
+import { CameraFaceMesh } from '../../src/components/CameraFaceMesh';
+import { DirectionIndicators } from '../../src/components/DirectionIndicators';
+import { useFaceTracking } from '../../src/hooks/useFaceTracking';
+import { getDirections } from '../../src/services/faceTracking';
+import { checkPhotoQuality } from '../../src/services/photoQuality';
 import { getCameraPermissionStatus } from '../../src/services/permissionState';
+import { analyzeWithFallback } from '../../src/services/skinAnalysis';
+import { generateDefaultIndices } from '../../src/services/mockScanner';
 import { useStore } from '../../src/store/useStore';
-import { simulateScanReading, simulatePhotoQualityCheck } from '../../src/services/mockScanner';
 
-type Phase = 'intro' | 'scan' | 'photo' | 'complete';
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+type Phase = 'intro' | 'camera' | 'processing' | 'complete';
 
 export default function BaselineScan() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const protocol = useStore((s) => s.protocol);
+  const user = useStore((s) => s.user);
+  const modelOutputs = useStore((s) => s.modelOutputs);
   const addDailyRecord = useStore((s) => s.addDailyRecord);
   const addModelOutput = useStore((s) => s.addModelOutput);
   const cameraPermissionStatus = useStore((s) => s.user?.camera_permission_status);
@@ -23,63 +44,75 @@ export default function BaselineScan() {
   const cameraRef = useRef<CameraView>(null);
 
   const [phase, setPhase] = useState<Phase>('intro');
-  const [scannerData, setScannerData] = useState<any>(null);
-  const [photoTaken, setPhotoTaken] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [capturing, setCapturing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState('Analyzing your baseline...');
+
+  const { trackingState } = useFaceTracking(cameraRef, phase === 'camera' && cameraReady && !capturing);
+  const directions = getDirections(trackingState.issues);
+
+  // Completion animation
+  const checkScale = useSharedValue(0);
+  const checkOpacity = useSharedValue(0);
+  const glowScale = useSharedValue(0.5);
 
   useEffect(() => {
     if (!permission) return;
-
     const nextStatus = getCameraPermissionStatus(permission);
     if (cameraPermissionStatus === nextStatus) return;
+    updateUser({ camera_permission_status: nextStatus });
+  }, [permission?.status, permission?.granted, permission?.canAskAgain, cameraPermissionStatus, updateUser]);
 
-    updateUser({
-      camera_permission_status: nextStatus,
-    });
-  }, [
-    permission?.status,
-    permission?.granted,
-    permission?.canAskAgain,
-    cameraPermissionStatus,
-    updateUser,
-  ]);
+  const handleCapture = async () => {
+    if (capturing || !cameraRef.current) return;
+    setCapturing(true);
 
-  const handleStartScan = async () => {
-    const reading = await simulateScanReading();
-    setScannerData(reading);
-    setPhase('photo');
-  };
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-  const handleTakePhoto = async () => {
-    setPhotoTaken(true);
-
-    // Capture actual photo
-    if (cameraRef.current) {
-      try {
-        const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
-        if (photo?.uri) {
-          setPhotoUri(photo.uri);
-        }
-      } catch {
-        // Photo capture failed, continue without it
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+      if (!photo?.uri) {
+        setCapturing(false);
+        return;
       }
-    }
 
-    const quality = await simulatePhotoQualityCheck();
+      // Quality check
+      const quality = await checkPhotoQuality(photo.uri, SCREEN_W, SCREEN_H);
+      if (!quality.overallPass && quality.issues.length > 0) {
+        setCapturing(false);
+        return;
+      }
 
-    if (quality.score >= 0.7) {
+      // Move to processing phase
+      setPhase('processing');
+
+      // Generate scanner indices
+      const scannerData = generateDefaultIndices();
+
+      // Run analysis
+      const analysis = await analyzeWithFallback({
+        scannerData,
+        photoUri: photo.uri,
+        userProfile: user!,
+        protocol: protocol!,
+        previousOutputs: modelOutputs,
+        dailyContext: {
+          sunscreen_used: false,
+          new_product_added: false,
+        },
+        skipDelay: true,
+      });
+
+      setProcessingMessage('Saving your baseline...');
+
       // Save baseline record
       const record = addDailyRecord({
         date: new Date().toISOString().split('T')[0],
         scanner_reading_id: `baseline_${Date.now()}`,
-        scanner_indices: {
-          inflammation_index: scannerData?.inflammation_index ?? 40,
-          pigmentation_index: scannerData?.pigmentation_index ?? 30,
-          texture_index: scannerData?.texture_index ?? 35,
-        },
+        scanner_indices: scannerData,
         scanner_quality_flag: 'pass',
         scan_region: protocol?.scan_region || 'left_cheek',
-        photo_uri: photoUri || undefined,
+        photo_uri: photo.uri,
         sunscreen_used: false,
         new_product_added: false,
       });
@@ -87,20 +120,40 @@ export default function BaselineScan() {
       // Generate baseline model output
       addModelOutput({
         daily_id: record.daily_id,
-        acne_score: Math.round(50 + (scannerData?.inflammation_index ?? 40) * 0.3),
-        sun_damage_score: Math.round(40 + (scannerData?.pigmentation_index ?? 30) * 0.3),
-        skin_age_score: Math.round(45 + (scannerData?.texture_index ?? 35) * 0.3),
-        confidence: 'med',
+        acne_score: analysis.acne_score,
+        sun_damage_score: analysis.sun_damage_score,
+        skin_age_score: analysis.skin_age_score,
+        confidence: analysis.confidence,
         primary_driver: 'baseline',
         recommended_action: 'Your baseline is set! Scan daily at the same time for the best trend accuracy.',
         escalation_flag: false,
+        conditions: analysis.conditions,
+        rag_recommendations: analysis.rag_recommendations,
+        personalized_feedback: analysis.personalized_feedback,
       });
 
+      // Transition to complete
       setPhase('complete');
-    } else {
-      setPhotoTaken(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Animate checkmark
+      checkScale.value = withDelay(200, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
+      checkOpacity.value = withDelay(200, withTiming(1, { duration: 400 }));
+      glowScale.value = withDelay(200, withTiming(1.2, { duration: 600, easing: Easing.out(Easing.cubic) }));
+    } catch {
+      setCapturing(false);
+      setPhase('camera');
     }
   };
+
+  const checkAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: checkScale.value }],
+    opacity: checkOpacity.value,
+  }));
+
+  const glowAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: glowScale.value }],
+  }));
 
   if (phase === 'intro') {
     return (
@@ -115,19 +168,19 @@ export default function BaselineScan() {
 
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>What happens next</Text>
-          <Text style={styles.infoItem}>1. Scanner reads skin indices (simulated)</Text>
-          <Text style={styles.infoItem}>2. Camera captures a reference photo</Text>
-          <Text style={styles.infoItem}>3. AI generates your baseline scores</Text>
+          <Text style={styles.infoItem}>1. Camera captures your baseline photo</Text>
+          <Text style={styles.infoItem}>2. AI analyzes your skin condition</Text>
+          <Text style={styles.infoItem}>3. Your baseline scores are generated</Text>
         </View>
 
         <View style={styles.footer}>
           {!permission?.granted ? (
             <Button title="Enable Camera & Start" onPress={async () => {
               await requestPermission();
-              setPhase('scan');
+              setPhase('camera');
             }} />
           ) : (
-            <Button title="Start Baseline Scan" onPress={() => setPhase('scan')} />
+            <Button title="Start Baseline Scan" onPress={() => setPhase('camera')} />
           )}
         </View>
       </View>
@@ -148,54 +201,29 @@ export default function BaselineScan() {
     );
   }
 
-  return (
-    <View style={styles.container}>
-      {phase === 'scan' && (
+  if (phase === 'processing') {
+    return (
+      <View style={styles.container}>
         <View style={styles.centeredContent}>
-          <Text style={styles.title}>Baseline Scan</Text>
-          <Text style={styles.regionReminder}>
-            Region: {protocol?.scan_region?.replace(/_/g, ' ')}
-          </Text>
-          <ScannerAnimation phase="scanning" message="Reading skin indices..." />
-          <Button title="Start Scanner" onPress={handleStartScan} />
+          <Animated.View entering={FadeIn.duration(400)}>
+            <Text style={styles.title}>Processing</Text>
+            <Text style={styles.processingText}>{processingMessage}</Text>
+          </Animated.View>
         </View>
-      )}
+      </View>
+    );
+  }
 
-      {phase === 'photo' && (
-        <View style={styles.cameraContainer}>
-          <CameraView
-            ref={cameraRef}
-            style={StyleSheet.absoluteFill}
-            facing="front"
-          />
-          <View style={styles.overlay} pointerEvents="box-none">
-            <View style={styles.boundingBox}>
-              <Text style={styles.regionLabel}>
-                {protocol?.scan_region?.replace(/_/g, ' ').toUpperCase()}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.cameraControls}>
-            <View style={styles.qualityIndicators}>
-              <Text style={styles.qualityItem}>OK Lighting</Text>
-              <Text style={styles.qualityItem}>OK Centered</Text>
-              <Text style={styles.qualityItem}>OK Focus</Text>
-            </View>
-            {!photoTaken ? (
-              <TouchableOpacity style={styles.captureButton} onPress={handleTakePhoto}>
-                <View style={styles.captureInner} />
-              </TouchableOpacity>
-            ) : (
-              <Text style={styles.processingText}>Checking quality...</Text>
-            )}
-          </View>
-        </View>
-      )}
-
-      {phase === 'complete' && (
+  if (phase === 'complete') {
+    return (
+      <View style={styles.container}>
         <View style={styles.centeredContent}>
-          <ScannerAnimation phase="complete" />
+          <View style={styles.completeContainer}>
+            <Animated.View style={[styles.glowCircle, glowAnimStyle]} />
+            <Animated.View style={[styles.checkCircle, checkAnimStyle]}>
+              <Feather name="check" size={48} color={Colors.primary} />
+            </Animated.View>
+          </View>
           <Text style={styles.title}>Baseline captured!</Text>
           <Text style={styles.subtitle}>
             Your personal baseline is set. Future scans will track changes from here.
@@ -205,7 +233,68 @@ export default function BaselineScan() {
             onPress={() => router.push('/onboarding/boost')}
           />
         </View>
+      </View>
+    );
+  }
+
+  // Camera phase
+  return (
+    <View style={styles.cameraContainer}>
+      <CameraView
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        facing="front"
+        onCameraReady={() => setCameraReady(true)}
+      />
+
+      <CameraFaceMesh
+        status={trackingState.status}
+        width={SCREEN_W}
+        height={SCREEN_H}
+      />
+
+      {trackingState.status === 'misaligned' && (
+        <DirectionIndicators directions={directions} />
       )}
+
+      {/* Region reminder */}
+      <View style={styles.cameraTopBar}>
+        {protocol?.scan_region && (
+          <View style={styles.regionPill}>
+            <Text style={styles.regionText}>
+              {protocol.scan_region.replace(/_/g, ' ').toUpperCase()}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Status */}
+      <View style={styles.statusContainer}>
+        <Text style={styles.statusText}>
+          {trackingState.status === 'no_face'
+            ? 'Position your face in the frame'
+            : trackingState.status === 'misaligned'
+              ? trackingState.issues[0] || 'Adjust position'
+              : 'Ready  - tap to capture'}
+        </Text>
+      </View>
+
+      {/* Capture button */}
+      <View style={styles.cameraControls}>
+        <View style={[
+          styles.captureButton,
+          {
+            borderColor: trackingState.status === 'aligned' ? Colors.primary : Colors.textMuted,
+          },
+        ]}>
+          {trackingState.status === 'aligned' && !capturing && (
+            <View
+              style={styles.captureInner}
+              onTouchEnd={handleCapture}
+            />
+          )}
+        </View>
+      </View>
     </View>
   );
 }
@@ -220,6 +309,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.lg,
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.lg,
   },
   infoCard: {
     backgroundColor: Colors.surfaceLight,
@@ -260,69 +351,89 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     paddingHorizontal: Spacing.lg,
   },
-  regionReminder: {
+  processingText: {
+    color: Colors.textSecondary,
     fontSize: FontSize.md,
-    color: Colors.primary,
     textAlign: 'center',
-    marginBottom: Spacing.xl,
-    textTransform: 'capitalize',
+    marginTop: Spacing.sm,
+  },
+  completeContainer: {
+    width: 120,
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
+  glowCircle: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: Colors.primary + '40',
+    backgroundColor: Colors.primary + '08',
+  },
+  checkCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceOverlay,
   },
   cameraContainer: {
     flex: 1,
   },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  boundingBox: {
-    width: 200,
-    height: 250,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderRadius: BorderRadius.xl,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: Spacing.md,
-  },
-  regionLabel: {
-    color: Colors.primary,
-    fontSize: FontSize.xs,
-    fontFamily: FontFamily.sansBold,
-    backgroundColor: Colors.background + 'CC',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-    overflow: 'hidden',
-  },
-  cameraControls: {
+  cameraTopBar: {
     position: 'absolute',
-    bottom: 40,
+    top: 60,
     left: 0,
     right: 0,
     alignItems: 'center',
   },
-  qualityIndicators: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.lg,
+  regionPill: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: BorderRadius.full,
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.md,
   },
-  qualityItem: {
-    color: Colors.success,
+  regionText: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.xs,
-    backgroundColor: Colors.background + 'AA',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    letterSpacing: 1.2,
+  },
+  statusContainer: {
+    position: 'absolute',
+    top: 120,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  statusText: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.md,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    paddingVertical: 8,
+    paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
+  },
+  cameraControls: {
+    position: 'absolute',
+    bottom: 60,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   captureButton: {
     width: 72,
     height: 72,
     borderRadius: 36,
     borderWidth: 4,
-    borderColor: Colors.text,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -330,15 +441,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.text,
-  },
-  processingText: {
-    color: Colors.text,
-    fontSize: FontSize.md,
-    backgroundColor: Colors.background + 'CC',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
+    backgroundColor: Colors.primary,
   },
 });

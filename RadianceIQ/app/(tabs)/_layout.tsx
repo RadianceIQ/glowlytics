@@ -1,8 +1,16 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BorderRadius,
@@ -12,6 +20,8 @@ import {
   Shadows,
   Spacing,
 } from '../../src/constants/theme';
+import { useStore } from '../../src/store/useStore';
+import { CoachingTooltip } from '../../src/components/CoachingTooltip';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 
@@ -35,9 +45,35 @@ const TabGlyph: React.FC<{ icon: IconName; label: string; focused: boolean }> = 
 export default function TabsLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const dailyRecords = useStore((s) => s.dailyRecords);
+  const isFirstScan = dailyRecords.length === 0;
+
+  // First-scan glow animation for camera button
+  const glowOpacity = useSharedValue(0.12);
+
+  useEffect(() => {
+    if (isFirstScan) {
+      glowOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.35, { duration: 1200 }),
+          withTiming(0.12, { duration: 1200 }),
+        ),
+        -1,
+      );
+    } else {
+      glowOpacity.value = withTiming(0.12, { duration: 300 });
+    }
+  }, [isFirstScan]);
+
+  const cameraGlowStyle = useAnimatedStyle(() => ({
+    borderColor: `rgba(199, 255, 250, ${glowOpacity.value})`,
+  }));
 
   return (
+    <>
+    <CoachingTooltip visible={isFirstScan} />
     <Tabs
+      sceneContainerStyle={{ paddingBottom: 80 + Math.max(insets.bottom - 4, 0) }}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
@@ -90,14 +126,17 @@ export default function TabsLayout() {
               accessibilityLabel="Open camera"
               accessibilityState={accessibilityState}
               onLongPress={onLongPress}
-              onPress={() => router.push('/scan/connect')}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/scan/camera');
+              }}
               style={styles.cameraButton}
             >
-              <View style={styles.cameraOuter}>
+              <Animated.View style={[styles.cameraOuter, cameraGlowStyle]}>
                 <View style={styles.cameraInner}>
                   <Feather name="camera" size={22} color={Colors.backgroundDeep} />
                 </View>
-              </View>
+              </Animated.View>
             </Pressable>
           ),
         }}
@@ -119,6 +158,7 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    </>
   );
 }
 

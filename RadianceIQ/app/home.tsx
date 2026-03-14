@@ -5,6 +5,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../src/components/AtmosphereScreen';
 import { Button } from '../src/components/Button';
+import { GamificationCard } from '../src/components/GamificationCard';
 import { ScoreTile } from '../src/components/ScoreTile';
 import { SkinScoreHero } from '../src/components/SkinScoreHero';
 import {
@@ -23,7 +24,7 @@ import { useStore } from '../src/store/useStore';
 interface TopStat {
   key: string;
   label: string;
-  value: number;
+  value: number | null;
   color: string;
   icon: string;
 }
@@ -33,12 +34,14 @@ const clampScore = (value: number) => Math.max(0, Math.min(100, Math.round(value
 const ringSize = 78;
 const ringStroke = 5;
 
-const TopStatRing: React.FC<{ value: number; color: string; icon: string }> = ({ value, color, icon }) => {
+const TopStatRing: React.FC<{ value: number | null; color: string; icon: string }> = ({ value, color, icon }) => {
+  const hasData = value !== null;
+  const displayValue = hasData ? clampScore(value) : 0;
   const radius = (ringSize - ringStroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const ringSpan = circumference * 0.84;
   const gap = circumference - ringSpan;
-  const progressSpan = ringSpan * (clampScore(value) / 100);
+  const progressSpan = hasData ? ringSpan * (displayValue / 100) : 0;
   const center = ringSize / 2;
   const rotation = `rotate(128 ${center} ${center})`;
 
@@ -56,21 +59,25 @@ const TopStatRing: React.FC<{ value: number; color: string; icon: string }> = ({
           strokeDasharray={`${ringSpan} ${gap}`}
           transform={rotation}
         />
-        <Circle
-          cx={center}
-          cy={center}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={ringStroke}
-          strokeLinecap="round"
-          strokeDasharray={`${progressSpan} ${circumference}`}
-          transform={rotation}
-        />
+        {hasData && (
+          <Circle
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="none"
+            stroke={color}
+            strokeWidth={ringStroke}
+            strokeLinecap="round"
+            strokeDasharray={`${progressSpan} ${circumference}`}
+            transform={rotation}
+          />
+        )}
       </Svg>
       <View style={styles.statRingCenter} pointerEvents="none">
-        <Text style={styles.statValue}>{clampScore(value)}</Text>
-        <MaterialCommunityIcons name={icon as any} size={18} color={color} />
+        <Text style={[styles.statValue, !hasData && { color: Colors.textDim }]}>
+          {hasData ? displayValue : '--'}
+        </Text>
+        <MaterialCommunityIcons name={icon as any} size={18} color={hasData ? color : Colors.textDim} />
       </View>
     </View>
   );
@@ -88,6 +95,7 @@ export default function Home() {
   const protocol = useStore((s) => s.protocol);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const modelOutputs = useStore((s) => s.modelOutputs);
+  const gamification = useStore((s) => s.gamification);
 
   const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
   const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
@@ -131,7 +139,7 @@ export default function Home() {
 
   const todayStr = new Date().toISOString().split('T')[0];
   const scannedToday = dailyRecords.some((record) => record.date === todayStr);
-  const primaryAction = scannedToday && latestOutput ? '/scan/results' : '/scan/connect';
+  const primaryAction = scannedToday && latestOutput ? '/scan/results' : '/scan/camera';
 
   const acneHistory = outputHistory.map((output) => output.acne_score);
   const sunHistory = outputHistory.map((output) => output.sun_damage_score);
@@ -148,11 +156,23 @@ export default function Home() {
   );
 
   const topStats = useMemo<TopStat[]>(() => {
-    const inflammationIndex = latestRecord?.scanner_indices.inflammation_index ?? 38;
-    const pigmentationIndex = latestRecord?.scanner_indices.pigmentation_index ?? 30;
-    const textureIndex = latestRecord?.scanner_indices.texture_index ?? 36;
+    const hasData = latestRecord !== null;
+
+    if (!hasData) {
+      return [
+        { key: 'hydration', label: 'Hydration', value: null, color: Colors.primary, icon: 'water-outline' },
+        { key: 'elasticity', label: 'Elasticity', value: null, color: Colors.secondary, icon: 'arrow-expand-horizontal' },
+        { key: 'inflammation', label: 'Inflammation', value: null, color: Colors.error, icon: 'fire' },
+        { key: 'sun_damage', label: 'Sun Damage', value: null, color: Colors.warning, icon: 'weather-sunny' },
+        { key: 'structure', label: 'Structure', value: null, color: Colors.info, icon: 'waves' },
+      ];
+    }
+
+    const inflammationIndex = latestRecord.scanner_indices.inflammation_index;
+    const pigmentationIndex = latestRecord.scanner_indices.pigmentation_index;
+    const textureIndex = latestRecord.scanner_indices.texture_index;
     const sleepBoost =
-      latestRecord?.sleep_quality === 'great' ? 8 : latestRecord?.sleep_quality === 'poor' ? -6 : 0;
+      latestRecord.sleep_quality === 'great' ? 8 : latestRecord.sleep_quality === 'poor' ? -6 : 0;
 
     const hydration = clampScore(100 - textureIndex * 0.72 + sleepBoost);
     const elasticity = clampScore(
@@ -163,41 +183,11 @@ export default function Home() {
     const structure = clampScore(100 - textureIndex);
 
     return [
-      {
-        key: 'hydration',
-        label: 'Hydration',
-        value: hydration,
-        color: Colors.primary,
-        icon: 'water-outline',
-      },
-      {
-        key: 'elasticity',
-        label: 'Elasticity',
-        value: elasticity,
-        color: Colors.secondary,
-        icon: 'arrow-expand-horizontal',
-      },
-      {
-        key: 'inflammation',
-        label: 'Inflammation',
-        value: inflammation,
-        color: Colors.error,
-        icon: 'fire',
-      },
-      {
-        key: 'sun_damage',
-        label: 'Sun Damage',
-        value: sunDamage,
-        color: Colors.warning,
-        icon: 'weather-sunny',
-      },
-      {
-        key: 'structure',
-        label: 'Structure',
-        value: structure,
-        color: Colors.info,
-        icon: 'waves',
-      },
+      { key: 'hydration', label: 'Hydration', value: hydration, color: Colors.primary, icon: 'water-outline' },
+      { key: 'elasticity', label: 'Elasticity', value: elasticity, color: Colors.secondary, icon: 'arrow-expand-horizontal' },
+      { key: 'inflammation', label: 'Inflammation', value: inflammation, color: Colors.error, icon: 'fire' },
+      { key: 'sun_damage', label: 'Sun Damage', value: sunDamage, color: Colors.warning, icon: 'weather-sunny' },
+      { key: 'structure', label: 'Structure', value: structure, color: Colors.info, icon: 'waves' },
     ];
   }, [latestOutput, latestRecord]);
 
@@ -248,7 +238,7 @@ export default function Home() {
             Your overall skin score unlocks after your first scan. Start now to track structure, hydration, inflammation, sun damage, and elasticity.
           </Text>
           <View style={styles.emptyHeroActions}>
-            <Button title="Start first scan" onPress={() => router.push('/scan/connect')} />
+            <Button title="Start first scan" onPress={() => router.push('/scan/camera')} />
             <Button title="Learn more" variant="secondary" onPress={() => router.push('/skin-metrics')} />
           </View>
         </View>
@@ -263,6 +253,8 @@ export default function Home() {
             : 'Choose a consistent region for cleaner signal tracking.'}
         </Text>
       </View>
+
+      <GamificationCard gamification={gamification} streak={streak} />
 
       {latestOutput ? (
         <View style={styles.metricStack}>
@@ -316,15 +308,6 @@ export default function Home() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.utilityAction} onPress={() => router.push('/onboarding/products')}>
           <Text style={styles.utilityLabel}>Products</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.utilityAction}
-          onPress={() => {
-            useStore.getState().resetAll();
-            router.replace('/');
-          }}
-        >
-          <Text style={styles.utilityLabel}>Reset demo</Text>
         </TouchableOpacity>
       </View>
     </AtmosphereScreen>

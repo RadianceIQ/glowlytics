@@ -60,12 +60,12 @@ export default function PrivacyPolicyScreen() {
           Effective date: {EFFECTIVE_DATE}
         </Paragraph>
         <Paragraph>
-          BDQ Holdings LLC ("we", "our", or "us") operates the RadianceIQ mobile
+          BDQ Holdings LLC ("we", "our", or "us") operates the Glowlytics mobile
           application. This Privacy Policy explains how we collect, use, store,
           and protect your personal information when you use our app.
         </Paragraph>
         <Paragraph>
-          By using RadianceIQ, you agree to the collection and use of information
+          By using Glowlytics, you agree to the collection and use of information
           in accordance with this policy.
         </Paragraph>
       </View>
@@ -95,7 +95,7 @@ export default function PrivacyPolicyScreen() {
         <Section title="2. How We Use Your Data">
           <Paragraph>
             Your information is used exclusively to deliver and improve the
-            RadianceIQ experience:
+            Glowlytics experience:
           </Paragraph>
           <BulletList
             items={[
@@ -135,7 +135,7 @@ export default function PrivacyPolicyScreen() {
       <View style={styles.card}>
         <Section title="4. Third-Party Services">
           <Paragraph>
-            RadianceIQ integrates with the following third-party services:
+            Glowlytics integrates with the following third-party services:
           </Paragraph>
           <BulletList
             items={[
@@ -196,7 +196,7 @@ export default function PrivacyPolicyScreen() {
       <View style={styles.card}>
         <Section title="7. Camera and Photo Permissions">
           <Paragraph>
-            RadianceIQ requires camera access to perform skin scans. Photos
+            Glowlytics requires camera access to perform skin scans. Photos
             captured during scans are:
           </Paragraph>
           <BulletList
@@ -218,7 +218,7 @@ export default function PrivacyPolicyScreen() {
       <View style={styles.card}>
         <Section title="8. Health Data Disclaimer">
           <Paragraph>
-            RadianceIQ provides skin health tracking for informational purposes
+            Glowlytics provides skin health tracking for informational purposes
             only. Our analysis is non-diagnostic and should not be considered
             medical advice.
           </Paragraph>
@@ -240,7 +240,7 @@ export default function PrivacyPolicyScreen() {
       <View style={styles.card}>
         <Section title="9. Children's Privacy">
           <Paragraph>
-            RadianceIQ is not intended for use by individuals under the age of
+            Glowlytics is not intended for use by individuals under the age of
             13. We do not knowingly collect personal information from children
             under 13. If we become aware that we have collected data from a child
             under 13, we will take steps to delete that information promptly.
@@ -258,7 +258,7 @@ export default function PrivacyPolicyScreen() {
           <Paragraph>
             We may update this Privacy Policy from time to time. Changes will be
             posted within the app, and the "Effective date" at the top will be
-            revised accordingly. Continued use of RadianceIQ after changes
+            revised accordingly. Continued use of Glowlytics after changes
             constitutes acceptance of the updated policy.
           </Paragraph>
           <Paragraph>
@@ -279,7 +279,7 @@ export default function PrivacyPolicyScreen() {
             items={[
               'Company: BDQ Holdings LLC',
               'Email: drmustafa@bdqholdings.com',
-              'Subject line: RadianceIQ Privacy Inquiry',
+              'Subject line: Glowlytics Privacy Inquiry',
             ]}
           />
         </Section>
