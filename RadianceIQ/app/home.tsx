@@ -20,6 +20,7 @@ import {
   getLatestDailyForOutput,
 } from '../src/services/skinInsights';
 import { useStore } from '../src/store/useStore';
+import { presentPaywall, checkSubscriptionStatus } from '../src/services/subscription';
 
 interface TopStat {
   key: string;
@@ -96,6 +97,19 @@ export default function Home() {
   const dailyRecords = useStore((s) => s.dailyRecords);
   const modelOutputs = useStore((s) => s.modelOutputs);
   const gamification = useStore((s) => s.gamification);
+  const canPerformScan = useStore((s) => s.canPerformScan);
+
+  const handleScanPress = async (path: string) => {
+    if (!canPerformScan()) {
+      const purchased = await presentPaywall();
+      if (purchased) {
+        const sub = await checkSubscriptionStatus(useStore.getState().subscription);
+        useStore.getState().setSubscription(sub);
+      }
+      if (!useStore.getState().canPerformScan()) return;
+    }
+    router.push(path as any);
+  };
 
   const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
   const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
@@ -228,7 +242,13 @@ export default function Home() {
           trendDelta={overallInsight.trendDelta}
           signals={overallInsight.signals}
           onLearnMore={() => router.push('/skin-metrics')}
-          onPrimaryAction={() => router.push(primaryAction)}
+          onPrimaryAction={() => {
+            if (primaryAction === '/scan/camera') {
+              handleScanPress(primaryAction);
+            } else {
+              router.push(primaryAction);
+            }
+          }}
           primaryActionLabel={scannedToday && latestOutput ? "View today's results" : "Start today's scan"}
         />
       ) : (
@@ -238,7 +258,7 @@ export default function Home() {
             Your overall skin score unlocks after your first scan. Start now to track structure, hydration, inflammation, sun damage, and elasticity.
           </Text>
           <View style={styles.emptyHeroActions}>
-            <Button title="Start first scan" onPress={() => router.push('/scan/camera')} />
+            <Button title="Start first scan" onPress={() => handleScanPress('/scan/camera')} />
             <Button title="Learn more" variant="secondary" onPress={() => router.push('/skin-metrics')} />
           </View>
         </View>

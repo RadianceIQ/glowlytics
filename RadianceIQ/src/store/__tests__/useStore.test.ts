@@ -15,6 +15,16 @@ jest.mock('uuid', () => ({
 // Mock react-native-get-random-values
 jest.mock('react-native-get-random-values', () => {});
 
+// Mock react-native-purchases
+jest.mock('react-native-purchases', () => ({
+  LOG_LEVEL: { ERROR: 0 },
+}));
+
+// Mock react-native-purchases-ui
+jest.mock('react-native-purchases-ui', () => ({
+  PAYWALL_RESULT: {},
+}));
+
 const resetStore = () => {
   useStore.setState({
     user: null,
@@ -35,6 +45,13 @@ const resetStore = () => {
         highest_skin_score: 0,
         most_consistent_week: 0,
       },
+    },
+    subscription: {
+      tier: 'free',
+      is_active: false,
+      expires_at: null,
+      product_id: null,
+      free_scans_used: 0,
     },
   });
 };
@@ -187,6 +204,102 @@ describe('useStore', () => {
 
       useStore.getState().clearPendingScanResult();
       expect(useStore.getState().pendingScanResult).toBeNull();
+    });
+  });
+
+  describe('subscription', () => {
+    it('starts with default free subscription', () => {
+      const sub = useStore.getState().subscription;
+      expect(sub.tier).toBe('free');
+      expect(sub.is_active).toBe(false);
+      expect(sub.free_scans_used).toBe(0);
+    });
+
+    it('setSubscription updates subscription state', () => {
+      useStore.getState().setSubscription({
+        tier: 'premium',
+        is_active: true,
+        expires_at: '2026-04-14T00:00:00Z',
+        product_id: 'glowlytics_premium_monthly',
+        free_scans_used: 2,
+      });
+
+      const sub = useStore.getState().subscription;
+      expect(sub.tier).toBe('premium');
+      expect(sub.is_active).toBe(true);
+      expect(sub.product_id).toBe('glowlytics_premium_monthly');
+    });
+
+    it('incrementFreeScansUsed increments the counter', () => {
+      useStore.getState().incrementFreeScansUsed();
+      expect(useStore.getState().subscription.free_scans_used).toBe(1);
+
+      useStore.getState().incrementFreeScansUsed();
+      expect(useStore.getState().subscription.free_scans_used).toBe(2);
+    });
+
+    it('canPerformScan returns true for free user under limit', () => {
+      expect(useStore.getState().canPerformScan()).toBe(true);
+    });
+
+    it('canPerformScan returns false after 3 free scans', () => {
+      useStore.getState().incrementFreeScansUsed();
+      useStore.getState().incrementFreeScansUsed();
+      useStore.getState().incrementFreeScansUsed();
+      expect(useStore.getState().canPerformScan()).toBe(false);
+    });
+
+    it('canPerformScan returns true for premium user', () => {
+      useStore.getState().setSubscription({
+        tier: 'premium',
+        is_active: true,
+        expires_at: '2026-04-14T00:00:00Z',
+        product_id: 'glowlytics_premium_monthly',
+        free_scans_used: 10,
+      });
+      expect(useStore.getState().canPerformScan()).toBe(true);
+    });
+
+    it('addDailyRecord increments free_scans_used', () => {
+      useStore.getState().createUser({
+        age_range: '25-34',
+        period_applicable: 'no',
+      });
+
+      expect(useStore.getState().subscription.free_scans_used).toBe(0);
+
+      useStore.getState().addDailyRecord({
+        date: '2026-03-14',
+        scanner_reading_id: 'scan-1',
+        scanner_indices: {
+          inflammation_index: 40,
+          pigmentation_index: 30,
+          texture_index: 35,
+        },
+        scanner_quality_flag: 'pass',
+        scan_region: 'left_cheek',
+        sunscreen_used: true,
+        new_product_added: false,
+      });
+
+      expect(useStore.getState().subscription.free_scans_used).toBe(1);
+    });
+
+    it('resetAll resets subscription to default', () => {
+      useStore.getState().setSubscription({
+        tier: 'premium',
+        is_active: true,
+        expires_at: '2026-04-14T00:00:00Z',
+        product_id: 'glowlytics_premium_monthly',
+        free_scans_used: 5,
+      });
+
+      useStore.getState().resetAll();
+
+      const sub = useStore.getState().subscription;
+      expect(sub.tier).toBe('free');
+      expect(sub.is_active).toBe(false);
+      expect(sub.free_scans_used).toBe(0);
     });
   });
 });

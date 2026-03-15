@@ -22,6 +22,7 @@ import {
 } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import { CoachingTooltip } from '../../src/components/CoachingTooltip';
+import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 
@@ -73,9 +74,9 @@ export default function TabsLayout() {
     <>
     <CoachingTooltip visible={isFirstScan} />
     <Tabs
-      sceneContainerStyle={{ paddingBottom: 80 + Math.max(insets.bottom - 4, 0) }}
       screenOptions={{
         headerShown: false,
+        sceneStyle: { paddingBottom: 80 + Math.max(insets.bottom - 4, 0), backgroundColor: Colors.background },
         tabBarShowLabel: false,
         tabBarHideOnKeyboard: true,
         tabBarBackground: () => (
@@ -126,8 +127,17 @@ export default function TabsLayout() {
               accessibilityLabel="Open camera"
               accessibilityState={accessibilityState}
               onLongPress={onLongPress}
-              onPress={() => {
+              onPress={async () => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                const canScan = useStore.getState().canPerformScan();
+                if (!canScan) {
+                  const purchased = await presentPaywall();
+                  if (purchased) {
+                    const sub = await checkSubscriptionStatus(useStore.getState().subscription);
+                    useStore.getState().setSubscription(sub);
+                  }
+                  if (!useStore.getState().canPerformScan()) return;
+                }
                 router.push('/scan/camera');
               }}
               style={styles.cameraButton}

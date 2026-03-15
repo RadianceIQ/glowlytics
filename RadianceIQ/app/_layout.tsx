@@ -11,6 +11,7 @@ import { env } from '../src/config/env';
 import { Colors } from '../src/constants/theme';
 import { useStore } from '../src/store/useStore';
 import { setAuthTokenProvider } from '../src/services/api';
+import { initRevenueCat, identifyUser, checkSubscriptionStatus } from '../src/services/subscription';
 
 /**
  * Auth gate that only returns Redirect components — never its own navigator.
@@ -38,8 +39,10 @@ function AuthRedirector() {
 }
 
 function ClerkGatedApp() {
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
   const loadPersistedData = useStore((s) => s.loadPersistedData);
+  const setSubscription = useStore((s) => s.setSubscription);
+  const subscription = useStore((s) => s.subscription);
   const loaded = useRef(false);
 
   useEffect(() => {
@@ -47,6 +50,18 @@ function ClerkGatedApp() {
       loaded.current = true;
       setAuthTokenProvider(() => getToken());
       setTimeout(() => loadPersistedData(), 0);
+
+      // Initialize RevenueCat after auth
+      (async () => {
+        try {
+          await initRevenueCat();
+          if (userId) await identifyUser(userId);
+          const sub = await checkSubscriptionStatus(subscription);
+          setSubscription(sub);
+        } catch {
+          // RevenueCat init failures are non-fatal
+        }
+      })();
     }
   }, []);
 
@@ -69,6 +84,7 @@ function ClerkGatedApp() {
           <Stack.Screen name="product" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="signal" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="privacy-policy" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         </Stack>
         <AuthRedirector />
       </View>

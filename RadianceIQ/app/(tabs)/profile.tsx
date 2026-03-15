@@ -11,6 +11,13 @@ import {
   Spacing,
 } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
+import {
+  presentPaywall,
+  presentCustomerCenter,
+  checkSubscriptionStatus,
+  remainingFreeScans,
+} from '../../src/services/subscription';
+import { createDemoSeed } from '../../src/services/demoData';
 import { computeProductEffectiveness } from '../../src/services/ingredientDB';
 import {
   buildOverallSkinInsight,
@@ -59,6 +66,8 @@ export default function ProfileTab() {
   const dailyRecords = useStore((s) => s.dailyRecords);
   const modelOutputs = useStore((s) => s.modelOutputs);
   const gamification = useStore((s) => s.gamification);
+  const subscription = useStore((s) => s.subscription);
+  const setSubscription = useStore((s) => s.setSubscription);
   const resetAll = useStore((s) => s.resetAll);
 
   const clerkUser = useUser ? useUser() : null;
@@ -110,6 +119,23 @@ export default function ProfileTab() {
         ],
       );
     }
+  };
+
+  const handleLoadDemo = () => {
+    const demo = createDemoSeed();
+    resetAll();
+    const store = useStore.getState();
+    store.createUser(demo.user);
+    for (const p of demo.products) store.addProduct(p);
+    // Load records and outputs directly into state
+    useStore.setState({
+      protocol: demo.protocol,
+      dailyRecords: demo.records,
+      modelOutputs: demo.outputs,
+      gamification: demo.gamification,
+    });
+    store.persistData();
+    Alert.alert('Demo loaded', '21 days of scan history, 4 products, and gamification data loaded.');
   };
 
   const handleResetAllData = () => {
@@ -169,6 +195,64 @@ export default function ProfileTab() {
           <Feather name="trash-2" size={16} color={Colors.error} />
           <Text style={[styles.modeButtonText, { color: Colors.error }]}>Reset all data</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.modeButton}
+          onPress={handleLoadDemo}
+          activeOpacity={0.7}
+        >
+          <Feather name="database" size={16} color={Colors.primary} />
+          <Text style={[styles.modeButtonText, { color: Colors.primary }]}>Load demo data</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Subscription */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Subscription</Text>
+        {subscription.is_active ? (
+          <>
+            <InfoRow label="Plan" value="Glow Pro" />
+            {subscription.expires_at && (
+              <InfoRow
+                label="Renews"
+                value={new Date(subscription.expires_at).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              />
+            )}
+            <TouchableOpacity
+              style={styles.modeButton}
+              onPress={() => presentCustomerCenter()}
+              activeOpacity={0.7}
+            >
+              <Feather name="settings" size={16} color={Colors.primaryLight} />
+              <Text style={styles.modeButtonText}>Manage subscription</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <InfoRow label="Plan" value="Free" />
+            <InfoRow
+              label="Free scans remaining"
+              value={String(remainingFreeScans(subscription))}
+            />
+            <TouchableOpacity
+              style={styles.modeButton}
+              onPress={async () => {
+                const purchased = await presentPaywall();
+                if (purchased) {
+                  const sub = await checkSubscriptionStatus(subscription);
+                  setSubscription(sub);
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Feather name="zap" size={16} color={Colors.primary} />
+              <Text style={[styles.modeButtonText, { color: Colors.primary }]}>Upgrade to Glow Pro</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       {/* Demographics */}

@@ -21,6 +21,7 @@ import { useFaceTracking } from '../../src/hooks/useFaceTracking';
 import { getDirections } from '../../src/services/faceTracking';
 import { checkPhotoQuality } from '../../src/services/photoQuality';
 import { useStore } from '../../src/store/useStore';
+import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -28,6 +29,23 @@ export default function CameraScreen() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const protocol = useStore((s) => s.protocol);
+  const canPerformScan = useStore((s) => s.canPerformScan);
+
+  // Defense-in-depth: present paywall if scan not allowed
+  useEffect(() => {
+    if (!canPerformScan()) {
+      (async () => {
+        const purchased = await presentPaywall();
+        if (purchased) {
+          const sub = await checkSubscriptionStatus(useStore.getState().subscription);
+          useStore.getState().setSubscription(sub);
+        }
+        if (!useStore.getState().canPerformScan()) {
+          router.back();
+        }
+      })();
+    }
+  }, []);
   const cameraRef = useRef<CameraView>(null);
 
   const [cameraReady, setCameraReady] = useState(false);

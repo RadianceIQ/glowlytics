@@ -150,6 +150,17 @@ export interface RagRecommendation {
   relevance: number;
 }
 
+// Subscription
+export type SubscriptionTier = 'free' | 'premium';
+
+export interface SubscriptionState {
+  tier: SubscriptionTier;
+  is_active: boolean;
+  expires_at: string | null;
+  product_id: string | null;
+  free_scans_used: number;
+}
+
 // Gamification
 export type BadgeId = 'first_scan' | 'streak_7' | 'streak_30' | 'streak_60' |
   'sunscreen_champion' | 'perfect_week' | 'sleep_warrior' | 'product_expert' |

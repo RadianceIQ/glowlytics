@@ -5,8 +5,9 @@ import type {
   UserProfile, ScanProtocol, ProductEntry, DailyRecord,
   ModelOutput, PrimaryGoal, ScanRegion, HealthConnectionState,
   GamificationState, Badge, WeeklyChallenge, LevelName,
-  OnboardingScreenName,
+  OnboardingScreenName, SubscriptionState,
 } from '../types';
+import { defaultSubscription, canScan as canScanPure } from '../services/subscription';
 import {
   getLevelForXP,
   getXPForScan,
@@ -35,6 +36,9 @@ interface AppState {
   // Gamification
   gamification: GamificationState;
 
+  // Subscription
+  subscription: SubscriptionState;
+
   // Actions
   setOnboardingStep: (step: number) => void;
   setOnboardingFlow: (flow: OnboardingScreenName[]) => void;
@@ -59,6 +63,9 @@ interface AppState {
   checkAndAwardBadges: () => void;
   updatePersonalBests: () => void;
   generateWeeklyChallenges: () => void;
+  setSubscription: (sub: SubscriptionState) => void;
+  incrementFreeScansUsed: () => void;
+  canPerformScan: () => boolean;
 }
 
 const generateId = () => {
@@ -137,6 +144,7 @@ export const useStore = create<AppState>((set, get) => ({
   onboardingFlowIndex: 0,
   pendingScanResult: null,
   gamification: defaultGamification(),
+  subscription: defaultSubscription(),
 
   setOnboardingStep: (step) => set({ onboardingStep: step }),
   setOnboardingFlow: (flow) => set({ onboardingFlow: flow }),
@@ -245,6 +253,7 @@ export const useStore = create<AppState>((set, get) => ({
       user_id: user.user_id,
     };
     set((s) => ({ dailyRecords: [...s.dailyRecords, entry] }));
+    get().incrementFreeScansUsed();
     get().persistData();
 
     // Calculate context items logged for XP bonus
@@ -393,6 +402,22 @@ export const useStore = create<AppState>((set, get) => ({
     get().persistData();
   },
 
+  setSubscription: (sub) => {
+    set({ subscription: sub });
+    get().persistData();
+  },
+
+  incrementFreeScansUsed: () => {
+    set((s) => ({
+      subscription: {
+        ...s.subscription,
+        free_scans_used: s.subscription.free_scans_used + 1,
+      },
+    }));
+  },
+
+  canPerformScan: () => canScanPure(get().subscription),
+
   loadPersistedData: async () => {
     try {
       const data = await AsyncStorage.getItem('glowlytics_data');
@@ -412,6 +437,7 @@ export const useStore = create<AppState>((set, get) => ({
           dailyRecords: parsed.dailyRecords || [],
           modelOutputs: parsed.modelOutputs || [],
           gamification: parsed.gamification || defaultGamification(),
+          subscription: parsed.subscription || defaultSubscription(),
         });
         return;
       }
@@ -424,9 +450,9 @@ export const useStore = create<AppState>((set, get) => ({
 
   persistData: async () => {
     try {
-      const { user, protocol, products, dailyRecords, modelOutputs, gamification } = get();
+      const { user, protocol, products, dailyRecords, modelOutputs, gamification, subscription } = get();
       await AsyncStorage.setItem('glowlytics_data', JSON.stringify({
-        user, protocol, products, dailyRecords, modelOutputs, gamification,
+        user, protocol, products, dailyRecords, modelOutputs, gamification, subscription,
       }));
     } catch (e) {
       console.log('Failed to persist data', e);
@@ -443,6 +469,7 @@ export const useStore = create<AppState>((set, get) => ({
       onboardingStep: 0,
       pendingScanResult: null,
       gamification: defaultGamification(),
+      subscription: defaultSubscription(),
     });
     AsyncStorage.removeItem('glowlytics_data');
   },

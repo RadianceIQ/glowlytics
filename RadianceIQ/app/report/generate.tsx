@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
@@ -12,6 +12,7 @@ import {
   Spacing,
 } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
+import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
 
 type TimeRange = 7 | 14 | 30;
 
@@ -32,7 +33,24 @@ const ReportSection: React.FC<{ title: string; children: React.ReactNode }> = ({
 
 export default function GenerateReport() {
   const router = useRouter();
+  const subscription = useStore((s) => s.subscription);
   const user = useStore((s) => s.user);
+
+  // Gate reports behind premium
+  useEffect(() => {
+    if (!subscription.is_active) {
+      (async () => {
+        const purchased = await presentPaywall();
+        if (purchased) {
+          const sub = await checkSubscriptionStatus(useStore.getState().subscription);
+          useStore.getState().setSubscription(sub);
+        }
+        if (!useStore.getState().subscription.is_active) {
+          router.back();
+        }
+      })();
+    }
+  }, []);
   const protocol = useStore((s) => s.protocol);
   const products = useStore((s) => s.products);
   const dailyRecords = useStore((s) => s.dailyRecords);
