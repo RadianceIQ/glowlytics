@@ -22,26 +22,26 @@ function AgeIllustration() {
     <Svg width={180} height={160} viewBox="0 0 180 160">
       <Defs>
         <RadialGradient id="ageCenter" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#7DE7E1" stopOpacity={0.6} />
-          <Stop offset="100%" stopColor="#7DE7E1" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#3A9E8F" stopOpacity={0.6} />
+          <Stop offset="100%" stopColor="#3A9E8F" stopOpacity={0} />
         </RadialGradient>
       </Defs>
       {/* Concentric rings */}
-      <Circle cx={90} cy={80} r={70} fill="none" stroke="#7DE7E1" strokeWidth={1} strokeOpacity={0.1} />
-      <Circle cx={90} cy={80} r={58} fill="none" stroke="#7DE7E1" strokeWidth={1.2} strokeOpacity={0.15} />
-      <Circle cx={90} cy={80} r={46} fill="none" stroke="#7DE7E1" strokeWidth={1.5} strokeOpacity={0.22} />
-      <Circle cx={90} cy={80} r={34} fill="none" stroke="#7DE7E1" strokeWidth={1.8} strokeOpacity={0.3} />
-      <Circle cx={90} cy={80} r={22} fill="none" stroke="#7DE7E1" strokeWidth={2} strokeOpacity={0.4} />
+      <Circle cx={90} cy={80} r={70} fill="none" stroke="#3A9E8F" strokeWidth={1} strokeOpacity={0.1} />
+      <Circle cx={90} cy={80} r={58} fill="none" stroke="#3A9E8F" strokeWidth={1.2} strokeOpacity={0.15} />
+      <Circle cx={90} cy={80} r={46} fill="none" stroke="#3A9E8F" strokeWidth={1.5} strokeOpacity={0.22} />
+      <Circle cx={90} cy={80} r={34} fill="none" stroke="#3A9E8F" strokeWidth={1.8} strokeOpacity={0.3} />
+      <Circle cx={90} cy={80} r={22} fill="none" stroke="#3A9E8F" strokeWidth={2} strokeOpacity={0.4} />
       <Circle cx={90} cy={80} r={10} fill="url(#ageCenter)" />
       {/* Center dot */}
-      <Circle cx={90} cy={80} r={4} fill="#7DE7E1" fillOpacity={0.8} />
+      <Circle cx={90} cy={80} r={4} fill="#3A9E8F" fillOpacity={0.8} />
       {/* Ring intersect dots */}
-      <Circle cx={90} cy={10} r={2.5} fill="#7DE7E1" fillOpacity={0.3} />
-      <Circle cx={148} cy={80} r={2} fill="#7DE7E1" fillOpacity={0.25} />
-      <Circle cx={32} cy={80} r={2} fill="#7DE7E1" fillOpacity={0.2} />
-      <Circle cx={90} cy={150} r={2.5} fill="#7DE7E1" fillOpacity={0.3} />
-      <Circle cx={136} cy={46} r={1.5} fill="#7DE7E1" fillOpacity={0.2} />
-      <Circle cx={44} cy={114} r={1.5} fill="#7DE7E1" fillOpacity={0.2} />
+      <Circle cx={90} cy={10} r={2.5} fill="#3A9E8F" fillOpacity={0.3} />
+      <Circle cx={148} cy={80} r={2} fill="#3A9E8F" fillOpacity={0.25} />
+      <Circle cx={32} cy={80} r={2} fill="#3A9E8F" fillOpacity={0.2} />
+      <Circle cx={90} cy={150} r={2.5} fill="#3A9E8F" fillOpacity={0.3} />
+      <Circle cx={136} cy={46} r={1.5} fill="#3A9E8F" fillOpacity={0.2} />
+      <Circle cx={44} cy={114} r={1.5} fill="#3A9E8F" fillOpacity={0.2} />
     </Svg>
   );
 }

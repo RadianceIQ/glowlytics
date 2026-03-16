@@ -164,6 +164,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
   },
   markerLabelSelected: {
-    color: '#08111C',
+    color: '#FFFFFF',
   },
 });

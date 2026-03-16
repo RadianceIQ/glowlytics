@@ -24,11 +24,11 @@ import type { CompositeSignals } from '../../src/services/skinInsights';
 type SignalKey = 'hydration' | 'elasticity' | 'inflammation' | 'sun_damage' | 'structure';
 
 const SIGNAL_COLORS: Record<SignalKey, string> = {
-  structure: '#7DE7E1',
-  hydration: '#4DA6FF',
-  inflammation: '#FF7A78',
-  sun_damage: '#F2B56A',
-  elasticity: '#B68AFF',
+  structure: '#3A9E8F',
+  hydration: '#3B7FC4',
+  inflammation: '#D14343',
+  sun_damage: '#C07B2A',
+  elasticity: '#7B5FC2',
 };
 
 const SIGNAL_LABELS: Record<SignalKey, string> = {

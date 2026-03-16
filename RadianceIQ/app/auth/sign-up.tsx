@@ -386,7 +386,7 @@ export default function SignUpScreen() {
               activeOpacity={0.8}
             >
               {oauthLoading === 'apple' ? (
-                <ActivityIndicator size="small" color="#000000" />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
                   <Text style={styles.appleIcon}>{'\uF8FF'}</Text>
@@ -536,10 +536,10 @@ const styles = StyleSheet.create({
 
   // Error
   errorContainer: {
-    backgroundColor: 'rgba(255, 122, 120, 0.12)',
+    backgroundColor: 'rgba(209, 67, 67, 0.08)',
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255, 122, 120, 0.3)',
+    borderColor: 'rgba(209, 67, 67, 0.18)',
     padding: Spacing.md,
   },
   errorText: {
@@ -555,17 +555,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
     height: 56,
     borderRadius: 16,
     gap: Spacing.sm,
   },
   appleIcon: {
     fontSize: 20,
-    color: '#000000',
+    color: '#FFFFFF',
   },
   appleButtonText: {
-    color: '#000000',
+    color: '#FFFFFF',
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.md,
   },

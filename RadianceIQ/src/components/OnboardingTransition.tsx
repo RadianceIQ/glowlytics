@@ -124,7 +124,7 @@ export const OnboardingTransition: React.FC<OnboardingTransitionProps> = ({
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <LinearGradient
-        colors={[Colors.background, Colors.backgroundDeep, '#081522']}
+        colors={[Colors.background, Colors.backgroundDeep, '#EDE9E3']}
         start={{ x: 0.1, y: 0 }}
         end={{ x: 0.95, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     width: 320,
     height: 280,
     borderRadius: BorderRadius.full,
-    opacity: 0.55,
+    opacity: 0.25,
   },
   midGlow: {
     position: 'absolute',
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     width: 300,
     height: 260,
     borderRadius: BorderRadius.full,
-    opacity: 0.35,
+    opacity: 0.15,
   },
   backButton: {
     position: 'absolute',
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(199, 255, 250, 0.28)',
+    borderColor: 'rgba(58, 158, 143, 0.25)',
   },
   primaryButtonDisabled: {
     borderColor: Colors.border,

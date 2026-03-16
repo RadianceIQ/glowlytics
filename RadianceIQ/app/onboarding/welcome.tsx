@@ -12,20 +12,20 @@ function WelcomeIllustration() {
     <Svg width={200} height={160} viewBox="0 0 200 160">
       <Defs>
         <RadialGradient id="orbGlow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#7DE7E1" stopOpacity={0.9} />
-          <Stop offset="55%" stopColor="#7DE7E1" stopOpacity={0.3} />
-          <Stop offset="100%" stopColor="#7DE7E1" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#3A9E8F" stopOpacity={0.9} />
+          <Stop offset="55%" stopColor="#3A9E8F" stopOpacity={0.3} />
+          <Stop offset="100%" stopColor="#3A9E8F" stopOpacity={0} />
         </RadialGradient>
         <RadialGradient id="purpleGlow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#8A95FF" stopOpacity={0.7} />
-          <Stop offset="60%" stopColor="#8A95FF" stopOpacity={0.2} />
-          <Stop offset="100%" stopColor="#8A95FF" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#6366B5" stopOpacity={0.7} />
+          <Stop offset="60%" stopColor="#6366B5" stopOpacity={0.2} />
+          <Stop offset="100%" stopColor="#6366B5" stopOpacity={0} />
         </RadialGradient>
         <RadialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
           <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.5} />
-          <Stop offset="30%" stopColor="#7DE7E1" stopOpacity={0.8} />
-          <Stop offset="70%" stopColor="#7DE7E1" stopOpacity={0.15} />
-          <Stop offset="100%" stopColor="#7DE7E1" stopOpacity={0} />
+          <Stop offset="30%" stopColor="#3A9E8F" stopOpacity={0.8} />
+          <Stop offset="70%" stopColor="#3A9E8F" stopOpacity={0.15} />
+          <Stop offset="100%" stopColor="#3A9E8F" stopOpacity={0} />
         </RadialGradient>
       </Defs>
       {/* Outer purple halo */}
@@ -33,18 +33,18 @@ function WelcomeIllustration() {
       {/* Mid teal glow */}
       <Circle cx={100} cy={80} r={60} fill="url(#orbGlow)" />
       {/* Orbiting ring 1 */}
-      <Circle cx={100} cy={80} r={48} fill="none" stroke="#7DE7E1" strokeWidth={1} strokeOpacity={0.25} />
+      <Circle cx={100} cy={80} r={48} fill="none" stroke="#3A9E8F" strokeWidth={1} strokeOpacity={0.25} />
       {/* Orbiting ring 2 */}
-      <Circle cx={100} cy={80} r={36} fill="none" stroke="#8A95FF" strokeWidth={0.8} strokeOpacity={0.2} />
+      <Circle cx={100} cy={80} r={36} fill="none" stroke="#6366B5" strokeWidth={0.8} strokeOpacity={0.2} />
       {/* Core orb */}
       <Circle cx={100} cy={80} r={22} fill="url(#coreGlow)" />
       {/* Inner bright dot */}
-      <Circle cx={100} cy={80} r={6} fill="#7DE7E1" fillOpacity={0.9} />
+      <Circle cx={100} cy={80} r={6} fill="#3A9E8F" fillOpacity={0.9} />
       {/* Accent dots */}
-      <Circle cx={60} cy={50} r={3} fill="#8A95FF" fillOpacity={0.5} />
-      <Circle cx={145} cy={55} r={2.5} fill="#7DE7E1" fillOpacity={0.4} />
-      <Circle cx={55} cy={110} r={2} fill="#7DE7E1" fillOpacity={0.3} />
-      <Circle cx={150} cy={105} r={3.5} fill="#8A95FF" fillOpacity={0.35} />
+      <Circle cx={60} cy={50} r={3} fill="#6366B5" fillOpacity={0.5} />
+      <Circle cx={145} cy={55} r={2.5} fill="#3A9E8F" fillOpacity={0.4} />
+      <Circle cx={55} cy={110} r={2} fill="#3A9E8F" fillOpacity={0.3} />
+      <Circle cx={150} cy={105} r={3.5} fill="#6366B5" fillOpacity={0.35} />
     </Svg>
   );
 }

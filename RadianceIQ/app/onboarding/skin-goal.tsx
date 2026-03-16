@@ -42,21 +42,21 @@ function AcneIllustration() {
     <Svg width={160} height={140} viewBox="0 0 160 140">
       <Defs>
         <RadialGradient id="acneGlow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#F48A87" stopOpacity={0.5} />
-          <Stop offset="70%" stopColor="#F48A87" stopOpacity={0.1} />
-          <Stop offset="100%" stopColor="#F48A87" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#D15A57" stopOpacity={0.5} />
+          <Stop offset="70%" stopColor="#D15A57" stopOpacity={0.1} />
+          <Stop offset="100%" stopColor="#D15A57" stopOpacity={0} />
         </RadialGradient>
       </Defs>
       <Circle cx={80} cy={70} r={50} fill="url(#acneGlow)" />
-      <Circle cx={80} cy={70} r={38} fill="none" stroke="#F48A87" strokeWidth={1} strokeOpacity={0.3} />
-      <Circle cx={80} cy={70} r={26} fill="none" stroke="#F48A87" strokeWidth={1.2} strokeOpacity={0.35} />
-      <Circle cx={65} cy={55} r={6} fill="#F48A87" fillOpacity={0.35} />
-      <Circle cx={95} cy={60} r={4.5} fill="#F48A87" fillOpacity={0.3} />
-      <Circle cx={75} cy={85} r={5} fill="#F48A87" fillOpacity={0.28} />
-      <Circle cx={90} cy={80} r={3.5} fill="#F48A87" fillOpacity={0.25} />
-      <Circle cx={80} cy={70} r={3} fill="#F48A87" fillOpacity={0.5} />
-      <Circle cx={50} cy={45} r={2} fill="#F48A87" fillOpacity={0.15} />
-      <Circle cx={115} cy={90} r={2} fill="#F48A87" fillOpacity={0.15} />
+      <Circle cx={80} cy={70} r={38} fill="none" stroke="#D15A57" strokeWidth={1} strokeOpacity={0.3} />
+      <Circle cx={80} cy={70} r={26} fill="none" stroke="#D15A57" strokeWidth={1.2} strokeOpacity={0.35} />
+      <Circle cx={65} cy={55} r={6} fill="#D15A57" fillOpacity={0.35} />
+      <Circle cx={95} cy={60} r={4.5} fill="#D15A57" fillOpacity={0.3} />
+      <Circle cx={75} cy={85} r={5} fill="#D15A57" fillOpacity={0.28} />
+      <Circle cx={90} cy={80} r={3.5} fill="#D15A57" fillOpacity={0.25} />
+      <Circle cx={80} cy={70} r={3} fill="#D15A57" fillOpacity={0.5} />
+      <Circle cx={50} cy={45} r={2} fill="#D15A57" fillOpacity={0.15} />
+      <Circle cx={115} cy={90} r={2} fill="#D15A57" fillOpacity={0.15} />
     </Svg>
   );
 }
@@ -66,24 +66,24 @@ function SunDamageIllustration() {
     <Svg width={160} height={140} viewBox="0 0 160 140">
       <Defs>
         <RadialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#EDC27B" stopOpacity={0.5} />
-          <Stop offset="70%" stopColor="#EDC27B" stopOpacity={0.1} />
-          <Stop offset="100%" stopColor="#EDC27B" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#B88C3E" stopOpacity={0.5} />
+          <Stop offset="70%" stopColor="#B88C3E" stopOpacity={0.1} />
+          <Stop offset="100%" stopColor="#B88C3E" stopOpacity={0} />
         </RadialGradient>
       </Defs>
       <Circle cx={80} cy={70} r={50} fill="url(#sunGlow)" />
-      <Circle cx={80} cy={70} r={30} fill="none" stroke="#EDC27B" strokeWidth={1} strokeOpacity={0.25} />
+      <Circle cx={80} cy={70} r={30} fill="none" stroke="#B88C3E" strokeWidth={1} strokeOpacity={0.25} />
       {/* Sun rays */}
-      <Path d="M80 30 L80 18" stroke="#EDC27B" strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
-      <Path d="M80 122 L80 110" stroke="#EDC27B" strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
-      <Path d="M38 70 L26 70" stroke="#EDC27B" strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
-      <Path d="M134 70 L122 70" stroke="#EDC27B" strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
-      <Path d="M51 41 L43 33" stroke="#EDC27B" strokeWidth={1.2} strokeOpacity={0.25} strokeLinecap="round" />
-      <Path d="M109 99 L117 107" stroke="#EDC27B" strokeWidth={1.2} strokeOpacity={0.25} strokeLinecap="round" />
-      <Path d="M109 41 L117 33" stroke="#EDC27B" strokeWidth={1.2} strokeOpacity={0.25} strokeLinecap="round" />
-      <Path d="M51 99 L43 107" stroke="#EDC27B" strokeWidth={1.2} strokeOpacity={0.25} strokeLinecap="round" />
-      <Circle cx={80} cy={70} r={14} fill="#EDC27B" fillOpacity={0.25} />
-      <Circle cx={80} cy={70} r={5} fill="#EDC27B" fillOpacity={0.5} />
+      <Path d="M80 30 L80 18" stroke="#B88C3E" strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
+      <Path d="M80 122 L80 110" stroke="#B88C3E" strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
+      <Path d="M38 70 L26 70" stroke="#B88C3E" strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
+      <Path d="M134 70 L122 70" stroke="#B88C3E" strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
+      <Path d="M51 41 L43 33" stroke="#B88C3E" strokeWidth={1.2} strokeOpacity={0.25} strokeLinecap="round" />
+      <Path d="M109 99 L117 107" stroke="#B88C3E" strokeWidth={1.2} strokeOpacity={0.25} strokeLinecap="round" />
+      <Path d="M109 41 L117 33" stroke="#B88C3E" strokeWidth={1.2} strokeOpacity={0.25} strokeLinecap="round" />
+      <Path d="M51 99 L43 107" stroke="#B88C3E" strokeWidth={1.2} strokeOpacity={0.25} strokeLinecap="round" />
+      <Circle cx={80} cy={70} r={14} fill="#B88C3E" fillOpacity={0.25} />
+      <Circle cx={80} cy={70} r={5} fill="#B88C3E" fillOpacity={0.5} />
     </Svg>
   );
 }
@@ -93,22 +93,22 @@ function SkinAgeIllustration() {
     <Svg width={160} height={140} viewBox="0 0 160 140">
       <Defs>
         <RadialGradient id="ageBlue" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#8DB5FF" stopOpacity={0.5} />
-          <Stop offset="70%" stopColor="#8DB5FF" stopOpacity={0.1} />
-          <Stop offset="100%" stopColor="#8DB5FF" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#4B7FCC" stopOpacity={0.5} />
+          <Stop offset="70%" stopColor="#4B7FCC" stopOpacity={0.1} />
+          <Stop offset="100%" stopColor="#4B7FCC" stopOpacity={0} />
         </RadialGradient>
       </Defs>
       <Circle cx={80} cy={70} r={50} fill="url(#ageBlue)" />
       {/* Texture waves */}
-      <Path d="M30 55 Q55 45 80 55 Q105 65 130 55" fill="none" stroke="#8DB5FF" strokeWidth={0.8} strokeOpacity={0.2} />
-      <Path d="M30 70 Q55 60 80 70 Q105 80 130 70" fill="none" stroke="#8DB5FF" strokeWidth={1} strokeOpacity={0.25} />
-      <Path d="M30 85 Q55 75 80 85 Q105 95 130 85" fill="none" stroke="#8DB5FF" strokeWidth={0.8} strokeOpacity={0.2} />
+      <Path d="M30 55 Q55 45 80 55 Q105 65 130 55" fill="none" stroke="#4B7FCC" strokeWidth={0.8} strokeOpacity={0.2} />
+      <Path d="M30 70 Q55 60 80 70 Q105 80 130 70" fill="none" stroke="#4B7FCC" strokeWidth={1} strokeOpacity={0.25} />
+      <Path d="M30 85 Q55 75 80 85 Q105 95 130 85" fill="none" stroke="#4B7FCC" strokeWidth={0.8} strokeOpacity={0.2} />
       {/* Elasticity curves */}
-      <Ellipse cx={80} cy={70} rx={28} ry={20} fill="none" stroke="#8DB5FF" strokeWidth={1.2} strokeOpacity={0.3} />
-      <Circle cx={80} cy={70} r={10} fill="#8DB5FF" fillOpacity={0.2} />
-      <Circle cx={80} cy={70} r={4} fill="#8DB5FF" fillOpacity={0.45} />
-      <Circle cx={55} cy={50} r={1.5} fill="#8DB5FF" fillOpacity={0.2} />
-      <Circle cx={110} cy={90} r={1.5} fill="#8DB5FF" fillOpacity={0.2} />
+      <Ellipse cx={80} cy={70} rx={28} ry={20} fill="none" stroke="#4B7FCC" strokeWidth={1.2} strokeOpacity={0.3} />
+      <Circle cx={80} cy={70} r={10} fill="#4B7FCC" fillOpacity={0.2} />
+      <Circle cx={80} cy={70} r={4} fill="#4B7FCC" fillOpacity={0.45} />
+      <Circle cx={55} cy={50} r={1.5} fill="#4B7FCC" fillOpacity={0.2} />
+      <Circle cx={110} cy={90} r={1.5} fill="#4B7FCC" fillOpacity={0.2} />
     </Svg>
   );
 }
@@ -125,15 +125,15 @@ function DefaultGoalIllustration() {
     <Svg width={160} height={140} viewBox="0 0 160 140">
       <Defs>
         <RadialGradient id="defaultGlow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#7DE7E1" stopOpacity={0.4} />
-          <Stop offset="70%" stopColor="#7DE7E1" stopOpacity={0.1} />
-          <Stop offset="100%" stopColor="#7DE7E1" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#3A9E8F" stopOpacity={0.4} />
+          <Stop offset="70%" stopColor="#3A9E8F" stopOpacity={0.1} />
+          <Stop offset="100%" stopColor="#3A9E8F" stopOpacity={0} />
         </RadialGradient>
       </Defs>
       <Circle cx={80} cy={70} r={50} fill="url(#defaultGlow)" />
-      <Circle cx={80} cy={70} r={35} fill="none" stroke="#7DE7E1" strokeWidth={0.8} strokeOpacity={0.2} />
-      <Circle cx={80} cy={70} r={20} fill="none" stroke="#7DE7E1" strokeWidth={1} strokeOpacity={0.25} />
-      <Circle cx={80} cy={70} r={5} fill="#7DE7E1" fillOpacity={0.35} />
+      <Circle cx={80} cy={70} r={35} fill="none" stroke="#3A9E8F" strokeWidth={0.8} strokeOpacity={0.2} />
+      <Circle cx={80} cy={70} r={20} fill="none" stroke="#3A9E8F" strokeWidth={1} strokeOpacity={0.25} />
+      <Circle cx={80} cy={70} r={5} fill="#3A9E8F" fillOpacity={0.35} />
     </Svg>
   );
 }

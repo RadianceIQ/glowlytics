@@ -68,7 +68,7 @@ export default function TabsLayout() {
   }, [isFirstScan]);
 
   const cameraGlowStyle = useAnimatedStyle(() => ({
-    borderColor: `rgba(199, 255, 250, ${glowOpacity.value})`,
+    borderColor: `rgba(58, 158, 143, ${glowOpacity.value})`,
   }));
 
   return (
@@ -83,7 +83,7 @@ export default function TabsLayout() {
         tabBarBackground: () => (
           <BlurView
             intensity={40}
-            tint="dark"
+            tint="light"
             style={[StyleSheet.absoluteFill, styles.blurFill]}
           />
         ),
@@ -146,7 +146,7 @@ export default function TabsLayout() {
             >
               <Animated.View style={[styles.cameraOuter, cameraGlowStyle]}>
                 <View style={styles.cameraInner}>
-                  <Feather name="camera" size={22} color={Colors.backgroundDeep} />
+                  <Feather name="camera" size={22} color={Colors.text} />
                 </View>
               </Animated.View>
             </Pressable>
@@ -180,16 +180,16 @@ const styles = StyleSheet.create({
     left: Spacing.md,
     right: Spacing.md,
     bottom: Spacing.md,
-    backgroundColor: 'rgba(8, 14, 24, 0.75)',
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: BorderRadius.full,
     borderTopWidth: 0,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(0, 0, 0, 0.06)',
     paddingTop: Spacing.xs,
     elevation: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.08,
     shadowRadius: 24,
   },
   blurFill: {
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   iconWrapActive: {
-    backgroundColor: 'rgba(199, 255, 250, 0.08)',
+    backgroundColor: 'rgba(58, 158, 143, 0.10)',
   },
   tabLabel: {
     color: Colors.textMuted,
@@ -231,11 +231,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(8, 14, 24, 0.6)',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(199, 255, 250, 0.12)',
+    borderColor: 'rgba(58, 158, 143, 0.15)',
   },
   cameraInner: {
     width: 46,

@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as MailComposer from 'expo-mail-composer';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { Button } from '../../src/components/Button';
 import { ScoreTile } from '../../src/components/ScoreTile';
@@ -14,6 +18,7 @@ import {
 import { useStore } from '../../src/store/useStore';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
 import { trackEvent } from '../../src/services/analytics';
+import { buildReportHtml, type ReportHtmlData } from '../../src/services/reportHtml';
 
 type TimeRange = 7 | 14 | 30;
 
@@ -59,6 +64,7 @@ export default function GenerateReport() {
 
   const [timeRange, setTimeRange] = useState<TimeRange>(14);
   const [showPreview, setShowPreview] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - timeRange);
@@ -77,6 +83,111 @@ export default function GenerateReport() {
   const acneScores = filteredOutputs.map((output) => output.acne_score);
   const sunScores = filteredOutputs.map((output) => output.sun_damage_score);
   const ageScores = filteredOutputs.map((output) => output.skin_age_score);
+
+  const dateTo = new Date().toISOString().split('T')[0];
+
+  const prepareReportData = async (): Promise<ReportHtmlData> => {
+    const recordsWithPhotos = filteredRecords.filter((r) => r.photo_uri);
+    const selected: typeof recordsWithPhotos = [];
+    if (recordsWithPhotos.length > 0) {
+      selected.push(recordsWithPhotos[0]);
+      if (recordsWithPhotos.length >= 3) {
+        selected.push(recordsWithPhotos[Math.floor(recordsWithPhotos.length / 2)]);
+      }
+      if (recordsWithPhotos.length >= 2) {
+        selected.push(recordsWithPhotos[recordsWithPhotos.length - 1]);
+      }
+    }
+
+    const photos: { date: string; base64: string }[] = [];
+    for (const record of selected) {
+      try {
+        const base64 = await FileSystemLegacy.readAsStringAsync(record.photo_uri!, { encoding: FileSystemLegacy.EncodingType.Base64 });
+        photos.push({ date: record.date, base64 });
+      } catch {
+        // Skip photos that can't be read (stale/missing files)
+      }
+    }
+
+    return {
+      timeRange,
+      dateFrom: cutoffStr,
+      dateTo,
+      ageRange: user?.age_range || 'N/A',
+      locationCoarse: user?.location_coarse || 'N/A',
+      scanRegion: protocol?.scan_region?.replace(/_/g, ' ') || 'N/A',
+      totalScans,
+      confidenceRate,
+      acneAvg: average(acneScores),
+      acneDelta: trend(acneScores),
+      acneScores,
+      sunAvg: average(sunScores),
+      sunDelta: trend(sunScores),
+      sunScores,
+      ageAvg: average(ageScores),
+      ageDelta: trend(ageScores),
+      ageScores,
+      photos,
+      products: products.map((p) => ({
+        name: p.product_name,
+        ingredients: p.ingredients_list.join(', '),
+        schedule: p.usage_schedule,
+        startDate: p.start_date,
+      })),
+      sunscreenRate,
+      sunscreenDays,
+      totalSunscreenDays: totalScans,
+      periodApplicable: user?.period_applicable === 'yes',
+      cycleLengthDays: user?.cycle_length_days,
+      hasSleepContext: filteredRecords.some((r) => r.sleep_quality),
+      generatedDate: dateTo,
+    };
+  };
+
+  const generatePdfFile = async (): Promise<string> => {
+    const reportData = await prepareReportData();
+    const html = buildReportHtml(reportData);
+    const { uri } = await Print.printToFileAsync({ html });
+    const filename = `Glowlytics-Report-${dateTo}.pdf`;
+    const newUri = `${FileSystemLegacy.documentDirectory}${filename}`;
+    await FileSystemLegacy.moveAsync({ from: uri, to: newUri });
+    return newUri;
+  };
+
+  const handleExportPdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const pdfUri = await generatePdfFile();
+      await Sharing.shareAsync(pdfUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+      trackEvent('report_exported', { time_range: timeRange, total_scans: totalScans, has_photos: filteredRecords.some((r) => r.photo_uri) });
+    } catch {
+      Alert.alert('Export failed', 'Unable to generate or share the PDF. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleShareEmail = async () => {
+    const available = await MailComposer.isAvailableAsync();
+    if (!available) {
+      Alert.alert('No email configured', 'Please set up an email account on this device first.');
+      return;
+    }
+    setIsGeneratingPdf(true);
+    try {
+      const pdfUri = await generatePdfFile();
+      await MailComposer.composeAsync({
+        subject: `Glowlytics Skin Report - ${cutoffStr} to ${dateTo}`,
+        body: `Please find attached the Glowlytics clinician report covering ${cutoffStr} to ${dateTo} (${totalScans} scans).`,
+        attachments: [pdfUri],
+      });
+      trackEvent('report_shared_email', { time_range: timeRange, total_scans: totalScans, has_photos: filteredRecords.some((r) => r.photo_uri) });
+    } catch {
+      Alert.alert('Share failed', 'Unable to generate the PDF or open email. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   if (!showPreview) {
     return (
@@ -159,7 +270,7 @@ export default function GenerateReport() {
       <View style={styles.reportHero}>
         <Text style={styles.reportHeroTitle}>Trend summary for the last {timeRange} days</Text>
         <Text style={styles.reportHeroCopy}>
-          {cutoffStr} to {new Date().toISOString().split('T')[0]}
+          {cutoffStr} to {dateTo}
         </Text>
       </View>
 
@@ -266,19 +377,23 @@ export default function GenerateReport() {
 
       <View style={styles.disclaimer}>
         <Text style={styles.disclaimerText}>
-          Non-diagnostic metrics for clinician interpretation. Generated by Glowlytics on {new Date().toISOString().split('T')[0]}.
+          Non-diagnostic metrics for clinician interpretation. Generated by Glowlytics on {dateTo}.
         </Text>
       </View>
 
       <View style={styles.shareActions}>
         <Button
           title="Export PDF"
-          onPress={() => Alert.alert('Export', 'PDF report would be generated here.')}
+          onPress={handleExportPdf}
+          loading={isGeneratingPdf}
+          disabled={isGeneratingPdf}
         />
         <Button
           title="Share via email"
           variant="secondary"
-          onPress={() => Alert.alert('Share', 'Email sharing would be triggered here.')}
+          onPress={handleShareEmail}
+          loading={isGeneratingPdf}
+          disabled={isGeneratingPdf}
         />
         <Button title="Back" variant="ghost" onPress={() => router.back()} />
       </View>

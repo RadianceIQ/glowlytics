@@ -44,18 +44,18 @@ const ringStroke = 6;
 const clampScore = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
 function scoreColor(score: number): string {
-  if (score >= 75) return '#5FD3AC';
+  if (score >= 75) return '#34A77B';
   if (score >= 55) return Colors.primary;
-  if (score >= 35) return '#F2B56A';
-  return '#FF7A78';
+  if (score >= 35) return '#C07B2A';
+  return '#D14343';
 }
 
 const ratingDotColor: Record<IngredientRating, string> = {
-  highly_beneficial: '#5FD3AC',
+  highly_beneficial: '#34A77B',
   beneficial: Colors.primary,
   neutral: Colors.textMuted,
-  potentially_concerning: '#F2B56A',
-  concerning: '#FF7A78',
+  potentially_concerning: '#C07B2A',
+  concerning: '#D14343',
 };
 
 const SIGNAL_LABELS: Record<keyof CompositeSignals, string> = {
@@ -379,12 +379,12 @@ export default function ProductDetailScreen() {
                   <Feather
                     name={arrowIcon}
                     size={16}
-                    color={direction === 'up' ? '#5FD3AC' : '#FF7A78'}
+                    color={direction === 'up' ? '#34A77B' : '#D14343'}
                   />
                   <Text
                     style={[
                       styles.signalDirection,
-                      { color: direction === 'up' ? '#5FD3AC' : '#FF7A78' },
+                      { color: direction === 'up' ? '#34A77B' : '#D14343' },
                     ]}
                   >
                     {direction === 'up' ? 'Improves' : 'May reduce'}

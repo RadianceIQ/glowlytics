@@ -20,11 +20,11 @@ import { trackEvent } from '../../src/services/analytics';
 import type { SignalConfidenceLevel } from '../../src/types';
 
 const SIGNAL_COLORS: Record<string, string> = {
-  structure: '#7DE7E1',
-  hydration: '#4DA6FF',
-  inflammation: '#FF7A78',
-  sunDamage: '#F2B56A',
-  elasticity: '#B68AFF',
+  structure: '#3A9E8F',
+  hydration: '#3B7FC4',
+  inflammation: '#D14343',
+  sunDamage: '#C07B2A',
+  elasticity: '#7B5FC2',
 };
 
 const SIGNAL_LABELS: Record<string, string> = {
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   },
   alertStrip: {
     marginTop: Spacing.lg,
-    backgroundColor: 'rgba(72, 43, 16, 0.88)',
+    backgroundColor: 'rgba(255, 243, 224, 0.92)',
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.warning + '40',

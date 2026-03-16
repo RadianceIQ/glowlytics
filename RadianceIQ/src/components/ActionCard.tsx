@@ -35,7 +35,7 @@ export const ActionCard: React.FC<Props> = ({
     <LinearGradient
       colors={[
         Colors.glassStrong,
-        escalation ? 'rgba(45, 30, 12, 0.94)' : 'rgba(13, 24, 39, 0.96)',
+        escalation ? 'rgba(255, 243, 224, 0.94)' : 'rgba(245, 244, 240, 0.96)',
       ]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}

@@ -269,10 +269,10 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   errorContainer: {
-    backgroundColor: 'rgba(255, 122, 120, 0.12)',
+    backgroundColor: 'rgba(209, 67, 67, 0.08)',
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255, 122, 120, 0.3)',
+    borderColor: 'rgba(209, 67, 67, 0.18)',
     padding: Spacing.md,
   },
   errorText: {
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(95, 211, 172, 0.15)',
+    backgroundColor: 'rgba(52, 167, 123, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,

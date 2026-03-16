@@ -5,14 +5,14 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "glowlytics",
-    "backgroundColor": "#060B12",
+    "backgroundColor": "#FAFAF7",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#060B12"
+      "backgroundColor": "#FAFAF7"
     },
     "ios": {
       "supportsTablet": true,
@@ -30,7 +30,7 @@
     "android": {
       "package": "com.glowlytics.app",
       "adaptiveIcon": {
-        "backgroundColor": "#060B12",
+        "backgroundColor": "#FAFAF7",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -70,7 +70,8 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-mail-composer"
     ],
     "runtimeVersion": {
       "policy": "appVersion"

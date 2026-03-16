@@ -434,7 +434,7 @@ export default function Products() {
               ? computeProductEffectiveness(product, protocol.primary_goal)
               : null;
             const badgeColor = effectiveness
-              ? effectiveness.score >= 75 ? '#5FD3AC'
+              ? effectiveness.score >= 75 ? '#34A77B'
                 : effectiveness.score >= 55 ? Colors.primary
                 : effectiveness.score >= 35 ? Colors.warning
                 : Colors.error

@@ -491,8 +491,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   modeButtonDestructive: {
-    borderColor: 'rgba(255, 122, 120, 0.2)',
-    backgroundColor: 'rgba(255, 122, 120, 0.06)',
+    borderColor: 'rgba(209, 67, 67, 0.18)',
+    backgroundColor: 'rgba(209, 67, 67, 0.06)',
   },
   modeButtonText: {
     color: Colors.primaryLight,

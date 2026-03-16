@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   tooltip: {
-    backgroundColor: 'rgba(17, 28, 43, 0.92)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.primary + '30',
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     bottom: -6,
     width: 12,
     height: 12,
-    backgroundColor: 'rgba(17, 28, 43, 0.92)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRightWidth: 1,
     borderBottomWidth: 1,
     borderColor: Colors.primary + '30',

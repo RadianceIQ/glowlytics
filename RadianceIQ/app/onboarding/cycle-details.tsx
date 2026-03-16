@@ -29,23 +29,23 @@ function CycleIllustration() {
     <Svg width={140} height={100} viewBox="0 0 140 100">
       <Defs>
         <RadialGradient id="cycleGlow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#F2B56A" stopOpacity={0.3} />
-          <Stop offset="100%" stopColor="#F2B56A" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#C07B2A" stopOpacity={0.3} />
+          <Stop offset="100%" stopColor="#C07B2A" stopOpacity={0} />
         </RadialGradient>
       </Defs>
       <Circle cx={70} cy={50} r={40} fill="url(#cycleGlow)" />
       <Path
         d="M15 50 Q35 30 55 50 Q75 70 95 50 Q115 30 135 50"
         fill="none"
-        stroke="#F2B56A"
+        stroke="#C07B2A"
         strokeWidth={1.2}
         strokeOpacity={0.3}
         strokeLinecap="round"
       />
-      <Circle cx={70} cy={50} r={18} fill="none" stroke="#7DE7E1" strokeWidth={0.8} strokeOpacity={0.2} />
-      <Circle cx={70} cy={50} r={3} fill="#F2B56A" fillOpacity={0.5} />
-      <Circle cx={30} cy={42} r={1.5} fill="#7DE7E1" fillOpacity={0.2} />
-      <Circle cx={110} cy={42} r={1.5} fill="#7DE7E1" fillOpacity={0.2} />
+      <Circle cx={70} cy={50} r={18} fill="none" stroke="#3A9E8F" strokeWidth={0.8} strokeOpacity={0.2} />
+      <Circle cx={70} cy={50} r={3} fill="#C07B2A" fillOpacity={0.5} />
+      <Circle cx={30} cy={42} r={1.5} fill="#3A9E8F" fillOpacity={0.2} />
+      <Circle cx={110} cy={42} r={1.5} fill="#3A9E8F" fillOpacity={0.2} />
     </Svg>
   );
 }

@@ -16,34 +16,34 @@ function LocationIllustration() {
     <Svg width={180} height={160} viewBox="0 0 180 160">
       <Defs>
         <RadialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#4DA6FF" stopOpacity={0.4} />
-          <Stop offset="60%" stopColor="#4DA6FF" stopOpacity={0.1} />
-          <Stop offset="100%" stopColor="#4DA6FF" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#3B7FC4" stopOpacity={0.4} />
+          <Stop offset="60%" stopColor="#3B7FC4" stopOpacity={0.1} />
+          <Stop offset="100%" stopColor="#3B7FC4" stopOpacity={0} />
         </RadialGradient>
         <RadialGradient id="tealPin" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#7DE7E1" stopOpacity={0.7} />
-          <Stop offset="100%" stopColor="#7DE7E1" stopOpacity={0} />
+          <Stop offset="0%" stopColor="#3A9E8F" stopOpacity={0.7} />
+          <Stop offset="100%" stopColor="#3A9E8F" stopOpacity={0} />
         </RadialGradient>
       </Defs>
       {/* Topographic rings */}
-      <Ellipse cx={90} cy={80} rx={72} ry={55} fill="none" stroke="#4DA6FF" strokeWidth={0.7} strokeOpacity={0.12} />
-      <Ellipse cx={85} cy={78} rx={58} ry={44} fill="none" stroke="#4DA6FF" strokeWidth={0.8} strokeOpacity={0.16} />
-      <Ellipse cx={88} cy={82} rx={44} ry={33} fill="none" stroke="#7DE7E1" strokeWidth={0.9} strokeOpacity={0.2} />
-      <Ellipse cx={92} cy={79} rx={30} ry={22} fill="none" stroke="#7DE7E1" strokeWidth={1} strokeOpacity={0.25} />
-      <Ellipse cx={90} cy={80} rx={16} ry={12} fill="none" stroke="#7DE7E1" strokeWidth={1.2} strokeOpacity={0.3} />
+      <Ellipse cx={90} cy={80} rx={72} ry={55} fill="none" stroke="#3B7FC4" strokeWidth={0.7} strokeOpacity={0.12} />
+      <Ellipse cx={85} cy={78} rx={58} ry={44} fill="none" stroke="#3B7FC4" strokeWidth={0.8} strokeOpacity={0.16} />
+      <Ellipse cx={88} cy={82} rx={44} ry={33} fill="none" stroke="#3A9E8F" strokeWidth={0.9} strokeOpacity={0.2} />
+      <Ellipse cx={92} cy={79} rx={30} ry={22} fill="none" stroke="#3A9E8F" strokeWidth={1} strokeOpacity={0.25} />
+      <Ellipse cx={90} cy={80} rx={16} ry={12} fill="none" stroke="#3A9E8F" strokeWidth={1.2} strokeOpacity={0.3} />
       {/* Center glow */}
       <Circle cx={90} cy={80} r={20} fill="url(#mapGlow)" />
       {/* Location pin */}
       <Circle cx={90} cy={76} r={6} fill="url(#tealPin)" />
-      <Circle cx={90} cy={76} r={3} fill="#7DE7E1" fillOpacity={0.8} />
-      <Path d="M90 82 L87 88 L90 86 L93 88 Z" fill="#7DE7E1" fillOpacity={0.6} />
+      <Circle cx={90} cy={76} r={3} fill="#3A9E8F" fillOpacity={0.8} />
+      <Path d="M90 82 L87 88 L90 86 L93 88 Z" fill="#3A9E8F" fillOpacity={0.6} />
       {/* Grid dots */}
-      <Circle cx={40} cy={50} r={1.5} fill="#4DA6FF" fillOpacity={0.2} />
-      <Circle cx={150} cy={55} r={1.5} fill="#4DA6FF" fillOpacity={0.2} />
-      <Circle cx={35} cy={110} r={1.5} fill="#7DE7E1" fillOpacity={0.15} />
-      <Circle cx={145} cy={105} r={1.5} fill="#7DE7E1" fillOpacity={0.15} />
-      <Circle cx={60} cy={35} r={1} fill="#4DA6FF" fillOpacity={0.15} />
-      <Circle cx={120} cy={130} r={1} fill="#4DA6FF" fillOpacity={0.15} />
+      <Circle cx={40} cy={50} r={1.5} fill="#3B7FC4" fillOpacity={0.2} />
+      <Circle cx={150} cy={55} r={1.5} fill="#3B7FC4" fillOpacity={0.2} />
+      <Circle cx={35} cy={110} r={1.5} fill="#3A9E8F" fillOpacity={0.15} />
+      <Circle cx={145} cy={105} r={1.5} fill="#3A9E8F" fillOpacity={0.15} />
+      <Circle cx={60} cy={35} r={1} fill="#3B7FC4" fillOpacity={0.15} />
+      <Circle cx={120} cy={130} r={1} fill="#3B7FC4" fillOpacity={0.15} />
     </Svg>
   );
 }

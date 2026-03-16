@@ -71,7 +71,7 @@ function ClerkGatedApp() {
   return (
     <SafeAreaProvider>
       <View style={{ flex: 1, backgroundColor: Colors.background }}>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <Stack
           screenOptions={{
             headerShown: false,

@@ -71,7 +71,7 @@ export default function Index() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[Colors.background, Colors.backgroundDeep, '#081522']}
+        colors={[Colors.background, Colors.backgroundDeep, '#EDE9E3']}
         start={{ x: 0.1, y: 0 }}
         end={{ x: 0.95, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     width: 320,
     height: 280,
     borderRadius: BorderRadius.full,
-    opacity: 0.75,
+    opacity: 0.35,
   },
   midGlow: {
     position: 'absolute',
