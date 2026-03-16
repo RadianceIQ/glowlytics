@@ -326,9 +326,9 @@ export default function AnalyzingScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={[Colors.background, Colors.backgroundDeep, '#081522']}
-          start={{ x: 0.1, y: 0 }}
-          end={{ x: 0.95, y: 1 }}
+          colors={[Colors.backgroundDeep, '#6B8799', '#081522']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.content}>
@@ -369,9 +369,9 @@ export default function AnalyzingScreen() {
 
       <View style={styles.container}>
         <LinearGradient
-          colors={[Colors.background, Colors.backgroundDeep, '#081522']}
-          start={{ x: 0.1, y: 0 }}
-          end={{ x: 0.95, y: 1 }}
+          colors={[Colors.backgroundDeep, '#6B8799', '#081522']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
 
