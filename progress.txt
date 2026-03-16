@@ -1,6 +1,6 @@
 Glowlytics - Build Progress
 ===========================
-Last Updated: 2026-03-15
+Last Updated: 2026-03-16
 
 MILESTONES:
 1. Project setup + foundation (Expo SDK 54, TypeScript, Expo Router)
@@ -19,11 +19,15 @@ MILESTONES:
 14. PostHog analytics: 20 events across auth/onboarding/scan/paywall/engagement
 15. App icon fixed: gradient background with white G logo
 16. Production build v1.0.0 (#3) submitted to App Store Connect
+17. 3-layer signal-specific analysis pipeline (deterministic + ONNX CV + GPT-4o)
+18. ML training pipeline: 9 notebooks (data prep, GPT-4o finetune, MedGemma, eval, structure, hydration, elasticity, lesion detection, signal eval)
+19. DB schema migrated on Railway with signal_scores, signal_features, lesions columns
 
 CURRENT STATUS:
-- 233 tests passing (19 suites), 0 TypeScript errors
-- 49 screens, 20 components, 16 services
+- 286 tests passing (20 suites), 0 TypeScript errors
+- 49 screens, 20+ components, 16 services, 7 backend modules
 - Backend live on Railway with PostgreSQL, health check passing
+- DB schema includes signal-specific columns (signal_scores, signal_features, lesions)
 - EAS project linked (f56f9712-7cc3-48a3-ba5d-710c5e469c3d)
 - Production .ipa uploaded to App Store Connect (ASC App ID: 6760600635)
 - Dev client build available for on-device testing
@@ -61,6 +65,22 @@ COMPLETED:
 [x] Backend deployment to Railway
 [x] Railway env vars (Clerk, OpenAI, Pinecone, Vision model)
 [x] EAS project initialized with dev/preview/production profiles
+[x] 3-layer parallel signal analysis pipeline (Layer 1: CIELAB/ITA/GLCM/LBP/specular, Layer 2: ONNX CV, Layer 3: GPT-4o)
+[x] backend/image-processing.js — deterministic feature extraction via sharp
+[x] backend/signal-models.js — ONNX model inference + score merging logic
+[x] Signal scores (structure, hydration, inflammation, sunDamage, elasticity) in API response
+[x] Lesion detection data (bbox, class, confidence, zone) in API response
+[x] Per-signal confidence indicators (low/med/high) based on which layers contributed
+[x] Results screen: Signal Breakdown section with per-signal bars + confidence badges
+[x] FacialMesh: lesion bounding box rendering (dashed rectangles) + lesion count legend
+[x] DB schema: signal_scores, signal_features, lesions JSONB columns on model_outputs
+[x] Railway DB schema manually initialized (tables were missing after Postgres recreate)
+[x] home.tsx refactored to use overallInsight.signals (single source of truth)
+[x] CameraFaceMesh.tsx: shared meshData.ts module, uniform scaling
+[x] ML notebooks 05-09: structure, hydration, elasticity, lesion detection, evaluation
+[x] ml/requirements.txt updated with onnxruntime, ultralytics, opencv-python, albumentations, timm, coremltools
+[x] 53 new tests: image processing unit tests, signal model merging, endpoint integration
+[x] Backend deps: sharp (image processing), onnxruntime-node (optional, CV models)
 
 REMAINING (Launch checklist):
 [ ] !! CRITICAL: Replace Clerk TEST keys with PRODUCTION keys !!
@@ -83,3 +103,11 @@ REMAINING (Launch checklist):
 [ ] Seed Pinecone on production: POST /api/rag/seed
 [ ] TestFlight: smoke test all 3 journeys + subscription flow + paywall
 [ ] Submit for App Review
+
+REMAINING (ML pipeline):
+[ ] Train structure model (notebook 05) on FFHQ + CelebA-HQ → export structure.onnx
+[ ] Train hydration model (notebook 06) on CelebA + Oulu → export hydration.onnx
+[ ] Train elasticity model (notebook 07) on UTKFace + FFHQ → export elasticity.onnx
+[ ] Train lesion detector (notebook 08) on ACNE04 + ISIC + HAM10000 → export lesion_detector.onnx
+[ ] Run evaluation notebook (09) — target: MAE < 10, Pearson r > 0.7 per signal
+[ ] Deploy trained ONNX models to backend/models/ on Railway

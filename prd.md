@@ -273,6 +273,9 @@ Since no physical scanner is available, the device connection flow will be **sim
 | primary_driver | string | No |
 | recommended_action | string | Yes |
 | escalation_flag | bool | Yes |
+| signal_scores | JSONB {structure, hydration, inflammation, sunDamage, elasticity} | No |
+| signal_features | JSONB {inflammation_a_star, ita_variance, spot_count, pore_density, wrinkle_index, specular_ratio} | No |
+| lesions | JSONB [{class, confidence, bbox, zone}] | No |
 
 ### 6) Report Artifact (generated on demand)
 | Field | Type | Required |
@@ -339,6 +342,28 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 - Inflammation (20%): inverse of inflammation + acne risk
 - Sun Damage (20%): inverse of sun + pigmentation risk
 - Elasticity (20%): inverse of age + texture risk
+
+### Signal-Specific Analysis Pipeline (3-Layer)
+Each signal now has its own biologically grounded measurement via a 3-layer parallel pipeline:
+
+**Layer 1 — Deterministic Image Processing** (~100ms, `backend/image-processing.js`):
+- CIELAB a* erythema map → inflammation (validated: r=0.89 vs Mexameter, Stamatas 2004)
+- ITA variance + solar lentigo count → sun damage (validated: Flament 2013)
+- Specular reflection ratio + LBP entropy → hydration (validated: r=0.72 vs Corneometer, Batisse 2002)
+- GLCM texture + green channel pore proxy → structure
+- Forehead wrinkle energy (Frangi-inspired) → elasticity
+
+**Layer 2 — Custom CV Models** (~200ms, `backend/signal-models.js`):
+- Structure: MobileNetV3 (pore count + texture regularity)
+- Hydration: EfficientNet-B0 (Gabor+LBP features)
+- Elasticity: EfficientNet-B0 (Frangi wrinkle quantification)
+- Lesion detection: YOLOv8-small (comedone, papule, pustule, nodule, macule, patch)
+- Models loaded from ONNX; graceful fallback to Layer 1 when not available
+
+**Layer 3 — Fine-tuned GPT-4o** (existing, ~3-5s):
+- Holistic condition classification, pattern recognition, personalized feedback, RAG recommendations
+
+Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for CV signals, 0.7/0.3 for deterministic-primary signals)
 
 ### Confidence Levels
 - Low: < 3 scans (insufficient data for trend)
@@ -421,8 +446,8 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 - **App Store metadata** — description, keywords, screenshot specs for iPhone 15 Pro Max
 - **Demo script** — 7-minute structured walkthrough with talking points
 - **Production build submitted** — v1.0.0 build #3 uploaded to App Store Connect
-- **233 unit tests** across 19 suites (scoring, insights, scanner, subscription, analytics, product lookup, ingredient DB, signal history)
-- 49 screen files, 20 components, 16 services, 5 backend files, Zustand store
+- **286 unit tests** across 20 suites (scoring, insights, scanner, subscription, analytics, product lookup, ingredient DB, signal history, signal-models)
+- 49 screen files, 20+ components, 16 services, 7 backend files, Zustand store
 - EAS dev client + production builds succeeding
 
 ### SDK Migration (SDK 55 → 54)
@@ -451,11 +476,23 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 - **TestFlight**: smoke test all 3 journeys + subscription flow
 - **Submit for App Review**
 
+### Completed (2026-03-16): Signal-Specific Analysis Pipeline
+- **3-layer parallel pipeline** in `/api/vision/analyze` — deterministic image processing + ONNX CV models + GPT-4o
+- **Layer 1**: CIELAB a*, ITA variance, GLCM, LBP, specular analysis via `sharp` (~100ms)
+- **Layer 2**: ONNX model inference for structure/hydration/elasticity + YOLOv8 lesion detection (placeholder until models trained)
+- **Layer 3**: Existing fine-tuned GPT-4o (unchanged)
+- **Frontend**: Signal Breakdown section on results screen (per-signal bars + confidence badges), lesion bounding boxes on FacialMesh
+- **DB schema**: Added signal_scores, signal_features, lesions JSONB columns to model_outputs
+- **ML pipeline**: 5 new training notebooks (05-09) for structure, hydration, elasticity, lesion detection, evaluation
+- **Tests**: 53 new tests (image processing unit, signal model merging, endpoint integration)
+- **Dependencies**: sharp (backend), onnxruntime-node (optional), 6 new ML Python packages
+
 ### Deferred (post-launch)
 - HealthKit/Health Connect native integration (requires EAS bare workflow)
 - Push notifications for scan reminders
 - PDF export for clinician reports (currently stub)
 - Session replay via PostHog (currently disabled)
+- On-device YOLOv8-nano lesion detection (CoreML/TFLite export from notebook 08)
 
 ---
 
@@ -555,13 +592,13 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 ## Signal Detail Screens
 
 ### Five Signals
-| Signal | Color | Primary Weights |
-|--------|-------|-----------------|
-| Structure | `#7DE7E1` | texture_index 55%, skin_age 45% |
-| Hydration | `#4DA6FF` | texture_index 50%, acne 20%, stress/sleep |
-| Inflammation | `#FF7A78` | inflammation_index 80%, acne 20% |
-| Sun Damage | `#F2B56A` | sun_damage 82%, pigmentation 18% |
-| Elasticity | `#B68AFF` | skin_age 62%, texture_index 38% |
+| Signal | Color | Measurement Basis | Fallback Weights |
+|--------|-------|-------------------|-----------------|
+| Structure | `#7DE7E1` | GLCM texture + pore proxy (Layer 1), MobileNetV3 (Layer 2) | texture_index 55%, skin_age 45% |
+| Hydration | `#4DA6FF` | Specular ratio + LBP entropy (Layer 1), EfficientNet-B0 (Layer 2) | texture_index 50%, acne 20%, stress/sleep |
+| Inflammation | `#FF7A78` | CIELAB a* erythema map (Layer 1, gold standard) | inflammation_index 80%, acne 20% |
+| Sun Damage | `#F2B56A` | ITA variance + spot count (Layer 1, gold standard) | sun_damage 82%, pigmentation 18% |
+| Elasticity | `#B68AFF` | Forehead wrinkle energy (Layer 1), EfficientNet-B0 (Layer 2) | skin_age 62%, texture_index 38% |
 
 ### Signal Detail Screen (`app/signal/[key].tsx`)
 - Large animated SVG arc gauge (280px, signal-colored)
