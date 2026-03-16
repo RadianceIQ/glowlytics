@@ -12,12 +12,18 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Sanitize API key — Railway env vars sometimes include trailing newlines
+const openaiKey = (process.env.OPENAI_API_KEY || '').replace(/\s+/g, '');
+const openai = new OpenAI({ apiKey: openaiKey });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/glowlytics',
-  ...(process.env.NODE_ENV === 'production' ? { ssl: { rejectUnauthorized: false } } : {}),
+  ...(process.env.DATABASE_URL ? { ssl: { rejectUnauthorized: false } } : {}),
 });
+
+if (!process.env.DATABASE_URL) {
+  console.warn('[DB] DATABASE_URL not set — falling back to localhost:5432. Set DATABASE_URL to your Railway PostgreSQL URL.');
+}
 
 // ==================== HEALTH CHECK ====================
 
