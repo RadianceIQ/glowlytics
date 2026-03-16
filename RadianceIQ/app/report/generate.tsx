@@ -13,6 +13,7 @@ import {
 } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
+import { trackEvent } from '../../src/services/analytics';
 
 type TimeRange = 7 | 14 | 30;
 
@@ -132,7 +133,10 @@ export default function GenerateReport() {
         <View style={styles.builderActions}>
           <Button
             title="Generate preview"
-            onPress={() => setShowPreview(true)}
+            onPress={() => {
+              trackEvent('report_generated', { time_range: timeRange, total_scans: totalScans });
+              setShowPreview(true);
+            }}
             disabled={totalScans === 0}
             size="lg"
           />

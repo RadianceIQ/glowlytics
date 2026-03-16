@@ -392,7 +392,7 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 
 ---
 
-## Implementation Status (as of 2026-03-12)
+## Implementation Status (as of 2026-03-15)
 
 ### Completed (Ship-Ready)
 - All 3 user journeys fully implemented (onboarding, daily scan, report)
@@ -400,6 +400,10 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 - **Auth token wiring** — Clerk getToken() injected into API client on app startup
 - **Animated auth screens** with Headspace-inspired staggered entrances, error shake, success haptics
 - **Clerk authentication** with Sign in with Apple, Google, and Email/Password
+- **RevenueCat subscription** — "Glow Pro" entitlement, 3-free-scan trial, monthly/yearly/lifetime products, native paywall UI via RevenueCatUI, Customer Center for subscription management
+- **Scan gating** — camera tab, camera screen, home scan buttons redirect to paywall when free scans exhausted
+- **Report gating** — clinician reports require active "Glow Pro" subscription
+- **PostHog analytics** — 20 events tracked across auth, onboarding, scans, paywall conversion, engagement, and sign-out; user identification via Clerk userId
 - **Vision API** — fine-tuned GPT-4o (`ft:gpt-4o-2024-08-06:personal:radianceiq-skin:DHBaOo20`) via backend proxy; API key server-side only
 - **RAG pipeline** — Pinecone vector DB with 18 curated AAD/ACOG guideline chunks, semantic search via OpenAI text-embedding-3-small
 - **Product intelligence** with 45-ingredient knowledge base, personalized effectiveness scoring, detail views
@@ -413,11 +417,13 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 - **SQL injection fix** on PATCH /api/users/:id (field whitelisting)
 - **Seeded PRNG** for reproducible scanner simulation in tests
 - **EAS build configuration** in app.json
+- **App icon** — gradient background (purple-to-cyan) with white G logo
 - **App Store metadata** — description, keywords, screenshot specs for iPhone 15 Pro Max
 - **Demo script** — 7-minute structured walkthrough with talking points
-- **120 unit tests** across 10 suites (scoring, insights, scanner, product lookup, ingredient DB, signal history)
-- 38 screen files, 13 components, 10 services, 5 backend files, Zustand store
-- iOS simulator running clean on Expo Go SDK 54
+- **Production build submitted** — v1.0.0 build #3 uploaded to App Store Connect
+- **233 unit tests** across 19 suites (scoring, insights, scanner, subscription, analytics, product lookup, ingredient DB, signal history)
+- 49 screen files, 20 components, 16 services, 5 backend files, Zustand store
+- EAS dev client + production builds succeeding
 
 ### SDK Migration (SDK 55 → 54)
 - Downgraded to Expo SDK 54 (`expo ~54.0.0`, `react 19.1.0`, `react-native 0.81.5`)
@@ -433,22 +439,23 @@ Base = texture_index × 0.55 + pigmentation_index × 0.25 + inflammation_index �
 - **WorkletsError mismatch**: Pinned react-native-worklets to 0.5.1 with override
 - **Duplicate navigator**: AuthGatedContent replaced with AuthRedirector (Redirect-only)
 
-### Remaining Work (App Store Submission)
-- **EAS Build**: `eas build --platform ios` to produce native .ipa binary
-- **Apple Developer Account**: active enrollment required ($99/year)
-- **App Store Connect**: create app record, upload binary, fill metadata from `app-store-metadata.json`
-- **Screenshots**: capture 5 screens on iPhone 15 Pro Max simulator (1290x2796)
-- **Privacy policy URL**: host the in-app policy content at a public URL (required by App Store)
-- **Backend deployment**: deploy Express server to production host (Railway/Render/Fly.io) with production env vars
-- **Seed Pinecone**: run POST /api/rag/seed on production backend
-- **TestFlight**: upload build, internal testing, smoke test all 3 journeys
-- **Legal review**: recommended before public launch (privacy policy, health disclaimers)
+### Remaining Work (App Store Launch)
+- **Clerk production keys**: swap pk_test_* → pk_live_* in eas.json, sk_test_* → sk_live_* on Railway
+- **RevenueCat dashboard**: configure paywall template, create subscription products in App Store Connect, set up Customer Center paths
+- **PostHog dashboard**: build funnels (auth→onboarding→scan, paywall conversion, retention)
+- **Screenshots**: capture 5 screens on iPhone 15 Pro Max (1290x2796)
+- **Privacy policy URL**: host privacy-policy content at https://glowlytics.ai/privacy
+- **App Store Connect metadata**: paste description/keywords from app-store-metadata.json
+- **Content rating questionnaire**: complete in App Store Connect (12+, medical info: yes)
+- **Seed Pinecone on production**: POST /api/rag/seed
+- **TestFlight**: smoke test all 3 journeys + subscription flow
 - **Submit for App Review**
 
 ### Deferred (post-launch)
 - HealthKit/Health Connect native integration (requires EAS bare workflow)
 - Push notifications for scan reminders
 - PDF export for clinician reports (currently stub)
+- Session replay via PostHog (currently disabled)
 
 ---
 

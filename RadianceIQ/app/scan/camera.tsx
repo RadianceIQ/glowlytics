@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
@@ -9,8 +9,6 @@ import Animated, {
   withTiming,
   withRepeat,
   withSequence,
-  Easing,
-  runOnJS,
 } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, BorderRadius, Spacing } from '../../src/constants/theme';
@@ -22,10 +20,10 @@ import { getDirections } from '../../src/services/faceTracking';
 import { checkPhotoQuality } from '../../src/services/photoQuality';
 import { useStore } from '../../src/store/useStore';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+import { trackEvent } from '../../src/services/analytics';
 
 export default function CameraScreen() {
+  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const protocol = useStore((s) => s.protocol);
@@ -33,9 +31,12 @@ export default function CameraScreen() {
 
   // Defense-in-depth: present paywall if scan not allowed
   useEffect(() => {
+    trackEvent('scan_started', { subscription_tier: useStore.getState().subscription.tier });
     if (!canPerformScan()) {
       (async () => {
+        setPaywallVisible(true);
         const purchased = await presentPaywall();
+        setPaywallVisible(false);
         if (purchased) {
           const sub = await checkSubscriptionStatus(useStore.getState().subscription);
           useStore.getState().setSubscription(sub);
@@ -53,17 +54,16 @@ export default function CameraScreen() {
   const [qualityFailed, setQualityFailed] = useState(false);
   const [qualityIssues, setQualityIssues] = useState<string[]>([]);
   const [autoCountdown, setAutoCountdown] = useState(0);
-  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [paywallVisible, setPaywallVisible] = useState(false);
   const alignedStartRef = useRef<number | null>(null);
 
-  const { trackingState } = useFaceTracking(cameraRef, cameraReady && !capturing);
+  const { trackingState } = useFaceTracking(cameraRef, cameraReady && !capturing && !paywallVisible);
   const directions = getDirections(trackingState.issues);
 
   // Animations
   const flashOpacity = useSharedValue(0);
   const buttonScale = useSharedValue(1);
   const ringColor = useSharedValue(0); // 0 = muted, 1 = primary
-  const countdownProgress = useSharedValue(0);
 
   // Auto-capture: track continuous alignment
   useEffect(() => {
@@ -73,16 +73,14 @@ export default function CameraScreen() {
       }
       const elapsed = Date.now() - alignedStartRef.current;
       if (elapsed >= 2000) {
-        handleCapture();
+        handleCaptureRef.current();
       } else {
         // Update countdown
         setAutoCountdown(Math.ceil((2000 - elapsed) / 1000));
-        countdownProgress.value = withTiming(elapsed / 2000, { duration: 200 });
       }
     } else {
       alignedStartRef.current = null;
       setAutoCountdown(0);
-      countdownProgress.value = withTiming(0, { duration: 200 });
     }
   }, [trackingState]);
 
@@ -130,8 +128,8 @@ export default function CameraScreen() {
         return;
       }
 
-      // Quality check
-      const quality = await checkPhotoQuality(photo.uri, SCREEN_W, SCREEN_H);
+      // Quality check — use photo's native dimensions, not screen dimensions
+      const quality = await checkPhotoQuality(photo.uri, photo.width, photo.height);
       if (quality.overallPass || quality.issues.length === 0) {
         // Navigate to processing with photo
         router.push({
@@ -147,6 +145,9 @@ export default function CameraScreen() {
       setCapturing(false);
     }
   }, [capturing, router]);
+
+  const handleCaptureRef = useRef(handleCapture);
+  useEffect(() => { handleCaptureRef.current = handleCapture; }, [handleCapture]);
 
   // Permission not yet granted
   if (!permission?.granted) {
@@ -272,6 +273,7 @@ export default function CameraScreen() {
             <Button
               title="Retake"
               onPress={() => {
+                alignedStartRef.current = null;
                 setQualityFailed(false);
                 setCapturing(false);
               }}

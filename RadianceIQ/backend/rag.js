@@ -167,8 +167,8 @@ async function seedGuidelines() {
     }
   }
 
-  // Upsert to Pinecone in batches of 100 (well under the limit)
-  await index.upsert(vectors);
+  // Upsert to Pinecone (v7 SDK uses { records } format)
+  await index.upsert({ records: vectors });
 
   return {
     seeded: vectors.length,

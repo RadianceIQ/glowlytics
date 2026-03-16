@@ -17,6 +17,7 @@ import {
   checkSubscriptionStatus,
   remainingFreeScans,
 } from '../../src/services/subscription';
+import { trackEvent, resetAnalytics } from '../../src/services/analytics';
 import { createDemoSeed } from '../../src/services/demoData';
 import { computeProductEffectiveness } from '../../src/services/ingredientDB';
 import {
@@ -111,6 +112,8 @@ export default function ProfileTab() {
             text: 'Sign out',
             style: 'destructive',
             onPress: async () => {
+              trackEvent('auth_sign_out');
+              resetAnalytics();
               await clerk.signOut();
               resetAll();
               router.replace('/');
@@ -223,7 +226,10 @@ export default function ProfileTab() {
             )}
             <TouchableOpacity
               style={styles.modeButton}
-              onPress={() => presentCustomerCenter()}
+              onPress={() => {
+                trackEvent('subscription_manage_tapped');
+                presentCustomerCenter();
+              }}
               activeOpacity={0.7}
             >
               <Feather name="settings" size={16} color={Colors.primaryLight} />

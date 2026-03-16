@@ -23,6 +23,7 @@ import {
 import { useStore } from '../../src/store/useStore';
 import { CoachingTooltip } from '../../src/components/CoachingTooltip';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
+import { trackEvent } from '../../src/services/analytics';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 
@@ -131,6 +132,7 @@ export default function TabsLayout() {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 const canScan = useStore.getState().canPerformScan();
                 if (!canScan) {
+                  trackEvent('paywall_shown', { trigger: 'camera_tab' });
                   const purchased = await presentPaywall();
                   if (purchased) {
                     const sub = await checkSubscriptionStatus(useStore.getState().subscription);

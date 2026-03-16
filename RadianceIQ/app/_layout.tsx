@@ -12,6 +12,7 @@ import { Colors } from '../src/constants/theme';
 import { useStore } from '../src/store/useStore';
 import { setAuthTokenProvider } from '../src/services/api';
 import { initRevenueCat, identifyUser, checkSubscriptionStatus } from '../src/services/subscription';
+import { initAnalytics, identifyUser as identifyAnalyticsUser } from '../src/services/analytics';
 
 /**
  * Auth gate that only returns Redirect components — never its own navigator.
@@ -51,9 +52,11 @@ function ClerkGatedApp() {
       setAuthTokenProvider(() => getToken());
       setTimeout(() => loadPersistedData(), 0);
 
-      // Initialize RevenueCat after auth
+      // Initialize analytics + RevenueCat after auth
       (async () => {
         try {
+          await initAnalytics();
+          if (userId) identifyAnalyticsUser(userId);
           await initRevenueCat();
           if (userId) await identifyUser(userId);
           const sub = await checkSubscriptionStatus(subscription);

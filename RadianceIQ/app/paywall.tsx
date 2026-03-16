@@ -5,6 +5,7 @@ import RevenueCatUI from 'react-native-purchases-ui';
 import { Colors } from '../src/constants/theme';
 import { useStore } from '../src/store/useStore';
 import { checkSubscriptionStatus } from '../src/services/subscription';
+import { trackEvent } from '../src/services/analytics';
 
 export default function PaywallScreen() {
   const router = useRouter();
@@ -24,14 +25,19 @@ export default function PaywallScreen() {
     <View style={styles.container}>
       <RevenueCatUI.Paywall
         onPurchaseCompleted={async () => {
+          trackEvent('paywall_purchase_completed');
           await refreshSubscription();
           router.back();
         }}
         onRestoreCompleted={async () => {
+          trackEvent('paywall_restore_completed');
           await refreshSubscription();
           router.back();
         }}
-        onDismiss={() => router.back()}
+        onDismiss={() => {
+          trackEvent('paywall_dismissed');
+          router.back();
+        }}
       />
     </View>
   );

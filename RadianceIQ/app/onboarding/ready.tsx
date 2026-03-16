@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { useStore } from '../../src/store/useStore';
+import { trackEvent } from '../../src/services/analytics';
 
 const AnimatedView = Animated.View;
 
@@ -104,11 +105,13 @@ export default function Ready() {
   const { updateUser } = useStore();
 
   const handleBaseline = () => {
+    trackEvent('onboarding_completed', { chose_baseline_scan: true });
     updateUser({ onboarding_complete: true });
     router.replace('/scan/camera' as any);
   };
 
   const handleExplore = () => {
+    trackEvent('onboarding_completed', { chose_baseline_scan: false });
     updateUser({ onboarding_complete: true });
     router.replace('/(tabs)/today' as any);
   };

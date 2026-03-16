@@ -5,6 +5,7 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse } from 'react-native-s
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { useStore } from '../../src/store/useStore';
 import { buildOnboardingFlow, screenToRoute } from '../../src/services/onboardingFlow';
+import { trackEvent } from '../../src/services/analytics';
 
 function WelcomeIllustration() {
   return (
@@ -53,6 +54,7 @@ export default function Welcome() {
   const { createUser, setOnboardingFlow, setOnboardingFlowIndex } = useStore();
 
   const handleStart = () => {
+    trackEvent('onboarding_started');
     createUser({});
     const flow = buildOnboardingFlow();
     setOnboardingFlow(flow);
@@ -63,6 +65,7 @@ export default function Welcome() {
   };
 
   const handleSkip = () => {
+    trackEvent('onboarding_skipped');
     createUser({ onboarding_complete: true });
     router.replace('/(tabs)/today' as any);
   };

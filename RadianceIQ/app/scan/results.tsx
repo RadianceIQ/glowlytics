@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, FadeInRight, ZoomIn } from 'react-native-reanimated';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { ActionCard } from '../../src/components/ActionCard';
@@ -16,6 +16,7 @@ import {
 } from '../../src/constants/theme';
 import { getExplanation } from '../../src/services/skinAnalysis';
 import { useStore } from '../../src/store/useStore';
+import { trackEvent } from '../../src/services/analytics';
 
 const getStatusLabel = (value: number) => {
   if (value <= 25) return 'Calm';
@@ -24,11 +25,24 @@ const getStatusLabel = (value: number) => {
   return 'Watch';
 };
 
-export default function Results({ hideBottomAction }: { hideBottomAction?: boolean } = {}) {
+export default function Results({ hideBottomAction: hideBottomActionProp }: { hideBottomAction?: boolean }) {
   const router = useRouter();
+  const searchParams = useLocalSearchParams<{ hideBottomAction?: string }>();
+  const hideBottomAction = hideBottomActionProp || searchParams.hideBottomAction === 'true';
   const allOutputs = useStore((s) => s.modelOutputs);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const latestOutput = allOutputs.length > 0 ? allOutputs[allOutputs.length - 1] : null;
+
+  useEffect(() => {
+    if (latestOutput) {
+      trackEvent('scan_results_viewed', {
+        acne_score: latestOutput.acne_score,
+        sun_damage_score: latestOutput.sun_damage_score,
+        skin_age_score: latestOutput.skin_age_score,
+        escalation_flag: latestOutput.escalation_flag,
+      });
+    }
+  }, [latestOutput?.output_id]);
 
   const outputHistory = useMemo(() => {
     const cutoff = new Date();

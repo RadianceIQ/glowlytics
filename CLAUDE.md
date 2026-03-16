@@ -14,18 +14,19 @@ cornell-hackathon/
       skin-metrics.tsx
       auth/           # Auth screens (sign-in, sign-up, forgot-password)
       onboarding/     # Onboarding flow (13 screens, progressive disclosure)
-      scan/           # Scanning flow
-      report/         # Report screens
+      scan/           # Scanning flow (camera → processing → checkin → results)
+      report/         # Report screens (premium-gated)
       product/        # Product detail screens
+      paywall.tsx     # RevenueCat native paywall (inline component)
       signal/         # Signal detail screens
-      (tabs)/         # Tab navigation
+      (tabs)/         # Tab navigation (today, trend)
       skin-metric/    # Skin metric detail
     src/
       components/     # Reusable UI components (20 files)
       constants/      # Theme (colors, typography)
       config/         # Environment config, Clerk token cache
-      hooks/          # Custom hooks
-      services/       # Business logic (13 services + 9 test suites)
+      hooks/          # Custom hooks (useFaceTracking)
+      services/       # Business logic (16 services + 13 test suites)
       store/          # Zustand state (useStore.ts)
       types/          # TypeScript type definitions
       utils/          # Animation utilities
@@ -45,6 +46,8 @@ cornell-hackathon/
 - **Navigation:** Expo Router (file-based)
 - **State:** Zustand + AsyncStorage
 - **Auth:** Clerk (@clerk/clerk-expo v2)
+- **Subscriptions:** RevenueCat (react-native-purchases + react-native-purchases-ui v9.12.0, entitlement: "Glow Pro", 3 free scans)
+- **Analytics:** PostHog (posthog-react-native, 20 events across auth/onboarding/scan/paywall/engagement)
 - **Vision:** Fine-tuned GPT-4o via backend proxy (`ft:gpt-4o-2024-08-06:personal:radianceiq-skin:DHBaOo20`)
 - **RAG:** Pinecone vector DB + OpenAI embeddings for AAD/ACOG guidelines
 - **Backend:** Express.js + PostgreSQL + OpenAI SDK
@@ -59,7 +62,6 @@ cd RadianceIQ
 
 # Start dev server
 npm start
-# or: npx expo start
 
 # Type check
 npx tsc --noEmit
@@ -76,46 +78,45 @@ cd backend && npm test
 
 ## Code Conventions
 
-- Use TypeScript for all frontend code; strict mode is enabled
-- Screens go in `app/` following Expo Router file-based conventions
-- Reusable components go in `src/components/`
-- Business logic and API calls go in `src/services/`
-- State management through Zustand store in `src/store/useStore.ts`
+- TypeScript strict mode for all frontend code
+- Screens in `app/` following Expo Router file-based conventions
+- Reusable components in `src/components/`
+- Business logic and API calls in `src/services/`
+- State management via Zustand store (`src/store/useStore.ts`)
 - Type definitions in `src/types/index.ts`
-- Auth configuration in `src/config/` (env.ts, tokenCache.ts, clerk.ts)
-- Animation utilities in `src/utils/animations.ts`
-- Onboarding flow logic in `src/services/onboardingFlow.ts`
+- Use targeted Zustand selectors (`useStore((s) => s.field)`) — avoid `useStore()` full subscriptions
+- `useStore.getState()` for imperative reads in callbacks (no subscription)
+
+## Scan Flow Architecture
+
+Camera → Processing → Checkin → Results
+
+1. **Camera** (`app/scan/camera.tsx`): Face tracking, quality checks, auto-capture after 2s aligned
+2. **Processing** (`app/scan/processing.tsx`): Pre-encodes photo to base64, stores in `pendingPhotoBase64`, shows animation
+3. **Checkin** (`app/scan/checkin.tsx`): Collects daily context (sunscreen, new product, sleep, stress), then runs `analyzeWithFallback` with real user answers
+4. **Results** (`app/scan/results.tsx`): Displays scores, face mesh, RAG recommendations
+
+Analysis runs **after** checkin — never with hardcoded context. The `pendingPhotoBase64` store field avoids re-encoding the photo.
 
 ## Design System
 
 - Dark theme: background `#060B12`, primary accent `#7DE7E1`
-- Use `react-native-svg` for vector graphics and inline onboarding illustrations
 - Animations via `react-native-reanimated`
-- Onboarding uses fade transitions with staggered fade-with-rise entrance (Headspace-inspired)
-
-## Onboarding Flow
-
-13 screens, one question per page, progressive disclosure:
-1. Welcome → 2. Age Range → 3. Biological Sex → 4. Location → 5. Skin Goal
-→ [if female: 6. Menstrual → 7. Cycle Details] →
-8. Supplements → 9. Exercise → 10. Shower Frequency → 11. Hand Washing →
-12. Camera Permission → 13. Ready
-
-- Flow is dynamic: `buildOnboardingFlow()` in `src/services/onboardingFlow.ts`
-- Each screen uses `OnboardingTransition` wrapper for consistent layout + animations
-- Option selection via `OnboardingOptionCard`, `OnboardingGridOption`, `OnboardingChip`
-- Dot progress indicator adapts to actual flow length
+- Onboarding: fade transitions with staggered fade-with-rise entrance (Headspace-inspired)
 
 ## Important Context
 
-- Scanner hardware data is **mocked** (no physical Bluetooth scanner)
-- Vision API calls fine-tuned GPT-4o via backend proxy (API key server-side only)
+- Vision API calls fine-tuned GPT-4o via backend proxy (API key server-side only, 30s timeout)
 - RAG pipeline queries Pinecone for AAD/ACOG guideline context
-- Production app with Clerk auth, 188 tests (all passing), deterministic scoring, photo persistence
+- 233 tests (19 suites), 0 TS errors
 - Authentication via Clerk is mandatory when CLERK_PUBLISHABLE_KEY is set
-- Three user journeys: onboarding, daily scan, report viewing
-- Vision API returns detected conditions + RAG-enriched recommendations
-- Face mesh visualizes model-identified conditions with zone-specific colors
-- On-device photo quality checks via expo-face-detector (fill, centering, angle)
+- Face tracking thresholds (faceTracking.ts) and photo quality thresholds (photoQuality.ts) both use 20% min fill
 - Gamification system: XP, 6 levels, 15 badges, weekly challenges, personal bests
-- Product scanning and baseline scan moved to post-onboarding first-launch actions
+- Premium users' `free_scans_used` counter does not increment — freezes during subscription
+- `useFaceTracking` cleans up temp frame photos to prevent storage leaks
+- RevenueCat functions guard on `env.REVENUECAT_API_KEY` — all are safe to call without a key
+- PostHog analytics guard on `env.POSTHOG_API_KEY` — all no-op when key is empty
+- Subscription state persisted in Zustand: tier, is_active, expires_at, product_id, free_scans_used
+- Scan gating: camera tab, camera screen, home scan buttons → paywall if free scans exhausted
+- Report gating: reports require active subscription
+- Profile screen: subscription card with upgrade/manage, Customer Center for active subscribers

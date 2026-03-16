@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Image,
   StyleSheet,
   Text,
   View,
@@ -31,6 +32,7 @@ import {
   Spacing,
   BorderRadius,
 } from '../../src/constants/theme';
+import { trackEvent } from '../../src/services/analytics';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -184,18 +186,21 @@ export default function SignInScreen() {
         setError(null);
         const isApple = strategy === 'oauth_apple';
         setOauthLoading(isApple ? 'apple' : 'google');
+        trackEvent('auth_sign_in_started', { method: isApple ? 'oauth_apple' : 'oauth_google' });
 
         const startFlow = isApple ? startAppleOAuth : startGoogleOAuth;
         const { createdSessionId, setActive: oauthSetActive } = await startFlow();
 
         if (createdSessionId) {
           await oauthSetActive?.({ session: createdSessionId });
+          trackEvent('auth_sign_in_completed', { method: isApple ? 'oauth_apple' : 'oauth_google' });
           triggerSuccessAnimation();
         }
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : 'An error occurred during sign in.';
         if (!message.includes('cancel')) {
+          trackEvent('auth_sign_in_failed', { method: strategy, error: message });
           setError(message);
         }
       } finally {
@@ -217,6 +222,7 @@ export default function SignInScreen() {
     try {
       setError(null);
       setLoading(true);
+      trackEvent('auth_sign_in_started', { method: 'email' });
 
       const result = await signIn.create({
         identifier: trimmedEmail,
@@ -225,6 +231,7 @@ export default function SignInScreen() {
 
       if (result.status === 'complete' && result.createdSessionId) {
         await setActive({ session: result.createdSessionId });
+        trackEvent('auth_sign_in_completed', { method: 'email' });
         triggerSuccessAnimation();
       } else {
         setError('Additional verification required. Please try again.');
@@ -232,6 +239,7 @@ export default function SignInScreen() {
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Invalid email or password.';
+      trackEvent('auth_sign_in_failed', { method: 'email', error: message });
       setError(message);
     } finally {
       setLoading(false);
@@ -254,16 +262,11 @@ export default function SignInScreen() {
           {/* Branding */}
           <View style={styles.brandContainer}>
             <Animated.View style={orbStyle}>
-              <LinearGradient
-                colors={[Colors.glowSecondary, Colors.glowPrimary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.logoOrb}
-              >
-                <View style={styles.logoInner}>
-                  <Text style={styles.logoLetter}>G</Text>
-                </View>
-              </LinearGradient>
+              <Image
+                source={require('../../assets/icon.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </Animated.View>
             <Animated.Text style={[styles.brandName, brandStyle]}>Glowlytics</Animated.Text>
             <Animated.Text style={[styles.brandTagline, welcomeStyle]}>Welcome back</Animated.Text>
@@ -413,25 +416,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.lg,
   },
-  logoOrb: {
+  logoImage: {
     width: 80,
     height: 80,
-    borderRadius: BorderRadius.full,
-    padding: 1,
+    borderRadius: 20,
     marginBottom: Spacing.md,
-  },
-  logoInner: {
-    flex: 1,
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(9, 16, 26, 0.82)',
-  },
-  logoLetter: {
-    color: Colors.text,
-    fontFamily: FontFamily.serifBold,
-    fontSize: 32,
-    lineHeight: 36,
   },
   brandName: {
     color: Colors.text,
