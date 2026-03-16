@@ -8,6 +8,7 @@ import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/c
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
 import { useStore } from '../../src/store/useStore';
+import { analyzeWithFallback } from '../../src/services/skinAnalysis';
 
 export default function DailyCheckin() {
   const router = useRouter();
@@ -18,11 +19,14 @@ export default function DailyCheckin() {
     photoUri: string;
   }>();
 
-  const store = useStore();
   const user = useStore((s) => s.user);
   const protocol = useStore((s) => s.protocol);
   const dailyRecords = useStore((s) => s.dailyRecords);
-  const pendingScanResult = useStore((s) => s.pendingScanResult);
+  const modelOutputs = useStore((s) => s.modelOutputs);
+  const pendingPhotoBase64 = useStore((s) => s.pendingPhotoBase64);
+  const addDailyRecord = useStore((s) => s.addDailyRecord);
+  const addModelOutput = useStore((s) => s.addModelOutput);
+  const clearPendingPhotoBase64 = useStore((s) => s.clearPendingPhotoBase64);
 
   const [sunscreen, setSunscreen] = useState<string | null>(null);
   const [newProduct, setNewProduct] = useState<string | null>(null);
@@ -82,22 +86,32 @@ export default function DailyCheckin() {
       savedPhotoUri = await persistPhoto(params.photoUri);
     }
 
-    // Use analysis from processing screen (pendingScanResult) or fallback
-    const analysis = pendingScanResult || {
-      acne_score: 50,
-      sun_damage_score: 40,
-      skin_age_score: 45,
-      confidence: 'low' as const,
-      primary_driver: 'general tracking',
-      recommended_action: 'Continue daily scans for more data.',
-      escalation_flag: false,
-    };
+    // Run analysis with real user context from checkin answers
+    const analysis = await analyzeWithFallback({
+      scannerData,
+      photoUri: params.photoUri,
+      userProfile: user,
+      protocol,
+      previousOutputs: modelOutputs,
+      dailyContext: {
+        sunscreen_used: sunscreen === 'yes',
+        new_product_added: newProduct === 'yes',
+        cycle_day_estimated: estimatedCycleDay || undefined,
+        sleep_quality: sleep || undefined,
+        stress_level: stress || undefined,
+      },
+      preEncodedBase64: pendingPhotoBase64 || undefined,
+      skipDelay: true,
+    });
+
+    // Clean up pre-encoded photo
+    clearPendingPhotoBase64();
 
     // Capture XP and badge count before the scan
-    const xpBefore = store.gamification.xp;
-    const badgesBefore = store.gamification.badges.length;
+    const xpBefore = useStore.getState().gamification.xp;
+    const badgesBefore = useStore.getState().gamification.badges.length;
 
-    const dailyRecord = store.addDailyRecord({
+    const dailyRecord = addDailyRecord({
       date: new Date().toISOString().split('T')[0],
       scanner_reading_id: `scan_${Date.now()}`,
       scanner_indices: scannerData,
@@ -114,22 +128,19 @@ export default function DailyCheckin() {
       drinks_yesterday: drinks || undefined,
     });
 
-    store.addModelOutput({
+    addModelOutput({
       daily_id: dailyRecord.daily_id,
-      acne_score: analysis.acne_score ?? 50,
-      sun_damage_score: analysis.sun_damage_score ?? 40,
-      skin_age_score: analysis.skin_age_score ?? 45,
-      confidence: (analysis as any).confidence || 'low',
-      primary_driver: (analysis as any).primary_driver,
-      recommended_action: (analysis as any).recommended_action || '',
-      escalation_flag: (analysis as any).escalation_flag || false,
-      conditions: (analysis as any).conditions,
-      rag_recommendations: (analysis as any).rag_recommendations,
-      personalized_feedback: (analysis as any).personalized_feedback,
+      acne_score: analysis.acne_score,
+      sun_damage_score: analysis.sun_damage_score,
+      skin_age_score: analysis.skin_age_score,
+      confidence: analysis.confidence,
+      primary_driver: analysis.primary_driver,
+      recommended_action: analysis.recommended_action,
+      escalation_flag: analysis.escalation_flag,
+      conditions: analysis.conditions,
+      rag_recommendations: analysis.rag_recommendations,
+      personalized_feedback: analysis.personalized_feedback,
     });
-
-    // Clear pending result
-    store.clearPendingScanResult();
 
     setLoading(false);
 

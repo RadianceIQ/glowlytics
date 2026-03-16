@@ -28,6 +28,7 @@ import {
   remainingFreeScans,
   defaultSubscription,
   subscriptionFromCustomerInfo,
+  restorePurchases,
 } from '../subscription';
 import type { SubscriptionState } from '../../types';
 
@@ -168,6 +169,14 @@ describe('subscription', () => {
 
       const result = subscriptionFromCustomerInfo(mockInfo, currentWithScans);
       expect(result.free_scans_used).toBe(2);
+    });
+  });
+
+  describe('restorePurchases', () => {
+    it('returns current state when REVENUECAT_API_KEY is empty', async () => {
+      const current = defaultSubscription();
+      const result = await restorePurchases(current);
+      expect(result).toBe(current);
     });
   });
 

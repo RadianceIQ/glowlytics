@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withDelay,
   withRepeat,
   withSequence,
   Easing,
@@ -15,8 +14,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors, FontFamily, FontSize, BorderRadius, Spacing } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
-import { analyzeWithFallback } from '../../src/services/skinAnalysis';
 import { generateDefaultIndices } from '../../src/services/mockScanner';
+import { imageToBase64 } from '../../src/services/visionAPI';
 
 const STATUS_MESSAGES = [
   'Analyzing skin structure...',
@@ -31,10 +30,9 @@ const MIN_HOLD = 2000; // Minimum display time in ms
 export default function ProcessingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ photoUri: string }>();
-  const store = useStore();
-  const protocol = useStore((s) => s.protocol);
   const user = useStore((s) => s.user);
-  const modelOutputs = useStore((s) => s.modelOutputs);
+  const protocol = useStore((s) => s.protocol);
+  const setPendingPhotoBase64 = useStore((s) => s.setPendingPhotoBase64);
 
   const [messageIndex, setMessageIndex] = useState(0);
   const hasStarted = useRef(false);
@@ -70,7 +68,7 @@ export default function ProcessingScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Run analysis
+  // Prepare photo and navigate to checkin
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
@@ -86,21 +84,15 @@ export default function ProcessingScreen() {
       // Generate fallback scanner indices
       const scannerData = generateDefaultIndices();
 
-      const analysis = await analyzeWithFallback({
-        scannerData,
-        photoUri: params.photoUri,
-        userProfile: user,
-        protocol,
-        previousOutputs: modelOutputs,
-        dailyContext: {
-          sunscreen_used: true,
-          new_product_added: false,
-        },
-        skipDelay: true,
-      });
-
-      // Store the result for checkin to pick up
-      store.setPendingScanResult(analysis);
+      // Pre-encode photo for later analysis in checkin
+      if (params.photoUri) {
+        try {
+          const base64 = await imageToBase64(params.photoUri);
+          setPendingPhotoBase64(base64);
+        } catch {
+          // Encoding failed — analysis will re-encode in checkin
+        }
+      }
 
       // Ensure minimum hold time
       const elapsed = Date.now() - startTime;
@@ -153,21 +145,13 @@ export default function ProcessingScreen() {
       </Animated.View>
 
       <View style={styles.content}>
-        {/* Orb */}
+        {/* Logo */}
         <Animated.View style={orbAnimStyle}>
-          <LinearGradient
-            colors={[Colors.glowSecondary, Colors.glowPrimary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.orbShell}
-          >
-            <View style={styles.orbRing}>
-              <View style={styles.orbInner}>
-                <Animated.View style={[styles.orbPulseRing, glowAnimStyle]} />
-                <Text style={styles.orbLetter}>G</Text>
-              </View>
-            </View>
-          </LinearGradient>
+          <Image
+            source={require('../../assets/icon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </Animated.View>
 
         {/* Status message */}
@@ -224,44 +208,10 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
     paddingHorizontal: Spacing.xl,
   },
-  orbShell: {
-    width: 120,
-    height: 120,
-    borderRadius: BorderRadius.full,
-    padding: 1,
-  },
-  orbRing: {
-    flex: 1,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(9, 16, 26, 0.82)',
-  },
-  orbInner: {
-    width: 72,
-    height: 72,
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceOverlay,
-    borderWidth: 1,
-    borderColor: 'rgba(199,255,250,0.18)',
-  },
-  orbPulseRing: {
-    position: 'absolute',
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-  },
-  orbLetter: {
-    color: Colors.text,
-    fontFamily: FontFamily.serifBold,
-    fontSize: FontSize.xxl,
-    lineHeight: 34,
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
   },
   messageContainer: {
     height: 30,

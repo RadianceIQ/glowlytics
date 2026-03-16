@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -93,18 +93,11 @@ export default function Index() {
 
       <View style={styles.content}>
         <Animated.View style={orbAnimStyle}>
-          <LinearGradient
-            colors={[Colors.glowSecondary, Colors.glowPrimary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.orbShell}
-          >
-            <View style={styles.orbRing}>
-              <View style={styles.orbInner}>
-                <Text style={styles.orbLetter}>G</Text>
-              </View>
-            </View>
-          </LinearGradient>
+          <Image
+            source={require('../assets/icon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </Animated.View>
 
         <Animated.Text style={[styles.brand, brandAnimStyle]}>Glowlytics</Animated.Text>
@@ -149,37 +142,10 @@ const styles = StyleSheet.create({
     height: 260,
     borderRadius: BorderRadius.full,
   },
-  orbShell: {
-    width: 148,
-    height: 148,
-    borderRadius: BorderRadius.full,
-    padding: 1,
-    alignSelf: 'center',
-  },
-  orbRing: {
-    flex: 1,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(9, 16, 26, 0.82)',
-  },
-  orbInner: {
-    width: 88,
-    height: 88,
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceOverlay,
-    borderWidth: 1,
-    borderColor: 'rgba(199,255,250,0.18)',
-  },
-  orbLetter: {
-    color: Colors.text,
-    fontFamily: FontFamily.serifBold,
-    fontSize: FontSize.hero,
-    lineHeight: 44,
+  logoImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 28,
   },
   brand: {
     color: Colors.text,

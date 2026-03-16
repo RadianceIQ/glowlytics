@@ -6,9 +6,9 @@
  *
  * Quality criteria for skin assessment photos:
  *   1. A face must be detected in the image.
- *   2. The face must fill at least 30% of the frame (user is close enough).
- *   3. The face must be roughly centered (within the middle 40% of the frame).
- *   4. Yaw and roll angles must be within +/-15 degrees (facing camera).
+ *   2. The face must fill at least 20% of the frame (user is close enough).
+ *   3. The face must be roughly centered (within the middle 50% of the frame).
+ *   4. Yaw and roll angles must be within +/-20 degrees (facing camera).
  */
 
 let FaceDetector: typeof import('expo-face-detector') | null = null;

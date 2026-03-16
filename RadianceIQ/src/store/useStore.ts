@@ -32,6 +32,7 @@ interface AppState {
 
   // Pending scan result (processing→checkin handoff)
   pendingScanResult: Partial<ModelOutput> | null;
+  pendingPhotoBase64: string | null;
 
   // Gamification
   gamification: GamificationState;
@@ -53,6 +54,8 @@ interface AppState {
   addModelOutput: (output: Omit<ModelOutput, 'output_id'>) => void;
   setPendingScanResult: (result: Partial<ModelOutput> | null) => void;
   clearPendingScanResult: () => void;
+  setPendingPhotoBase64: (base64: string | null) => void;
+  clearPendingPhotoBase64: () => void;
   getStreak: () => number;
   getLatestOutput: () => ModelOutput | null;
   getOutputHistory: (days: number) => ModelOutput[];
@@ -143,6 +146,7 @@ export const useStore = create<AppState>((set, get) => ({
   onboardingFlow: ['welcome', 'age-range', 'sex', 'location', 'skin-goal', 'supplements', 'exercise', 'shower-frequency', 'hand-washing', 'camera-permission', 'ready'],
   onboardingFlowIndex: 0,
   pendingScanResult: null,
+  pendingPhotoBase64: null,
   gamification: defaultGamification(),
   subscription: defaultSubscription(),
 
@@ -246,14 +250,16 @@ export const useStore = create<AppState>((set, get) => ({
 
   addDailyRecord: (record) => {
     const user = get().user;
-    if (!user) return record as DailyRecord;
+    if (!user) throw new Error('addDailyRecord called without a signed-in user');
     const entry: DailyRecord = {
       ...record,
       daily_id: generateId(),
       user_id: user.user_id,
     };
     set((s) => ({ dailyRecords: [...s.dailyRecords, entry] }));
-    get().incrementFreeScansUsed();
+    if (!get().subscription.is_active) {
+      get().incrementFreeScansUsed();
+    }
     get().persistData();
 
     // Calculate context items logged for XP bonus
@@ -281,6 +287,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   setPendingScanResult: (result) => set({ pendingScanResult: result }),
   clearPendingScanResult: () => set({ pendingScanResult: null }),
+  setPendingPhotoBase64: (base64) => set({ pendingPhotoBase64: base64 }),
+  clearPendingPhotoBase64: () => set({ pendingPhotoBase64: null }),
 
   getStreak: () => {
     const records = get().dailyRecords.sort((a, b) => b.date.localeCompare(a.date));
@@ -468,6 +476,7 @@ export const useStore = create<AppState>((set, get) => ({
       modelOutputs: [],
       onboardingStep: 0,
       pendingScanResult: null,
+      pendingPhotoBase64: null,
       gamification: defaultGamification(),
       subscription: defaultSubscription(),
     });

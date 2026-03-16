@@ -27,6 +27,8 @@ interface AnalysisInput {
     sleep_quality?: string;
     stress_level?: string;
   };
+  /** Pre-encoded base64 of the photo to avoid re-encoding. */
+  preEncodedBase64?: string;
   /** When true, skip the simulated processing delay (useful for tests). */
   skipDelay?: boolean;
 }
@@ -322,7 +324,7 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
         sleep_quality: input.dailyContext.sleep_quality,
         stress_level: input.dailyContext.stress_level,
         scan_count: input.previousOutputs.length,
-      });
+      }, input.preEncodedBase64);
 
       console.log('[Glowlytics] Vision API success — scores from fine-tuned GPT-4o model');
 

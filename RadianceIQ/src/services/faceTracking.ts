@@ -14,7 +14,7 @@ export interface FaceTrackingState {
 }
 
 // Thresholds
-const MIN_FILL_PERCENT = 18; // face must fill at least 18% of frame
+const MIN_FILL_PERCENT = 20; // face must fill at least 20% of frame
 const CENTER_TOLERANCE = 0.45; // face center must be within middle 45% of frame
 const MAX_ANGLE = 15; // degrees for yaw/roll
 const LIGHTING_MIN_FILL = 12; // face must fill at least 12% for reliable lighting inference

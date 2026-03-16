@@ -34,6 +34,7 @@ const resetStore = () => {
     modelOutputs: [],
     onboardingStep: 0,
     pendingScanResult: null,
+    pendingPhotoBase64: null,
     gamification: {
       xp: 0,
       level: 'Beginner',
@@ -60,6 +61,24 @@ describe('useStore', () => {
   beforeEach(resetStore);
 
   describe('addDailyRecord', () => {
+    it('throws when user is null', () => {
+      expect(() =>
+        useStore.getState().addDailyRecord({
+          date: '2026-03-15',
+          scanner_reading_id: 'scan-1',
+          scanner_indices: {
+            inflammation_index: 40,
+            pigmentation_index: 30,
+            texture_index: 35,
+          },
+          scanner_quality_flag: 'pass',
+          scan_region: 'left_cheek',
+          sunscreen_used: true,
+          new_product_added: false,
+        }),
+      ).toThrow('addDailyRecord called without a signed-in user');
+    });
+
     it('adds a daily record with generated IDs', () => {
       // First create a user
       useStore.getState().createUser({
@@ -283,6 +302,37 @@ describe('useStore', () => {
       });
 
       expect(useStore.getState().subscription.free_scans_used).toBe(1);
+    });
+
+    it('does not increment free_scans_used for premium users', () => {
+      useStore.getState().createUser({
+        age_range: '25-34',
+        period_applicable: 'no',
+      });
+
+      useStore.getState().setSubscription({
+        tier: 'premium',
+        is_active: true,
+        expires_at: '2026-04-14T00:00:00Z',
+        product_id: 'glowlytics_premium_monthly',
+        free_scans_used: 0,
+      });
+
+      useStore.getState().addDailyRecord({
+        date: '2026-03-15',
+        scanner_reading_id: 'scan-1',
+        scanner_indices: {
+          inflammation_index: 40,
+          pigmentation_index: 30,
+          texture_index: 35,
+        },
+        scanner_quality_flag: 'pass',
+        scan_region: 'left_cheek',
+        sunscreen_used: true,
+        new_product_added: false,
+      });
+
+      expect(useStore.getState().subscription.free_scans_used).toBe(0);
     });
 
     it('resetAll resets subscription to default', () => {

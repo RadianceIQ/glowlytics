@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Image,
   StyleSheet,
   Text,
   View,
@@ -360,16 +361,11 @@ export default function SignUpScreen() {
           {/* Branding */}
           <View style={styles.brandContainer}>
             <Animated.View style={orbStyle}>
-              <LinearGradient
-                colors={[Colors.glowSecondary, Colors.glowPrimary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.logoOrb}
-              >
-                <View style={styles.logoInner}>
-                  <Text style={styles.logoLetter}>G</Text>
-                </View>
-              </LinearGradient>
+              <Image
+                source={require('../../assets/icon.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </Animated.View>
             <Animated.Text style={[styles.brandName, brandStyle]}>Glowlytics</Animated.Text>
             <Animated.Text style={[styles.brandTagline, taglineStyle]}>Create your account</Animated.Text>
@@ -519,25 +515,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.lg,
   },
-  logoOrb: {
+  logoImage: {
     width: 80,
     height: 80,
-    borderRadius: BorderRadius.full,
-    padding: 1,
+    borderRadius: 20,
     marginBottom: Spacing.md,
-  },
-  logoInner: {
-    flex: 1,
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(9, 16, 26, 0.82)',
-  },
-  logoLetter: {
-    color: Colors.text,
-    fontFamily: FontFamily.serifBold,
-    fontSize: 32,
-    lineHeight: 36,
   },
   brandName: {
     color: Colors.text,

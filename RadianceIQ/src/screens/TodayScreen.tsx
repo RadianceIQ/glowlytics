@@ -98,7 +98,7 @@ export default function TodayScreen() {
 
   const goalKey = protocol?.primary_goal || 'acne';
   const spotlightMetric = goals[goalKey];
-  const primaryAction = scannedToday && latestOutput ? '/scan/results' : '/scan/connect';
+  const primaryAction = scannedToday && latestOutput ? '/scan/results' : '/scan/camera';
 
   return (
     <AtmosphereScreen contentContainerStyle={styles.screenContent}>
@@ -256,15 +256,6 @@ export default function TodayScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.utilityAction} onPress={() => router.push('/onboarding/products')}>
           <Text style={styles.utilityLabel}>Products</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.utilityAction}
-          onPress={() => {
-            useStore.getState().resetAll();
-            router.replace('/');
-          }}
-        >
-          <Text style={styles.utilityLabel}>Reset demo</Text>
         </TouchableOpacity>
       </View>
     </AtmosphereScreen>

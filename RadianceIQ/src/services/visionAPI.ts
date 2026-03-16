@@ -13,7 +13,7 @@ export interface VisionAnalysisResult {
   personalized_feedback?: string;
 }
 
-async function imageToBase64(uri: string): Promise<string> {
+export async function imageToBase64(uri: string): Promise<string> {
   // Use the legacy API — SDK 54 deprecated the top-level readAsStringAsync
   const FileSystem = await import('expo-file-system/legacy');
   const base64 = await FileSystem.readAsStringAsync(uri, {
@@ -31,27 +31,37 @@ export async function analyzeWithVisionAPI(
     sleep_quality?: string;
     stress_level?: string;
     scan_count: number;
-  }
+  },
+  preEncodedBase64?: string,
 ): Promise<VisionAnalysisResult> {
-  const base64Image = await imageToBase64(photoUri);
+  const base64Image = preEncodedBase64 || await imageToBase64(photoUri);
 
-  const response = await fetch(`${env.API_BASE_URL}/api/vision/analyze`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      image_base64: base64Image,
-      context: {
-        primary_goal: context.primary_goal,
-        scan_region: context.scan_region,
-        sunscreen_used: context.sunscreen_used,
-        sleep_quality: context.sleep_quality,
-        stress_level: context.stress_level,
-        scan_count: context.scan_count,
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+
+  let response: Response;
+  try {
+    response = await fetch(`${env.API_BASE_URL}/api/vision/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    }),
-  });
+      body: JSON.stringify({
+        image_base64: base64Image,
+        context: {
+          primary_goal: context.primary_goal,
+          scan_region: context.scan_region,
+          sunscreen_used: context.sunscreen_used,
+          sleep_quality: context.sleep_quality,
+          stress_level: context.stress_level,
+          scan_count: context.scan_count,
+        },
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

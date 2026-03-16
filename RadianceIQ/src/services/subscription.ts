@@ -83,6 +83,7 @@ export async function presentCustomerCenter(): Promise<void> {
 export async function restorePurchases(
   current: SubscriptionState,
 ): Promise<SubscriptionState> {
+  if (!env.REVENUECAT_API_KEY) return current;
   const info = await Purchases.restorePurchases();
   return subscriptionFromCustomerInfo(info, current);
 }
