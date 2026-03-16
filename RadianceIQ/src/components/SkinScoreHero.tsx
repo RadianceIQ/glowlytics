@@ -18,9 +18,7 @@ interface Props {
   actionStatement: string;
   trendDelta: number;
   signals: CompositeSignals;
-  onLearnMore: () => void;
-  onPrimaryAction: () => void;
-  primaryActionLabel: string;
+  onViewResults: () => void;
 }
 
 const scoreColor = (score: number) => {
@@ -36,9 +34,7 @@ export const SkinScoreHero: React.FC<Props> = ({
   actionStatement,
   trendDelta,
   signals,
-  onLearnMore,
-  onPrimaryAction,
-  primaryActionLabel,
+  onViewResults,
 }) => {
   const radius = 98;
   const [animatedScore, setAnimatedScore] = useState(0);
@@ -141,8 +137,7 @@ export const SkinScoreHero: React.FC<Props> = ({
       <Text style={styles.actionStatement}>{actionStatement}</Text>
 
       <Animated.View style={[styles.actions, revealStyle]}>
-        <Button title="Learn more" variant="secondary" onPress={onLearnMore} />
-        <Button title={primaryActionLabel} onPress={onPrimaryAction} />
+        <Button title="View latest results" onPress={onViewResults} />
       </Animated.View>
 
     </View>

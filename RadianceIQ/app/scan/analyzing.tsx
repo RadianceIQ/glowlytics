@@ -124,98 +124,99 @@ export default function AnalyzingScreen() {
 
   const persistAndNavigate = async () => {
     const analysis = apiResult.current;
-    if (!analysis || !user || !protocol) return;
-
-    const scannerData = {
-      inflammation_index: parseFloat(params.inflammation || '40'),
-      pigmentation_index: parseFloat(params.pigmentation || '30'),
-      texture_index: parseFloat(params.texture || '35'),
-    };
-
-    let savedPhotoUri: string | undefined;
-    if (params.photoUri) {
-      savedPhotoUri = await persistPhoto(params.photoUri);
-    }
-
-    clearPendingPhotoBase64();
-
-    const xpBefore = useStore.getState().gamification.xp;
-    const badgesBefore = useStore.getState().gamification.badges.length;
-
-    const estimatedCycleDay = (() => {
-      if (user.period_applicable !== 'yes' || !user.period_last_start_date) return undefined;
-      const start = new Date(user.period_last_start_date);
-      const today = new Date();
-      const diff = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-      const cycleLen = user.cycle_length_days || 28;
-      return ((diff % cycleLen) + cycleLen) % cycleLen + 1;
-    })();
-
-    const dailyRecord = addDailyRecord({
-      date: new Date().toISOString().split('T')[0],
-      scanner_reading_id: `scan_${Date.now()}`,
-      scanner_indices: scannerData,
-      scanner_quality_flag: 'pass',
-      scan_region: protocol.scan_region,
-      photo_uri: savedPhotoUri,
-      photo_quality_flag: 'pass',
-      sunscreen_used: params.sunscreen === 'yes',
-      new_product_added: params.newProduct === 'yes',
-      period_status_confirmed: params.periodAccurate as any,
-      cycle_day_estimated: estimatedCycleDay,
-      sleep_quality: params.sleep as any,
-      stress_level: params.stress as any,
-      drinks_yesterday: params.drinks || undefined,
-    });
-
-    addModelOutput({
-      daily_id: dailyRecord.daily_id,
-      acne_score: analysis.acne_score,
-      sun_damage_score: analysis.sun_damage_score,
-      skin_age_score: analysis.skin_age_score,
-      confidence: analysis.confidence,
-      primary_driver: analysis.primary_driver,
-      recommended_action: analysis.recommended_action,
-      escalation_flag: analysis.escalation_flag,
-      conditions: analysis.conditions,
-      rag_recommendations: analysis.rag_recommendations,
-      personalized_feedback: analysis.personalized_feedback,
-      signal_scores: analysis.signal_scores,
-      signal_features: analysis.signal_features,
-      lesions: analysis.lesions,
-      signal_confidence: analysis.signal_confidence,
-    });
-
-    const currentState = useStore.getState();
-    const xpGained = currentState.gamification.xp - xpBefore;
-    const newBadges = currentState.gamification.badges.slice(badgesBefore);
-    const latestBadgeName = newBadges.length > 0 ? newBadges[newBadges.length - 1].name : undefined;
-
-    if (xpGained > 0 || latestBadgeName) {
-      setXpFeedback({ xp: xpGained, badge: latestBadgeName });
-      const t = setTimeout(() => {
-        router.replace('/scan/results');
-      }, 1500);
-      timers.current.push(t);
-    } else {
+    if (!analysis) {
       router.replace('/scan/results');
-    }
-  };
-
-  useEffect(() => {
-    if (hasStarted.current) return;
-    hasStarted.current = true;
-
-    if (!user || !protocol) {
-      router.replace('/(tabs)/today');
       return;
     }
 
-    // Orb entrance
+    try {
+      const currentUser = user || useStore.getState().user;
+      const currentProtocol = protocol || useStore.getState().protocol;
+
+      const scannerData = {
+        inflammation_index: parseFloat(params.inflammation || '40'),
+        pigmentation_index: parseFloat(params.pigmentation || '30'),
+        texture_index: parseFloat(params.texture || '35'),
+      };
+
+      let savedPhotoUri: string | undefined;
+      if (params.photoUri) {
+        savedPhotoUri = await persistPhoto(params.photoUri);
+      }
+
+      clearPendingPhotoBase64();
+
+      const xpBefore = useStore.getState().gamification.xp;
+      const badgesBefore = useStore.getState().gamification.badges.length;
+
+      const estimatedCycleDay = (() => {
+        if (currentUser?.period_applicable !== 'yes' || !currentUser?.period_last_start_date) return undefined;
+        const start = new Date(currentUser.period_last_start_date);
+        const today = new Date();
+        const diff = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        const cycleLen = currentUser.cycle_length_days || 28;
+        return ((diff % cycleLen) + cycleLen) % cycleLen + 1;
+      })();
+
+      const dailyRecord = addDailyRecord({
+        date: new Date().toISOString().split('T')[0],
+        scanner_reading_id: `scan_${Date.now()}`,
+        scanner_indices: scannerData,
+        scanner_quality_flag: 'pass',
+        scan_region: currentProtocol?.scan_region || 'whole_face',
+        photo_uri: savedPhotoUri,
+        photo_quality_flag: 'pass',
+        sunscreen_used: params.sunscreen === 'yes',
+        new_product_added: params.newProduct === 'yes',
+        period_status_confirmed: params.periodAccurate as any,
+        cycle_day_estimated: estimatedCycleDay,
+        sleep_quality: params.sleep as any,
+        stress_level: params.stress as any,
+        drinks_yesterday: params.drinks || undefined,
+      });
+
+      addModelOutput({
+        daily_id: dailyRecord.daily_id,
+        acne_score: analysis.acne_score,
+        sun_damage_score: analysis.sun_damage_score,
+        skin_age_score: analysis.skin_age_score,
+        confidence: analysis.confidence,
+        primary_driver: analysis.primary_driver,
+        recommended_action: analysis.recommended_action,
+        escalation_flag: analysis.escalation_flag,
+        conditions: analysis.conditions,
+        rag_recommendations: analysis.rag_recommendations,
+        personalized_feedback: analysis.personalized_feedback,
+        signal_scores: analysis.signal_scores,
+        signal_features: analysis.signal_features,
+        lesions: analysis.lesions,
+        signal_confidence: analysis.signal_confidence,
+      });
+
+      const currentState = useStore.getState();
+      const xpGained = currentState.gamification.xp - xpBefore;
+      const newBadges = currentState.gamification.badges.slice(badgesBefore);
+      const latestBadgeName = newBadges.length > 0 ? newBadges[newBadges.length - 1].name : undefined;
+
+      if (xpGained > 0 || latestBadgeName) {
+        setXpFeedback({ xp: xpGained, badge: latestBadgeName });
+        const t = setTimeout(() => {
+          router.replace('/scan/results');
+        }, 1500);
+        timers.current.push(t);
+        return;
+      }
+    } catch {
+      // Persistence failed — still navigate to results
+    }
+
+    router.replace('/scan/results');
+  };
+
+  // Start animations immediately (don't gate on store)
+  useEffect(() => {
     orbScale.value = withTiming(1, { duration: 600, easing: CALM_EASING });
     orbOpacity.value = withTiming(1, { duration: 400, easing: CALM_EASING });
-
-    // Glow pulse
     glowPulse.value = withRepeat(
       withSequence(
         withTiming(0.7, { duration: 1200 }),
@@ -223,6 +224,12 @@ export default function AnalyzingScreen() {
       ),
       -1,
     );
+  }, []);
+
+  // Wait for store to hydrate, then fire analysis
+  useEffect(() => {
+    if (hasStarted.current || !user || !protocol) return;
+    hasStarted.current = true;
 
     // --- Timer track: advance stages 0-5, then hold at 6 ---
     let delay = 0;
@@ -307,7 +314,7 @@ export default function AnalyzingScreen() {
     return () => {
       timers.current.forEach(clearTimeout);
     };
-  }, []);
+  }, [user, protocol]);
 
   const orbAnimStyle = useAnimatedStyle(() => ({
     opacity: orbOpacity.value,

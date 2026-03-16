@@ -145,10 +145,6 @@ export default function Home() {
     return modelOutputs.filter((output) => ids.has(output.daily_id));
   }, [dailyRecords, modelOutputs]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const scannedToday = dailyRecords.some((record) => record.date === todayStr);
-  const primaryAction = scannedToday && latestOutput ? '/scan/results' : '/scan/camera';
-
   const acneHistory = outputHistory.map((output) => output.acne_score);
   const sunHistory = outputHistory.map((output) => output.sun_damage_score);
   const ageHistory = outputHistory.map((output) => output.skin_age_score);
@@ -220,15 +216,7 @@ export default function Home() {
           actionStatement={overallInsight.actionStatement}
           trendDelta={overallInsight.trendDelta}
           signals={overallInsight.signals}
-          onLearnMore={() => router.push('/skin-metrics')}
-          onPrimaryAction={() => {
-            if (primaryAction === '/scan/camera') {
-              handleScanPress(primaryAction);
-            } else {
-              router.push(primaryAction);
-            }
-          }}
-          primaryActionLabel={scannedToday && latestOutput ? "View today's results" : "Start today's scan"}
+          onViewResults={() => router.push('/scan/results')}
         />
       ) : (
         <View style={styles.emptyHero}>
@@ -238,7 +226,6 @@ export default function Home() {
           </Text>
           <View style={styles.emptyHeroActions}>
             <Button title="Start first scan" onPress={() => handleScanPress('/scan/camera')} />
-            <Button title="Learn more" variant="secondary" onPress={() => router.push('/skin-metrics')} />
           </View>
         </View>
       )}

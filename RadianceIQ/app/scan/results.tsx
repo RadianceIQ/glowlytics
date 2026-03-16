@@ -6,7 +6,6 @@ import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { ActionCard } from '../../src/components/ActionCard';
 import { Button } from '../../src/components/Button';
 import { FacialMesh } from '../../src/components/FacialMesh';
-import { ScoreTile } from '../../src/components/ScoreTile';
 import {
   BorderRadius,
   Colors,
@@ -15,6 +14,11 @@ import {
   Spacing,
 } from '../../src/constants/theme';
 import { getExplanation } from '../../src/services/skinAnalysis';
+import {
+  buildOverallSkinInsight,
+  getLatestDailyForOutput,
+  type SkinMetricKey,
+} from '../../src/services/skinInsights';
 import { useStore } from '../../src/store/useStore';
 import { trackEvent } from '../../src/services/analytics';
 import type { SignalConfidenceLevel } from '../../src/types';
@@ -50,6 +54,36 @@ const getStatusLabel = (value: number) => {
   return 'Watch';
 };
 
+const metricGuide: {
+  key: SkinMetricKey;
+  title: string;
+  subtitle: string;
+  detail: string;
+  color: string;
+}[] = [
+  {
+    key: 'acne',
+    title: 'Acne',
+    subtitle: 'Inflammation + congestion signal',
+    detail: 'Combines breakout trend, inflammation index, and confounders like new products.',
+    color: Colors.acne,
+  },
+  {
+    key: 'sun_damage',
+    title: 'Sun Damage',
+    subtitle: 'UV and pigmentation load',
+    detail: 'Tracks photodamage risk using pigmentation index and sun-protection consistency.',
+    color: Colors.sunDamage,
+  },
+  {
+    key: 'skin_age',
+    title: 'Skin Age',
+    subtitle: 'Texture + elasticity drift',
+    detail: 'Reflects visible texture and firmness trend relative to your baseline scan.',
+    color: Colors.skinAge,
+  },
+];
+
 export default function Results({ hideBottomAction: hideBottomActionProp }: { hideBottomAction?: boolean }) {
   const router = useRouter();
   const searchParams = useLocalSearchParams<{ hideBottomAction?: string }>();
@@ -57,6 +91,13 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
   const allOutputs = useStore((s) => s.modelOutputs);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const latestOutput = allOutputs.length > 0 ? allOutputs[allOutputs.length - 1] : null;
+  const baselineOutput = allOutputs.length > 0 ? allOutputs[0] : null;
+  const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
+
+  const overallInsight = useMemo(
+    () => buildOverallSkinInsight({ latestOutput, baselineOutput, latestDaily }),
+    [latestOutput, baselineOutput, latestDaily],
+  );
 
   useEffect(() => {
     if (latestOutput) {
@@ -68,15 +109,6 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
       });
     }
   }, [latestOutput?.output_id]);
-
-  const outputHistory = useMemo(() => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 7);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
-    const records = dailyRecords.filter((record) => record.date >= cutoffStr);
-    const ids = new Set(records.map((record) => record.daily_id));
-    return allOutputs.filter((output) => ids.has(output.daily_id));
-  }, [dailyRecords, allOutputs]);
 
   if (!latestOutput) {
     return (
@@ -92,17 +124,12 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
     );
   }
 
-  const baseline = allOutputs.length > 0 ? allOutputs[0] : null;
-  const acneDelta = baseline ? latestOutput.acne_score - baseline.acne_score : 0;
-  const sunDelta = baseline ? latestOutput.sun_damage_score - baseline.sun_damage_score : 0;
-  const ageDelta = baseline ? latestOutput.skin_age_score - baseline.skin_age_score : 0;
-
-  const latestDaily = dailyRecords.length > 0 ? dailyRecords[dailyRecords.length - 1] : null;
+  const latestDailyRecord = dailyRecords.length > 0 ? dailyRecords[dailyRecords.length - 1] : null;
   const templateExplanation = getExplanation(latestOutput, {
-    sunscreen: latestDaily?.sunscreen_used ?? true,
+    sunscreen: latestDailyRecord?.sunscreen_used ?? true,
     cycleWindow: latestOutput.primary_driver === 'cycle window',
-    newProduct: latestDaily?.new_product_added ?? false,
-    sleepQuality: latestDaily?.sleep_quality,
+    newProduct: latestDailyRecord?.new_product_added ?? false,
+    sleepQuality: latestDailyRecord?.sleep_quality,
   });
   const explanation = latestOutput.personalized_feedback || templateExplanation;
 
@@ -115,7 +142,7 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
       {/* Header: FadeIn + slide from top, 0ms delay */}
       <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
         <Text style={styles.eyebrow}>Results</Text>
-        <Text style={styles.title}>Today's scan outcome</Text>
+        <Text style={styles.title}>Your scan results</Text>
       </Animated.View>
 
       <Animated.View entering={FadeIn.duration(400).delay(100)} style={styles.metaRow}>
@@ -203,47 +230,59 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
         </Animated.View>
       )}
 
-      {/* ScoreTiles: slide from right, 100ms stagger, 600ms base delay */}
+      {/* Overall score card */}
+      {overallInsight && (
+        <Animated.View entering={FadeInDown.duration(500).delay(600)} style={styles.overallCard}>
+          <Text style={styles.overallLabel}>Overall score</Text>
+          <Text style={styles.overallScore}>
+            {overallInsight.score} <Text style={styles.overallStatus}>{overallInsight.statusLabel}</Text>
+          </Text>
+          <Text style={styles.overallAction}>{overallInsight.actionStatement}</Text>
+          <View style={styles.signalChipRow}>
+            <Text style={styles.signalChip}>Structure {overallInsight.signals.structure}</Text>
+            <Text style={styles.signalChip}>Hydration {overallInsight.signals.hydration}</Text>
+            <Text style={styles.signalChip}>Inflammation {overallInsight.signals.inflammation}</Text>
+            <Text style={styles.signalChip}>Sun Damage {overallInsight.signals.sunDamage}</Text>
+            <Text style={styles.signalChip}>Elasticity {overallInsight.signals.elasticity}</Text>
+          </View>
+        </Animated.View>
+      )}
+
+      {/* Metric guide cards */}
       <View style={styles.metricStack}>
-        <Animated.View entering={FadeInRight.duration(500).delay(600)}>
-          <ScoreTile
-            label="Acne"
-            score={latestOutput.acne_score}
-            delta={acneDelta}
-            color={Colors.acne}
-            sparklineData={outputHistory.map((output) => output.acne_score)}
-            compact
-            lowLabel="Baseline"
-            highLabel="Today"
-            statusLabel={getStatusLabel(latestOutput.acne_score)}
-          />
-        </Animated.View>
-        <Animated.View entering={FadeInRight.duration(500).delay(700)}>
-          <ScoreTile
-            label="Sun Damage"
-            score={latestOutput.sun_damage_score}
-            delta={sunDelta}
-            color={Colors.sunDamage}
-            sparklineData={outputHistory.map((output) => output.sun_damage_score)}
-            compact
-            lowLabel="Baseline"
-            highLabel="Today"
-            statusLabel={getStatusLabel(latestOutput.sun_damage_score)}
-          />
-        </Animated.View>
-        <Animated.View entering={FadeInRight.duration(500).delay(800)}>
-          <ScoreTile
-            label="Skin Age"
-            score={latestOutput.skin_age_score}
-            delta={ageDelta}
-            color={Colors.skinAge}
-            sparklineData={outputHistory.map((output) => output.skin_age_score)}
-            compact
-            lowLabel="Baseline"
-            highLabel="Today"
-            statusLabel={getStatusLabel(latestOutput.skin_age_score)}
-          />
-        </Animated.View>
+        {metricGuide.map((metric, i) => {
+          const score =
+            metric.key === 'acne'
+              ? latestOutput.acne_score
+              : metric.key === 'sun_damage'
+                ? latestOutput.sun_damage_score
+                : latestOutput.skin_age_score;
+
+          return (
+            <Animated.View key={metric.key} entering={FadeInRight.duration(500).delay(700 + i * 100)}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.metricCard}
+                onPress={() =>
+                  router.push({
+                    pathname: '/skin-metric/[metric]',
+                    params: { metric: metric.key },
+                  })
+                }
+              >
+                <View style={styles.metricCardHeader}>
+                  <Text style={styles.metricTitle}>{metric.title}</Text>
+                  <Text style={[styles.metricScore, { color: metric.color }]}>
+                    {score}/100
+                  </Text>
+                </View>
+                <Text style={styles.metricSubtitle}>{metric.subtitle}</Text>
+                <Text style={styles.metricDetail}>{metric.detail}</Text>
+                <Text style={styles.metricCta}>Open detailed assessment</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          );
+        })}
       </View>
 
       {/* Escalation alert: slide from bottom, 800ms delay */}
@@ -447,6 +486,97 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.xs,
+  },
+  overallCard: {
+    backgroundColor: Colors.glassStrong,
+    borderRadius: BorderRadius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+  },
+  overallLabel: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.9,
+  },
+  overallScore: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.display,
+    lineHeight: 52,
+  },
+  overallStatus: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.md,
+  },
+  overallAction: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+    lineHeight: 22,
+  },
+  signalChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  signalChip: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xs,
+    backgroundColor: Colors.glass,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    overflow: 'hidden',
+  },
+  metricCard: {
+    backgroundColor: Colors.glass,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: Spacing.xs,
+  },
+  metricCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  metricTitle: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xl,
+  },
+  metricScore: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.lg,
+  },
+  metricSubtitle: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+  },
+  metricDetail: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+  },
+  metricCta: {
+    marginTop: Spacing.xs,
+    color: Colors.primaryLight,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
   },
   bottomAction: {
     marginTop: Spacing.lg,
