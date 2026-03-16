@@ -115,12 +115,6 @@ export default function Home() {
   const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
   const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
 
-  const latestRecord = useMemo(() => {
-    if (dailyRecords.length === 0) return null;
-    const sorted = [...dailyRecords].sort((a, b) => a.date.localeCompare(b.date));
-    return sorted[sorted.length - 1];
-  }, [dailyRecords]);
-
   const streak = useMemo(() => {
     const sorted = [...dailyRecords].sort((a, b) => b.date.localeCompare(a.date));
     if (sorted.length === 0) return 0;
@@ -170,9 +164,7 @@ export default function Home() {
   );
 
   const topStats = useMemo<TopStat[]>(() => {
-    const hasData = latestRecord !== null;
-
-    if (!hasData) {
+    if (!overallInsight) {
       return [
         { key: 'hydration', label: 'Hydration', value: null, color: Colors.primary, icon: 'water-outline' },
         { key: 'elasticity', label: 'Elasticity', value: null, color: Colors.secondary, icon: 'arrow-expand-horizontal' },
@@ -182,28 +174,15 @@ export default function Home() {
       ];
     }
 
-    const inflammationIndex = latestRecord.scanner_indices.inflammation_index;
-    const pigmentationIndex = latestRecord.scanner_indices.pigmentation_index;
-    const textureIndex = latestRecord.scanner_indices.texture_index;
-    const sleepBoost =
-      latestRecord.sleep_quality === 'great' ? 8 : latestRecord.sleep_quality === 'poor' ? -6 : 0;
-
-    const hydration = clampScore(100 - textureIndex * 0.72 + sleepBoost);
-    const elasticity = clampScore(
-      latestOutput ? 100 - latestOutput.skin_age_score * 0.9 : 100 - textureIndex * 0.82
-    );
-    const inflammation = clampScore(inflammationIndex);
-    const sunDamage = clampScore(latestOutput?.sun_damage_score ?? pigmentationIndex * 1.35);
-    const structure = clampScore(100 - textureIndex);
-
+    const s = overallInsight.signals;
     return [
-      { key: 'hydration', label: 'Hydration', value: hydration, color: Colors.primary, icon: 'water-outline' },
-      { key: 'elasticity', label: 'Elasticity', value: elasticity, color: Colors.secondary, icon: 'arrow-expand-horizontal' },
-      { key: 'inflammation', label: 'Inflammation', value: inflammation, color: Colors.error, icon: 'fire' },
-      { key: 'sun_damage', label: 'Sun Damage', value: sunDamage, color: Colors.warning, icon: 'weather-sunny' },
-      { key: 'structure', label: 'Structure', value: structure, color: Colors.info, icon: 'waves' },
+      { key: 'hydration', label: 'Hydration', value: s.hydration, color: Colors.primary, icon: 'water-outline' },
+      { key: 'elasticity', label: 'Elasticity', value: s.elasticity, color: Colors.secondary, icon: 'arrow-expand-horizontal' },
+      { key: 'inflammation', label: 'Inflammation', value: s.inflammation, color: Colors.error, icon: 'fire' },
+      { key: 'sun_damage', label: 'Sun Damage', value: s.sunDamage, color: Colors.warning, icon: 'weather-sunny' },
+      { key: 'structure', label: 'Structure', value: s.structure, color: Colors.info, icon: 'waves' },
     ];
-  }, [latestOutput, latestRecord]);
+  }, [overallInsight]);
 
   return (
     <AtmosphereScreen>
