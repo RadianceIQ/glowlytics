@@ -213,7 +213,7 @@ export default function AnalyzingScreen() {
     router.replace('/scan/results');
   };
 
-  // Start animations immediately (don't gate on store)
+  // Start animations immediately + cleanup timers on unmount
   useEffect(() => {
     orbScale.value = withTiming(1, { duration: 600, easing: CALM_EASING });
     orbOpacity.value = withTiming(1, { duration: 400, easing: CALM_EASING });
@@ -224,6 +224,10 @@ export default function AnalyzingScreen() {
       ),
       -1,
     );
+
+    return () => {
+      timers.current.forEach(clearTimeout);
+    };
   }, []);
 
   // Wait for store to hydrate, then fire analysis
@@ -311,9 +315,6 @@ export default function AnalyzingScreen() {
         setError(true);
       });
 
-    return () => {
-      timers.current.forEach(clearTimeout);
-    };
   }, [user, protocol]);
 
   const orbAnimStyle = useAnimatedStyle(() => ({
@@ -483,13 +484,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   statusMessage: {
-    color: Colors.text,
+    color: '#FFFFFF',
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.lg,
     textAlign: 'center',
   },
   stepText: {
-    color: Colors.textMuted,
+    color: 'rgba(255, 255, 255, 0.5)',
     fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
   },
@@ -517,13 +518,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   errorTitle: {
-    color: Colors.text,
+    color: '#FFFFFF',
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xl,
     marginTop: Spacing.lg,
   },
   errorSubtitle: {
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.6)',
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
     marginTop: Spacing.sm,
