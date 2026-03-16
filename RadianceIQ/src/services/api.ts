@@ -15,7 +15,7 @@ export const setAuthTokenProvider = (provider: () => Promise<string | null>) => 
   getAuthToken = provider;
 };
 
-const headers = async (): Promise<Record<string, string>> => {
+export const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const h: Record<string, string> = { 'Content-Type': 'application/json' };
   if (getAuthToken) {
     const token = await getAuthToken();
@@ -25,7 +25,7 @@ const headers = async (): Promise<Record<string, string>> => {
 };
 
 const request = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
-  const h = await headers();
+  const h = await getAuthHeaders();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: { ...h, ...options.headers as Record<string, string> },

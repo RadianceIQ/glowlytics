@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { getAuthHeaders } from './api';
 import type { Confidence, DetectedCondition, RagRecommendation } from '../types';
 
 export interface VisionAnalysisResult {
@@ -41,11 +42,10 @@ export async function analyzeWithVisionAPI(
 
   let response: Response;
   try {
+    const authHeaders = await getAuthHeaders();
     response = await fetch(`${env.API_BASE_URL}/api/vision/analyze`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: authHeaders,
       body: JSON.stringify({
         image_base64: base64Image,
         context: {

@@ -8,6 +8,7 @@ import type {
   OnboardingScreenName, SubscriptionState,
 } from '../types';
 import { defaultSubscription, canScan as canScanPure } from '../services/subscription';
+import * as api from '../services/api';
 import {
   getLevelForXP,
   getXPForScan,
@@ -136,6 +137,11 @@ const normalizeUser = (user?: Partial<UserProfile> | null): UserProfile | null =
   };
 };
 
+/** Fire-and-forget backend sync — never blocks the UI */
+const syncToBackend = (fn: () => Promise<unknown>) => {
+  fn().catch((err) => console.warn('[Sync] Backend sync failed:', err.message));
+};
+
 export const useStore = create<AppState>((set, get) => ({
   user: null,
   protocol: null,
@@ -172,6 +178,7 @@ export const useStore = create<AppState>((set, get) => ({
     });
     set({ user });
     get().persistData();
+    if (user) syncToBackend(() => api.createUser(user));
   },
 
   updateUser: (data) => {
@@ -187,6 +194,7 @@ export const useStore = create<AppState>((set, get) => ({
     });
     set({ user: updated });
     get().persistData();
+    syncToBackend(() => api.updateUser(current.user_id, data));
   },
 
   updateHealthConnection: (data) => {
@@ -229,6 +237,12 @@ export const useStore = create<AppState>((set, get) => ({
     };
     set({ protocol });
     get().persistData();
+    syncToBackend(() => api.createProtocol({
+      user_id: user.user_id,
+      primary_goal: goal,
+      scan_region: region,
+      baseline_date: protocol.baseline_date,
+    }));
   },
 
   addProduct: (product) => {
@@ -241,11 +255,13 @@ export const useStore = create<AppState>((set, get) => ({
     };
     set((s) => ({ products: [...s.products, entry] }));
     get().persistData();
+    syncToBackend(() => api.addProduct(entry));
   },
 
   removeProduct: (id) => {
     set((s) => ({ products: s.products.filter((p) => p.user_product_id !== id) }));
     get().persistData();
+    syncToBackend(() => api.deleteProduct(id));
   },
 
   addDailyRecord: (record) => {
@@ -261,6 +277,7 @@ export const useStore = create<AppState>((set, get) => ({
       get().incrementFreeScansUsed();
     }
     get().persistData();
+    syncToBackend(() => api.addDailyRecord(entry));
 
     // Calculate context items logged for XP bonus
     let contextItems = 0;
@@ -282,6 +299,7 @@ export const useStore = create<AppState>((set, get) => ({
     };
     set((s) => ({ modelOutputs: [...s.modelOutputs, entry] }));
     get().persistData();
+    syncToBackend(() => api.addModelOutput(entry));
     get().updatePersonalBests();
   },
 
