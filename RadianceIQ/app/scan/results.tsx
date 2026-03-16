@@ -17,6 +17,31 @@ import {
 import { getExplanation } from '../../src/services/skinAnalysis';
 import { useStore } from '../../src/store/useStore';
 import { trackEvent } from '../../src/services/analytics';
+import type { SignalConfidenceLevel } from '../../src/types';
+
+const SIGNAL_COLORS: Record<string, string> = {
+  structure: '#7DE7E1',
+  hydration: '#4DA6FF',
+  inflammation: '#FF7A78',
+  sunDamage: '#F2B56A',
+  elasticity: '#B68AFF',
+};
+
+const SIGNAL_LABELS: Record<string, string> = {
+  structure: 'Structure',
+  hydration: 'Hydration',
+  inflammation: 'Inflammation',
+  sunDamage: 'Sun Damage',
+  elasticity: 'Elasticity',
+};
+
+const confidenceBadgeColor = (level: SignalConfidenceLevel) => {
+  switch (level) {
+    case 'high': return Colors.success;
+    case 'med': return Colors.warning;
+    case 'low': return Colors.error;
+  }
+};
 
 const getStatusLabel = (value: number) => {
   if (value <= 25) return 'Calm';
@@ -106,8 +131,51 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
           sunDamageScore={latestOutput.sun_damage_score}
           skinAgeScore={latestOutput.skin_age_score}
           conditions={latestOutput.conditions}
+          lesions={latestOutput.lesions}
+          signalConfidence={latestOutput.signal_confidence}
         />
       </Animated.View>
+
+      {/* Signal Scores: per-signal breakdown with confidence indicators */}
+      {latestOutput.signal_scores && (
+        <Animated.View entering={FadeInDown.duration(500).delay(300)} style={styles.signalSection}>
+          <Text style={styles.signalSectionTitle}>Signal Breakdown</Text>
+          <View style={styles.signalGrid}>
+            {(Object.keys(SIGNAL_LABELS) as Array<keyof typeof SIGNAL_LABELS>).map((key) => {
+              const score = latestOutput.signal_scores?.[key as keyof typeof latestOutput.signal_scores];
+              const confidence = latestOutput.signal_confidence?.[key as keyof typeof latestOutput.signal_confidence];
+              if (score == null) return null;
+              return (
+                <View key={key} style={styles.signalItem}>
+                  <View style={styles.signalRow}>
+                    <View style={[styles.signalDot, { backgroundColor: SIGNAL_COLORS[key] }]} />
+                    <Text style={styles.signalLabel}>{SIGNAL_LABELS[key]}</Text>
+                    {confidence && (
+                      <View style={[styles.confidenceBadge, { backgroundColor: confidenceBadgeColor(confidence) + '30' }]}>
+                        <Text style={[styles.confidenceText, { color: confidenceBadgeColor(confidence) }]}>
+                          {confidence}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.signalBarBg}>
+                    <View style={[styles.signalBarFill, { width: `${score}%`, backgroundColor: SIGNAL_COLORS[key] }]} />
+                  </View>
+                  <Text style={[styles.signalScore, { color: SIGNAL_COLORS[key] }]}>{score}</Text>
+                </View>
+              );
+            })}
+          </View>
+          {latestOutput.lesions && latestOutput.lesions.length > 0 && (
+            <View style={styles.lesionSummary}>
+              <Text style={styles.lesionSummaryText}>
+                {latestOutput.lesions.length} lesion{latestOutput.lesions.length !== 1 ? 's' : ''} detected across{' '}
+                {[...new Set(latestOutput.lesions.map(l => l.zone))].length} zone{[...new Set(latestOutput.lesions.map(l => l.zone))].length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+          )}
+        </Animated.View>
+      )}
 
       {/* ActionCard: slide from bottom + fade, 400ms delay */}
       <Animated.View entering={FadeInDown.duration(500).delay(400)} style={{ marginTop: Spacing.lg }}>
@@ -304,6 +372,81 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
     lineHeight: 20,
+  },
+  signalSection: {
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.glassStrong,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  signalSectionTitle: {
+    color: Colors.primaryLight,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  signalGrid: {
+    gap: Spacing.md,
+  },
+  signalItem: {
+    gap: Spacing.xxs,
+  },
+  signalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  signalDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  signalLabel: {
+    flex: 1,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.sm,
+  },
+  signalScore: {
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textAlign: 'right',
+  },
+  signalBarBg: {
+    height: 4,
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  signalBarFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  confidenceBadge: {
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  confidenceText: {
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 9,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  lesionSummary: {
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  lesionSummaryText: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xs,
   },
   bottomAction: {
     marginTop: Spacing.lg,

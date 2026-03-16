@@ -117,6 +117,10 @@ export interface ModelOutput {
   conditions?: DetectedCondition[];
   rag_recommendations?: RagRecommendation[];
   personalized_feedback?: string;
+  signal_scores?: SignalScores;
+  signal_features?: SignalFeatures;
+  lesions?: DetectedLesion[];
+  signal_confidence?: SignalConfidence;
 }
 
 export interface ScanResult {
@@ -201,4 +205,43 @@ export interface GamificationState {
   badges: Badge[];
   weekly_challenges: WeeklyChallenge[];
   personal_bests: PersonalBests;
+}
+
+// Signal-specific analysis types
+export type SignalName = 'structure' | 'hydration' | 'inflammation' | 'sunDamage' | 'elasticity';
+
+export interface SignalScores {
+  structure: number;
+  hydration: number;
+  inflammation: number;
+  sunDamage: number;
+  elasticity: number;
+}
+
+export interface SignalFeatures {
+  inflammation_a_star?: number;
+  ita_variance?: number;
+  spot_count?: number;
+  pore_density?: number;
+  wrinkle_index?: number;
+  specular_ratio?: number;
+}
+
+export type LesionClass = 'comedone' | 'papule' | 'pustule' | 'nodule' | 'macule' | 'patch';
+
+export interface DetectedLesion {
+  class: LesionClass;
+  confidence: number;
+  bbox: [number, number, number, number]; // [x, y, width, height] normalized 0-1
+  zone: FacialRegion;
+}
+
+export type SignalConfidenceLevel = 'low' | 'med' | 'high';
+
+export interface SignalConfidence {
+  structure: SignalConfidenceLevel;
+  hydration: SignalConfidenceLevel;
+  inflammation: SignalConfidenceLevel;
+  sunDamage: SignalConfidenceLevel;
+  elasticity: SignalConfidenceLevel;
 }

@@ -1,6 +1,14 @@
 import { env } from '../config/env';
 import { getAuthHeaders } from './api';
-import type { Confidence, DetectedCondition, RagRecommendation } from '../types';
+import type {
+  Confidence,
+  DetectedCondition,
+  DetectedLesion,
+  RagRecommendation,
+  SignalConfidence,
+  SignalFeatures,
+  SignalScores,
+} from '../types';
 
 export interface VisionAnalysisResult {
   acne_score: number;
@@ -12,6 +20,10 @@ export interface VisionAnalysisResult {
   conditions?: DetectedCondition[];
   rag_recommendations?: RagRecommendation[];
   personalized_feedback?: string;
+  signal_scores?: SignalScores;
+  signal_features?: SignalFeatures;
+  lesions?: DetectedLesion[];
+  signal_confidence?: SignalConfidence;
 }
 
 export async function imageToBase64(uri: string): Promise<string> {
@@ -82,5 +94,9 @@ export async function analyzeWithVisionAPI(
     conditions: result.conditions,
     rag_recommendations: result.rag_recommendations,
     personalized_feedback: result.personalized_feedback,
+    signal_scores: result.signal_scores,
+    signal_features: result.signal_features,
+    lesions: result.lesions,
+    signal_confidence: result.signal_confidence,
   };
 }

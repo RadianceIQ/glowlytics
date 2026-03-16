@@ -110,6 +110,16 @@ describe('POST /api/vision/analyze', () => {
     expect(res.body.rag_recommendations).toEqual([]);
     expect(res.body.personalized_feedback).toBe('');
 
+    // Signal-specific fields are present (from 3-layer pipeline)
+    expect(res.body.signal_scores).toBeDefined();
+    expect(typeof res.body.signal_scores.structure).toBe('number');
+    expect(typeof res.body.signal_scores.hydration).toBe('number');
+    expect(typeof res.body.signal_scores.inflammation).toBe('number');
+    expect(typeof res.body.signal_scores.sunDamage).toBe('number');
+    expect(typeof res.body.signal_scores.elasticity).toBe('number');
+    expect(res.body.signal_confidence).toBeDefined();
+    expect(Array.isArray(res.body.lesions)).toBe(true);
+
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 

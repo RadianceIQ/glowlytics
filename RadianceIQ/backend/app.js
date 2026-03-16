@@ -7,6 +7,8 @@ const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-rsa');
 const OpenAI = require('openai');
 const { seedGuidelines, queryGuidelines } = require('./rag');
+const imageProcessing = require('./image-processing');
+const signalModels = require('./signal-models');
 
 const app = express();
 app.use(cors());
@@ -251,34 +253,54 @@ Return ONLY valid JSON matching this schema:
   "personalized_feedback": string
 }`;
 
-    const completion = await openai.chat.completions.create({
-      model: modelId,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Analyze this facial skin photo and return the structured scores.' },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:image/jpeg;base64,${image_base64}`,
-                detail: 'high',
-              },
-            },
-          ],
-        },
-      ],
-      max_tokens: 1000,
-      temperature: 0.2,
-    });
+    // ==================== 3-LAYER PARALLEL PIPELINE ====================
+    // Layer 1: Deterministic image processing (~100ms)
+    // Layer 2: Custom CV models via ONNX Runtime (~200ms)
+    // Layer 3: Fine-tuned GPT-4o (existing, ~3-5s)
+    // All 3 layers run in PARALLEL → results merged → single response
 
-    const content = completion.choices?.[0]?.message?.content;
+    const [layer1Result, layer3Result] = await Promise.all([
+      // Layer 1 + Layer 2: deterministic features → CV model scoring
+      imageProcessing.extractFeatures(image_base64).then(async (features) => {
+        const layer1Scores = imageProcessing.featuresToSignalScores(features);
+        const layer2Results = await signalModels.runAllModels(image_base64, features);
+        const summaryFeatures = imageProcessing.extractSummaryFeatures(features);
+        return { features, layer1Scores, layer2Results, summaryFeatures };
+      }).catch((err) => {
+        console.warn('[vision] Layer 1/2 failed, continuing with Layer 3 only:', err.message);
+        return null;
+      }),
+
+      // Layer 3: GPT-4o (existing pipeline)
+      openai.chat.completions.create({
+        model: modelId,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Analyze this facial skin photo and return the structured scores.' },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/jpeg;base64,${image_base64}`,
+                  detail: 'high',
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 1000,
+        temperature: 0.2,
+      }),
+    ]);
+
+    // ==================== PARSE LAYER 3 (GPT-4o) RESPONSE ====================
+    const content = layer3Result.choices?.[0]?.message?.content;
     if (!content) {
       return res.status(502).json({ error: 'Empty response from Vision model' });
     }
 
-    // Parse JSON from response (handle markdown code blocks)
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return res.status(502).json({ error: 'Could not parse JSON from Vision model response', raw: content });
@@ -286,14 +308,9 @@ Return ONLY valid JSON matching this schema:
 
     const parsed = JSON.parse(jsonMatch[0]);
 
-    // Validate and clamp ranges
     const clamp = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
     const validConfidence = ['low', 'med', 'high'].includes(parsed.confidence) ? parsed.confidence : 'low';
 
-    // Validate conditions array — filter out malformed entries.
-    // NOTE: The fine-tuned model may not return conditions if it was trained
-    // on the original 6-field schema. In that case, we gracefully default to
-    // an empty array. This is expected behavior, not an error.
     const VALID_SEVERITIES = ['mild', 'moderate', 'severe'];
     const validatedConditions = Array.isArray(parsed.conditions)
       ? parsed.conditions.filter((c) => {
@@ -305,7 +322,43 @@ Return ONLY valid JSON matching this schema:
         })
       : [];
 
-    // Query RAG for guideline-based recommendations
+    // ==================== MERGE SIGNAL SCORES ====================
+    // Derive Layer 3 signal scores from GPT-4o's 3 proxy scores
+    const layer3SignalScores = {
+      structure: clamp(100 - (parsed.skin_age_score * 0.55 + parsed.acne_score * 0.15)),
+      hydration: clamp(100 - (parsed.skin_age_score * 0.5 + parsed.acne_score * 0.2)),
+      inflammation: clamp(100 - (parsed.acne_score * 0.8 + parsed.sun_damage_score * 0.1)),
+      sunDamage: clamp(100 - (parsed.sun_damage_score * 0.82 + parsed.acne_score * 0.08)),
+      elasticity: clamp(100 - (parsed.skin_age_score * 0.62 + parsed.acne_score * 0.1)),
+    };
+
+    let signalScores, signalFeatures, lesions, signalConfidence;
+
+    if (layer1Result) {
+      // Full 3-layer merge
+      signalScores = signalModels.mergeSignalScores(
+        layer1Result.layer1Scores,
+        layer1Result.layer2Results,
+        layer3SignalScores,
+      );
+      signalFeatures = layer1Result.summaryFeatures;
+      lesions = layer1Result.layer2Results.lesions || [];
+      signalConfidence = layer1Result.layer2Results.signalConfidence;
+    } else {
+      // Layer 3 only fallback
+      signalScores = layer3SignalScores;
+      signalFeatures = {};
+      lesions = [];
+      signalConfidence = {
+        structure: 'low',
+        hydration: 'low',
+        inflammation: 'low',
+        sunDamage: 'low',
+        elasticity: 'low',
+      };
+    }
+
+    // ==================== RAG RECOMMENDATIONS ====================
     const primaryCondition = parsed.conditions?.[0]?.name || parsed.primary_driver || 'general skin health';
     let ragRecommendations = [];
     try {
@@ -319,10 +372,11 @@ Return ONLY valid JSON matching this schema:
       }
     } catch (err) {
       console.warn('RAG query failed, continuing without recommendations:', err.message);
-      // Graceful degradation — don't fail the whole request
     }
 
+    // ==================== BUILD RESPONSE ====================
     const result = {
+      // Existing fields (backward compatible)
       acne_score: clamp(parsed.acne_score),
       sun_damage_score: clamp(parsed.sun_damage_score),
       skin_age_score: clamp(parsed.skin_age_score),
@@ -332,6 +386,11 @@ Return ONLY valid JSON matching this schema:
       conditions: validatedConditions,
       rag_recommendations: ragRecommendations,
       personalized_feedback: parsed.personalized_feedback || '',
+      // New signal-specific fields (additive)
+      signal_scores: signalScores,
+      signal_features: signalFeatures,
+      lesions,
+      signal_confidence: signalConfidence,
     };
 
     res.json(result);

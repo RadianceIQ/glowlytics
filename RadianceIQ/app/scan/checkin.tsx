@@ -140,6 +140,10 @@ export default function DailyCheckin() {
       conditions: analysis.conditions,
       rag_recommendations: analysis.rag_recommendations,
       personalized_feedback: analysis.personalized_feedback,
+      signal_scores: analysis.signal_scores,
+      signal_features: analysis.signal_features,
+      lesions: analysis.lesions,
+      signal_confidence: analysis.signal_confidence,
     });
 
     setLoading(false);

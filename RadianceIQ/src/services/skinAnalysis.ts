@@ -1,5 +1,17 @@
 import type { ScannerReading } from './mockScanner';
-import type { Confidence, DailyRecord, ModelOutput, UserProfile, ScanProtocol, DetectedCondition, RagRecommendation } from '../types';
+import type {
+  Confidence,
+  DailyRecord,
+  DetectedCondition,
+  DetectedLesion,
+  ModelOutput,
+  RagRecommendation,
+  ScanProtocol,
+  SignalConfidence,
+  SignalFeatures,
+  SignalScores,
+  UserProfile,
+} from '../types';
 import { analyzeWithVisionAPI } from './visionAPI';
 import { env } from '../config/env';
 
@@ -312,6 +324,10 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
   conditions?: DetectedCondition[];
   rag_recommendations?: RagRecommendation[];
   personalized_feedback?: string;
+  signal_scores?: SignalScores;
+  signal_features?: SignalFeatures;
+  lesions?: DetectedLesion[];
+  signal_confidence?: SignalConfidence;
 }> => {
   // Try real Vision API via backend proxy if API base URL is configured and photo is available
   if (env.API_BASE_URL && input.photoUri) {
@@ -346,6 +362,10 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
         conditions: result.conditions,
         rag_recommendations: result.rag_recommendations,
         personalized_feedback: result.personalized_feedback,
+        signal_scores: result.signal_scores,
+        signal_features: result.signal_features,
+        lesions: result.lesions,
+        signal_confidence: result.signal_confidence,
       };
     } catch (err) {
       console.warn('[Glowlytics] Vision API failed — falling back to LOCAL heuristic analysis (NOT the fine-tuned model):', err);

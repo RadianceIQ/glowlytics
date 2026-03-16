@@ -1,4 +1,4 @@
-import type { DailyRecord, ModelOutput, ProductEntry } from '../types';
+import type { DailyRecord, DetectedLesion, ModelOutput, ProductEntry, SignalConfidence, SignalFeatures, SignalScores } from '../types';
 
 export type SkinMetricKey = 'acne' | 'sun_damage' | 'skin_age';
 export type SeverityLevel = 'low' | 'moderate' | 'high';
@@ -17,6 +17,9 @@ export interface OverallSkinInsight {
   trendDelta: number;
   actionStatement: string;
   signals: CompositeSignals;
+  signalFeatures?: SignalFeatures;
+  signalConfidence?: SignalConfidence;
+  lesions?: DetectedLesion[];
 }
 
 export interface FaceZoneInsight {
@@ -213,27 +216,49 @@ export const buildOverallSkinInsight = ({
   latestOutput,
   baselineOutput,
   latestDaily,
+  serverSignalScores,
+  serverSignalFeatures,
+  serverSignalConfidence,
+  serverLesions,
 }: {
   latestOutput: ModelOutput | null;
   baselineOutput: ModelOutput | null;
   latestDaily: DailyRecord | null;
+  serverSignalScores?: SignalScores;
+  serverSignalFeatures?: SignalFeatures;
+  serverSignalConfidence?: SignalConfidence;
+  serverLesions?: DetectedLesion[];
 }): OverallSkinInsight | null => {
   if (!latestOutput) return null;
 
-  const inflammationRisk = latestDaily?.scanner_indices.inflammation_index ?? latestOutput.acne_score;
-  const pigmentationRisk = latestDaily?.scanner_indices.pigmentation_index ?? latestOutput.sun_damage_score;
-  const textureRisk = latestDaily?.scanner_indices.texture_index ?? latestOutput.skin_age_score;
+  // Use server-provided signal scores when available (3-layer pipeline),
+  // otherwise fall back to existing derivation from 3 proxy scores
+  let signals: CompositeSignals;
 
-  const signals = deriveCompositeSignals({
-    acneRisk: latestOutput.acne_score,
-    sunRisk: latestOutput.sun_damage_score,
-    ageRisk: latestOutput.skin_age_score,
-    inflammationRisk,
-    pigmentationRisk,
-    textureRisk,
-    stressLevel: latestDaily?.stress_level,
-    sleepQuality: latestDaily?.sleep_quality,
-  });
+  if (serverSignalScores && typeof serverSignalScores.structure === 'number') {
+    signals = {
+      structure: clamp(serverSignalScores.structure),
+      hydration: clamp(serverSignalScores.hydration),
+      inflammation: clamp(serverSignalScores.inflammation),
+      sunDamage: clamp(serverSignalScores.sunDamage),
+      elasticity: clamp(serverSignalScores.elasticity),
+    };
+  } else {
+    const inflammationRisk = latestDaily?.scanner_indices.inflammation_index ?? latestOutput.acne_score;
+    const pigmentationRisk = latestDaily?.scanner_indices.pigmentation_index ?? latestOutput.sun_damage_score;
+    const textureRisk = latestDaily?.scanner_indices.texture_index ?? latestOutput.skin_age_score;
+
+    signals = deriveCompositeSignals({
+      acneRisk: latestOutput.acne_score,
+      sunRisk: latestOutput.sun_damage_score,
+      ageRisk: latestOutput.skin_age_score,
+      inflammationRisk,
+      pigmentationRisk,
+      textureRisk,
+      stressLevel: latestDaily?.stress_level,
+      sleepQuality: latestDaily?.sleep_quality,
+    });
+  }
 
   const score = scoreFromSignals(signals);
 
@@ -257,6 +282,9 @@ export const buildOverallSkinInsight = ({
     trendDelta,
     actionStatement: cadenceStatement(score, trendDelta),
     signals,
+    signalFeatures: serverSignalFeatures,
+    signalConfidence: serverSignalConfidence,
+    lesions: serverLesions,
   };
 };
 

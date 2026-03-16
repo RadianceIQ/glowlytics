@@ -89,6 +89,9 @@ CREATE TABLE IF NOT EXISTS model_outputs (
   primary_driver VARCHAR(100),
   recommended_action TEXT,
   escalation_flag BOOLEAN DEFAULT FALSE,
+  signal_scores JSONB DEFAULT '{}',
+  signal_features JSONB DEFAULT '{}',
+  lesions JSONB DEFAULT '[]',
   created_at TIMESTAMP DEFAULT NOW()
 );
 

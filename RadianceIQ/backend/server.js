@@ -87,8 +87,15 @@ async function initDB() {
         conditions JSONB DEFAULT '[]'::jsonb,
         rag_recommendations JSONB DEFAULT '[]'::jsonb,
         personalized_feedback TEXT,
+        signal_scores JSONB DEFAULT '{}',
+        signal_features JSONB DEFAULT '{}',
+        lesions JSONB DEFAULT '[]',
         created_at TIMESTAMP DEFAULT NOW()
       );
+      -- Add signal columns to existing tables (idempotent for existing deployments)
+      ALTER TABLE model_outputs ADD COLUMN IF NOT EXISTS signal_scores JSONB DEFAULT '{}';
+      ALTER TABLE model_outputs ADD COLUMN IF NOT EXISTS signal_features JSONB DEFAULT '{}';
+      ALTER TABLE model_outputs ADD COLUMN IF NOT EXISTS lesions JSONB DEFAULT '[]';
       CREATE TABLE IF NOT EXISTS waitlist (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         email VARCHAR(320) NOT NULL UNIQUE,
