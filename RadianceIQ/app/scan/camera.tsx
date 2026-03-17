@@ -23,6 +23,7 @@ import { checkPhotoQuality } from '../../src/services/photoQuality';
 import { useStore } from '../../src/store/useStore';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
 import { trackEvent } from '../../src/services/analytics';
+import { env } from '../../src/config/env';
 import {
   initLesionDetection,
   detectLesions,
@@ -115,9 +116,9 @@ export default function CameraScreen() {
     return () => releaseLesionDetection();
   }, []);
 
-  // On-device lesion detection when face is aligned
+  // Lesion detection when face is aligned — on-device first, server fallback
   useEffect(() => {
-    if (trackingState.status !== 'aligned' || capturing || !isLesionModelReady()) {
+    if (trackingState.status !== 'aligned' || capturing) {
       if (detectionTimerRef.current) {
         clearInterval(detectionTimerRef.current);
         detectionTimerRef.current = null;
@@ -125,6 +126,33 @@ export default function CameraScreen() {
       if (detectedLesions.length > 0) setDetectedLesions([]);
       return;
     }
+
+    const detectOnDevice = async (base64: string): Promise<DetectedLesion[]> => {
+      if (!isLesionModelReady()) return [];
+      return detectLesions(base64);
+    };
+
+    const detectViaServer = async (base64: string): Promise<DetectedLesion[]> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const res = await fetch(`${env.API_BASE_URL}/api/vision/detect-lesions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_base64: base64 }),
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return data.lesions || [];
+        }
+      } catch {
+        // Server unreachable — non-fatal
+      } finally {
+        clearTimeout(timeout);
+      }
+      return [];
+    };
 
     const detect = async () => {
       const uri = lastFrameUriRef.current;
@@ -136,11 +164,21 @@ export default function CameraScreen() {
           encoding: FileSystemLegacy.EncodingType.Base64,
         });
 
-        const lesions = await detectLesions(base64);
+        // Try on-device first, fall back to server
+        let lesions = await detectOnDevice(base64);
+        const source = lesions.length > 0 ? 'on_device' : 'none';
+
+        if (lesions.length === 0) {
+          lesions = await detectViaServer(base64);
+        }
+
         setDetectedLesions(lesions);
 
         if (lesions.length > 0) {
-          trackEvent('realtime_lesions_detected', { count: lesions.length, source: 'on_device' });
+          trackEvent('realtime_lesions_detected', {
+            count: lesions.length,
+            source: source === 'on_device' ? 'on_device' : 'server',
+          });
         }
       } catch {
         // Detection failed — non-fatal
