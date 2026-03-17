@@ -309,15 +309,16 @@ export const useStore = create<AppState>((set, get) => ({
   clearPendingPhotoBase64: () => set({ pendingPhotoBase64: null }),
 
   getStreak: () => {
-    const records = get().dailyRecords.sort((a, b) => b.date.localeCompare(a.date));
+    const records = get().dailyRecords;
     if (records.length === 0) return 0;
+    const dateSet = new Set(records.map((r) => r.date));
     let streak = 0;
     const today = new Date();
     for (let i = 0; i < records.length; i++) {
       const expected = new Date(today);
       expected.setDate(expected.getDate() - i);
       const expectedStr = expected.toISOString().split('T')[0];
-      if (records.find((r) => r.date === expectedStr)) {
+      if (dateSet.has(expectedStr)) {
         streak++;
       } else {
         break;
@@ -493,6 +494,8 @@ export const useStore = create<AppState>((set, get) => ({
       dailyRecords: [],
       modelOutputs: [],
       onboardingStep: 0,
+      onboardingFlow: [],
+      onboardingFlowIndex: 0,
       pendingScanResult: null,
       pendingPhotoBase64: null,
       gamification: defaultGamification(),

@@ -10,7 +10,7 @@ export function useFaceTracking(
   enabled: boolean,
   frameWidth: number = 720,
   frameHeight: number = 1280,
-): { trackingState: FaceTrackingState; lastFrame: string | null } {
+): { trackingState: FaceTrackingState; lastFrame: string | null; lastFrameUri: string | null } {
   const [trackingState, setTrackingState] = useState<FaceTrackingState>({
     status: 'no_face',
     issues: [],
@@ -41,11 +41,14 @@ export function useFaceTracking(
         });
 
         if (photo?.uri) {
-          if (prevUriRef.current) {
-            FileSystemLegacy.deleteAsync(prevUriRef.current, { idempotent: true }).catch((e) => console.debug('Frame cleanup:', e));
-          }
+          // Delay cleanup of old frame until new one is set in state,
+          // so consumers (lesion detection) don't read a deleted file
+          const oldUri = prevUriRef.current;
           prevUriRef.current = photo.uri;
           setLastFrame(photo.uri);
+          if (oldUri) {
+            FileSystemLegacy.deleteAsync(oldUri, { idempotent: true }).catch((e) => console.debug('Frame cleanup:', e));
+          }
           const state = await analyzeFrame(photo.uri, frameWidth, frameHeight);
           setTrackingState(state);
         }
@@ -68,5 +71,5 @@ export function useFaceTracking(
     };
   }, [enabled, cameraRef, frameWidth, frameHeight]);
 
-  return { trackingState, lastFrame };
+  return { trackingState, lastFrame, lastFrameUri: lastFrame };
 }

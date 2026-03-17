@@ -12,38 +12,20 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import {
+  toSignalKey,
+  signalColorByRouteKey,
+  signalLabelByRouteKey,
+} from '../../src/constants/signals';
 import { useStore } from '../../src/store/useStore';
 import { buildOverallSkinInsight, getLatestDailyForOutput } from '../../src/services/skinInsights';
 import { useCalmFadeIn } from '../../src/utils/animations';
 import type { CompositeSignals } from '../../src/services/skinInsights';
 
-// ---------------------------------------------------------------------------
-// Signal metadata
-// ---------------------------------------------------------------------------
-
 type SignalKey = 'hydration' | 'elasticity' | 'inflammation' | 'sun_damage' | 'structure';
 
-const SIGNAL_COLORS: Record<SignalKey, string> = {
-  structure: '#3A9E8F',
-  hydration: '#3B7FC4',
-  inflammation: '#D14343',
-  sun_damage: '#C07B2A',
-  elasticity: '#7B5FC2',
-};
-
-const SIGNAL_LABELS: Record<SignalKey, string> = {
-  structure: 'Structure',
-  hydration: 'Hydration',
-  inflammation: 'Inflammation',
-  sun_damage: 'Sun Damage',
-  elasticity: 'Elasticity',
-};
-
 /** Map route key to the CompositeSignals property name. */
-const signalProperty = (key: SignalKey): keyof CompositeSignals => {
-  if (key === 'sun_damage') return 'sunDamage';
-  return key as keyof CompositeSignals;
-};
+const signalProperty = (key: SignalKey): keyof CompositeSignals => toSignalKey(key);
 
 // ---------------------------------------------------------------------------
 // Contributing factor weights per signal
@@ -245,8 +227,8 @@ export default function SignalDetailScreen() {
   const router = useRouter();
 
   const signalKey = (key || 'structure') as SignalKey;
-  const color = SIGNAL_COLORS[signalKey] || SIGNAL_COLORS.structure;
-  const label = SIGNAL_LABELS[signalKey] || 'Signal';
+  const color = signalColorByRouteKey(signalKey);
+  const label = signalLabelByRouteKey(signalKey);
 
   // ---- Store data ----
   const dailyRecords = useStore((s) => s.dailyRecords);
@@ -262,6 +244,10 @@ export default function SignalDetailScreen() {
         latestOutput,
         baselineOutput: modelOutputs.length > 0 ? modelOutputs[0] : null,
         latestDaily,
+        serverSignalScores: latestOutput?.signal_scores,
+        serverSignalFeatures: latestOutput?.signal_features,
+        serverSignalConfidence: latestOutput?.signal_confidence,
+        serverLesions: latestOutput?.lesions,
       }),
     [latestOutput, latestDaily, modelOutputs],
   );
@@ -295,6 +281,10 @@ export default function SignalDetailScreen() {
         latestOutput: output,
         baselineOutput: modelOutputs.length > 0 ? modelOutputs[0] : null,
         latestDaily: record,
+        serverSignalScores: output?.signal_scores,
+        serverSignalFeatures: output?.signal_features,
+        serverSignalConfidence: output?.signal_confidence,
+        serverLesions: output?.lesions,
       });
 
       return dayInsight ? dayInsight.signals[signalProperty(signalKey)] : null;

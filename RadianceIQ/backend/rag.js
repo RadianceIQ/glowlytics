@@ -4,7 +4,7 @@ const OpenAI = require('openai');
 // ==================== CLIENTS ====================
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: (process.env.OPENAI_API_KEY || '').replace(/\s+/g, ''),
 });
 
 let pineconeIndex = null;

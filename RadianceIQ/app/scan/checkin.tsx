@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -7,6 +7,7 @@ import { Colors, FontSize, FontFamily, Spacing, BorderRadius } from '../../src/c
 import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
 import { useStore } from '../../src/store/useStore';
+import { getEstimatedCycleDay } from '../../src/utils/cycleDay';
 
 export default function DailyCheckin() {
   const router = useRouter();
@@ -35,15 +36,7 @@ export default function DailyCheckin() {
     }
   }, []);
 
-  // Estimate cycle day
-  const estimatedCycleDay = (() => {
-    if (user?.period_applicable !== 'yes' || !user?.period_last_start_date) return null;
-    const start = new Date(user.period_last_start_date);
-    const today = new Date();
-    const diff = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    const cycleLen = user.cycle_length_days || 28;
-    return ((diff % cycleLen) + cycleLen) % cycleLen + 1;
-  })();
+  const estimatedCycleDay = useMemo(() => getEstimatedCycleDay(user) ?? null, [user]);
 
   const canContinue = sunscreen !== null && newProduct !== null;
 

@@ -13,76 +13,19 @@ import {
   FontSize,
   Spacing,
 } from '../../src/constants/theme';
+import {
+  SIGNAL_COLORS,
+  SIGNAL_LABELS,
+  confidenceBadgeColor,
+  METRIC_GUIDE,
+} from '../../src/constants/signals';
 import { getExplanation } from '../../src/services/skinAnalysis';
 import {
   buildOverallSkinInsight,
   getLatestDailyForOutput,
-  type SkinMetricKey,
 } from '../../src/services/skinInsights';
 import { useStore } from '../../src/store/useStore';
 import { trackEvent } from '../../src/services/analytics';
-import type { SignalConfidenceLevel } from '../../src/types';
-
-const SIGNAL_COLORS: Record<string, string> = {
-  structure: '#3A9E8F',
-  hydration: '#3B7FC4',
-  inflammation: '#D14343',
-  sunDamage: '#C07B2A',
-  elasticity: '#7B5FC2',
-};
-
-const SIGNAL_LABELS: Record<string, string> = {
-  structure: 'Structure',
-  hydration: 'Hydration',
-  inflammation: 'Inflammation',
-  sunDamage: 'Sun Damage',
-  elasticity: 'Elasticity',
-};
-
-const confidenceBadgeColor = (level: SignalConfidenceLevel) => {
-  switch (level) {
-    case 'high': return Colors.success;
-    case 'med': return Colors.warning;
-    case 'low': return Colors.error;
-  }
-};
-
-const getStatusLabel = (value: number) => {
-  if (value <= 25) return 'Calm';
-  if (value <= 50) return 'Stable';
-  if (value <= 75) return 'Elevated';
-  return 'Watch';
-};
-
-const metricGuide: {
-  key: SkinMetricKey;
-  title: string;
-  subtitle: string;
-  detail: string;
-  color: string;
-}[] = [
-  {
-    key: 'acne',
-    title: 'Acne',
-    subtitle: 'Inflammation + congestion signal',
-    detail: 'Combines breakout trend, inflammation index, and confounders like new products.',
-    color: Colors.acne,
-  },
-  {
-    key: 'sun_damage',
-    title: 'Sun Damage',
-    subtitle: 'UV and pigmentation load',
-    detail: 'Tracks photodamage risk using pigmentation index and sun-protection consistency.',
-    color: Colors.sunDamage,
-  },
-  {
-    key: 'skin_age',
-    title: 'Skin Age',
-    subtitle: 'Texture + elasticity drift',
-    detail: 'Reflects visible texture and firmness trend relative to your baseline scan.',
-    color: Colors.skinAge,
-  },
-];
 
 export default function Results({ hideBottomAction: hideBottomActionProp }: { hideBottomAction?: boolean }) {
   const router = useRouter();
@@ -95,7 +38,15 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
   const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
 
   const overallInsight = useMemo(
-    () => buildOverallSkinInsight({ latestOutput, baselineOutput, latestDaily }),
+    () => buildOverallSkinInsight({
+      latestOutput,
+      baselineOutput,
+      latestDaily,
+      serverSignalScores: latestOutput?.signal_scores,
+      serverSignalFeatures: latestOutput?.signal_features,
+      serverSignalConfidence: latestOutput?.signal_confidence,
+      serverLesions: latestOutput?.lesions,
+    }),
     [latestOutput, baselineOutput, latestDaily],
   );
 
@@ -193,14 +144,18 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
               );
             })}
           </View>
-          {latestOutput.lesions && latestOutput.lesions.length > 0 && (
-            <View style={styles.lesionSummary}>
-              <Text style={styles.lesionSummaryText}>
-                {latestOutput.lesions.length} lesion{latestOutput.lesions.length !== 1 ? 's' : ''} detected across{' '}
-                {[...new Set(latestOutput.lesions.map(l => l.zone))].length} zone{[...new Set(latestOutput.lesions.map(l => l.zone))].length !== 1 ? 's' : ''}
-              </Text>
-            </View>
-          )}
+          {latestOutput.lesions && latestOutput.lesions.length > 0 && (() => {
+            const lesionCount = latestOutput.lesions!.length;
+            const zoneCount = new Set(latestOutput.lesions!.map(l => l.zone)).size;
+            return (
+              <View style={styles.lesionSummary}>
+                <Text style={styles.lesionSummaryText}>
+                  {lesionCount} lesion{lesionCount !== 1 ? 's' : ''} detected across{' '}
+                  {zoneCount} zone{zoneCount !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            );
+          })()}
         </Animated.View>
       )}
 
@@ -250,7 +205,7 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
 
       {/* Metric guide cards */}
       <View style={styles.metricStack}>
-        {metricGuide.map((metric, i) => {
+        {METRIC_GUIDE.map((metric, i) => {
           const score =
             metric.key === 'acne'
               ? latestOutput.acne_score

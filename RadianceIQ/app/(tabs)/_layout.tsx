@@ -133,10 +133,14 @@ export default function TabsLayout() {
                 const canScan = useStore.getState().canPerformScan();
                 if (!canScan) {
                   trackEvent('paywall_shown', { trigger: 'camera_tab' });
-                  const purchased = await presentPaywall();
-                  if (purchased) {
-                    const sub = await checkSubscriptionStatus(useStore.getState().subscription);
-                    useStore.getState().setSubscription(sub);
+                  try {
+                    const purchased = await presentPaywall();
+                    if (purchased) {
+                      const sub = await checkSubscriptionStatus(useStore.getState().subscription);
+                      useStore.getState().setSubscription(sub);
+                    }
+                  } catch {
+                    // RevenueCat config error — allow scan anyway
                   }
                   if (!useStore.getState().canPerformScan()) return;
                 }

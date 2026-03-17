@@ -53,6 +53,15 @@ export const Colors = {
 
   // Warm glass variant
   glassWarm: 'rgba(255, 248, 240, 0.82)',
+
+  // Gradient endpoints (processing / analyzing screens)
+  gradientMid: '#6B8799',
+  gradientEnd: '#081522',
+
+  // Text on dark gradients
+  textOnDark: '#FFFFFF',
+  textOnDarkMuted: 'rgba(255, 255, 255, 0.5)',
+  textOnDarkDim: 'rgba(255, 255, 255, 0.6)',
 };
 
 export const Spacing = {

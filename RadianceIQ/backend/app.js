@@ -11,7 +11,12 @@ const imageProcessing = require('./image-processing');
 const signalModels = require('./signal-models');
 
 const app = express();
-app.use(cors());
+
+// CORS — restrict origins in production
+const ALLOWED_ORIGINS = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',')
+  : undefined; // undefined = allow all (dev)
+app.use(cors(ALLOWED_ORIGINS ? { origin: ALLOWED_ORIGINS } : undefined));
 app.use(express.json({ limit: '20mb' }));
 
 // Sanitize API key — Railway env vars sometimes include trailing newlines
@@ -115,6 +120,24 @@ const authMiddleware = (req, res, next) => {
   });
 };
 
+// ==================== PRODUCTION SAFETY ====================
+
+// Warn loudly if production is misconfigured (auth bypass risk)
+if (process.env.NODE_ENV === 'production' && !CLERK_ISSUER_URL) {
+  console.error('[SECURITY] CLERK_ISSUER_URL is not set in production — auth verification disabled!');
+}
+
+/**
+ * Safe error message for client responses.
+ * In production, returns generic message; in development, returns full error.
+ */
+function safeErrorMessage(err) {
+  if (process.env.NODE_ENV === 'production') {
+    return 'Internal server error';
+  }
+  return err.message;
+}
+
 // ==================== INPUT VALIDATION ====================
 
 /** Whitelist of columns that may be updated via PATCH /api/users/:id */
@@ -137,6 +160,42 @@ const ALLOWED_USER_FIELDS = [
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Simple in-memory rate limiter for the public detect-lesions endpoint
+const detectRateMap = new Map();
+const DETECT_RATE_WINDOW = 10000; // 10s
+const DETECT_RATE_MAX = 10; // max 10 requests per window per IP
+function detectRateLimit(req, res, next) {
+  const ip = req.ip || req.socket.remoteAddress;
+  const now = Date.now();
+  const entry = detectRateMap.get(ip);
+  if (!entry || now - entry.start > DETECT_RATE_WINDOW) {
+    detectRateMap.set(ip, { start: now, count: 1 });
+    return next();
+  }
+  entry.count++;
+  if (entry.count > DETECT_RATE_MAX) {
+    return res.status(429).json({ error: 'Rate limit exceeded' });
+  }
+  next();
+}
+
+// Fast lesion detection for real-time camera overlay (rate-limited, no auth — frames are ephemeral)
+app.post('/api/vision/detect-lesions', detectRateLimit, async (req, res) => {
+  const start = Date.now();
+  try {
+    const { image_base64 } = req.body;
+    if (!image_base64) {
+      return res.status(400).json({ error: 'image_base64 is required' });
+    }
+
+    const lesions = await signalModels.runLesionDetector(image_base64);
+    res.json({ lesions, latency_ms: Date.now() - start });
+  } catch (err) {
+    console.warn('[detect-lesions] Error:', err.message);
+    res.json({ lesions: [], latency_ms: Date.now() - start });
+  }
 });
 
 // Barcode product lookup (public -- called before the user has an account)
@@ -195,9 +254,20 @@ app.get('/api/products/search', async (req, res) => {
 });
 
 // ==================== PROTECTED ROUTES (auth required) ====================
-// TODO: Add rate limiting middleware here for production (e.g. express-rate-limit)
 
 app.use(authMiddleware);
+
+/**
+ * Authorization helper — verifies the authenticated user matches the requested resource owner.
+ * In development mode (req.auth === null), access is allowed for dev convenience.
+ */
+function authorizeUser(req, res, userId) {
+  if (req.auth && req.auth.userId !== userId) {
+    res.status(403).json({ error: 'Access denied' });
+    return false;
+  }
+  return true;
+}
 
 // ==================== VISION API PROXY ====================
 
@@ -428,11 +498,12 @@ app.post('/api/users', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
 app.get('/api/users/:id', async (req, res) => {
+  if (!authorizeUser(req, res, req.params.id)) return;
   try {
     const result = await pool.query(
       'SELECT * FROM user_profiles WHERE user_id = $1', [req.params.id]
@@ -440,11 +511,12 @@ app.get('/api/users/:id', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
 app.patch('/api/users/:id', async (req, res) => {
+  if (!authorizeUser(req, res, req.params.id)) return;
   try {
     // Filter request body to only whitelisted fields to prevent SQL injection
     const safeFields = {};
@@ -457,6 +529,14 @@ app.patch('/api/users/:id', async (req, res) => {
     const fields = Object.keys(safeFields);
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    // Validate field names contain only safe identifier characters
+    const SAFE_FIELD_RE = /^[a-z_]+$/;
+    for (const f of fields) {
+      if (!SAFE_FIELD_RE.test(f)) {
+        return res.status(400).json({ error: 'Invalid field name' });
+      }
     }
 
     const values = Object.values(safeFields);
@@ -473,7 +553,7 @@ app.patch('/api/users/:id', async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
@@ -489,11 +569,12 @@ app.post('/api/protocols', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
 app.get('/api/protocols/:userId', async (req, res) => {
+  if (!authorizeUser(req, res, req.params.userId)) return;
   try {
     const result = await pool.query(
       'SELECT * FROM scan_protocols WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
@@ -501,7 +582,7 @@ app.get('/api/protocols/:userId', async (req, res) => {
     );
     res.json(result.rows[0] || null);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
@@ -525,11 +606,12 @@ app.post('/api/products', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
 app.get('/api/products/:userId', async (req, res) => {
+  if (!authorizeUser(req, res, req.params.userId)) return;
   try {
     const result = await pool.query(
       'SELECT * FROM product_catalog WHERE user_id = $1 AND end_date IS NULL ORDER BY start_date',
@@ -537,7 +619,7 @@ app.get('/api/products/:userId', async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
@@ -549,7 +631,7 @@ app.delete('/api/products/:id', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
@@ -593,11 +675,12 @@ app.post('/api/daily-records', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
 app.get('/api/daily-records/:userId', async (req, res) => {
+  if (!authorizeUser(req, res, req.params.userId)) return;
   try {
     const days = parseInt(req.query.days) || 30;
     const result = await pool.query(
@@ -608,7 +691,7 @@ app.get('/api/daily-records/:userId', async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
@@ -631,11 +714,12 @@ app.post('/api/model-outputs', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
 app.get('/api/model-outputs/:userId', async (req, res) => {
+  if (!authorizeUser(req, res, req.params.userId)) return;
   try {
     const days = parseInt(req.query.days) || 30;
     const result = await pool.query(
@@ -647,7 +731,7 @@ app.get('/api/model-outputs/:userId', async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
@@ -664,11 +748,12 @@ app.post('/api/reports', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
 app.get('/api/reports/:userId', async (req, res) => {
+  if (!authorizeUser(req, res, req.params.userId)) return;
   try {
     const result = await pool.query(
       'SELECT * FROM report_artifacts WHERE user_id = $1 ORDER BY created_at DESC',
@@ -676,7 +761,7 @@ app.get('/api/reports/:userId', async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 

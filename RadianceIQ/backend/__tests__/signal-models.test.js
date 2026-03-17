@@ -32,7 +32,18 @@ const {
   bboxToZone,
   mergeSignalScores,
   LESION_CLASSES,
+  computeIoU,
+  nms,
 } = require('../signal-models');
+
+const {
+  computeGaborFeatures,
+  computeLBPUniform,
+  computeFrangiFeatures,
+  computeLandmarkGeometry,
+  buildHydrationFeatures,
+  buildElasticityFeatures,
+} = require('../image-processing');
 
 // =====================================================================
 // UNIT TESTS: image-processing.js
@@ -403,6 +414,115 @@ describe('image-processing.js', () => {
 });
 
 // =====================================================================
+// UNIT TESTS: new image-processing features (Gabor, LBP-uniform, Frangi)
+// =====================================================================
+
+describe('image-processing.js (new features)', () => {
+  describe('computeGaborFeatures', () => {
+    test('returns Float32Array of length 24', () => {
+      const width = 32;
+      const height = 32;
+      const pixels = new Float32Array(width * height).fill(128);
+      const result = computeGaborFeatures(pixels, width, height);
+      expect(result).toBeInstanceOf(Float32Array);
+      expect(result.length).toBe(24);
+    });
+
+    test('non-constant image produces non-zero std features', () => {
+      const width = 64;
+      const height = 64;
+      const pixels = new Float32Array(width * height);
+      for (let i = 0; i < pixels.length; i++) {
+        pixels[i] = (i * 7) % 256;
+      }
+      const result = computeGaborFeatures(pixels, width, height);
+      // At least some std features (odd indices) should be non-zero
+      let hasNonZero = false;
+      for (let i = 1; i < 24; i += 2) {
+        if (result[i] > 0) hasNonZero = true;
+      }
+      expect(hasNonZero).toBe(true);
+    });
+  });
+
+  describe('computeLBPUniform', () => {
+    test('returns Float32Array of length 18 for r=2, n=16', () => {
+      const width = 16;
+      const height = 16;
+      const pixels = new Float32Array(width * height).fill(100);
+      const result = computeLBPUniform(pixels, width, height, 2, 16);
+      expect(result).toBeInstanceOf(Float32Array);
+      expect(result.length).toBe(18);
+    });
+
+    test('histogram sums to approximately 1 (normalized)', () => {
+      const width = 20;
+      const height = 20;
+      const pixels = new Float32Array(width * height);
+      for (let i = 0; i < pixels.length; i++) {
+        pixels[i] = (i * 13) % 256;
+      }
+      const result = computeLBPUniform(pixels, width, height, 2, 16);
+      let sum = 0;
+      for (let i = 0; i < result.length; i++) sum += result[i];
+      expect(sum).toBeCloseTo(1.0, 2);
+    });
+  });
+
+  describe('computeFrangiFeatures', () => {
+    test('returns Float32Array of length 9', () => {
+      const width = 32;
+      const height = 32;
+      const pixels = new Float32Array(width * height).fill(128);
+      const result = computeFrangiFeatures(pixels, width, height);
+      expect(result).toBeInstanceOf(Float32Array);
+      expect(result.length).toBe(9);
+    });
+  });
+
+  describe('computeLandmarkGeometry', () => {
+    test('returns Float32Array of length 5', () => {
+      const result = computeLandmarkGeometry();
+      expect(result).toBeInstanceOf(Float32Array);
+      expect(result.length).toBe(5);
+    });
+
+    test('all values are between 0 and 1', () => {
+      const result = computeLandmarkGeometry();
+      for (let i = 0; i < result.length; i++) {
+        expect(result[i]).toBeGreaterThanOrEqual(0);
+        expect(result[i]).toBeLessThanOrEqual(1);
+      }
+    });
+  });
+
+  describe('buildHydrationFeatures', () => {
+    test('returns Float32Array of length 44', () => {
+      const features = {
+        gabor_features: new Float32Array(24),
+        lbp_uniform_histogram: new Float32Array(18),
+        hydration: { specular_ratio: 0.02, specular_uniformity: 0.3 },
+      };
+      const result = buildHydrationFeatures(features);
+      expect(result).toBeInstanceOf(Float32Array);
+      expect(result.length).toBe(44);
+    });
+  });
+
+  describe('buildElasticityFeatures', () => {
+    test('returns Float32Array of length 14', () => {
+      const features = {
+        frangi_features: new Float32Array(9),
+        landmark_geometry: new Float32Array(5),
+      };
+      const result = buildElasticityFeatures(features);
+      expect(result).toBeInstanceOf(Float32Array);
+      expect(result.length).toBe(14);
+    });
+  });
+});
+
+// =====================================================================
 // UNIT TESTS: signal-models.js
 // =====================================================================
 
@@ -461,6 +581,76 @@ describe('signal-models.js', () => {
 
     test('has exactly 6 classes', () => {
       expect(LESION_CLASSES).toHaveLength(6);
+    });
+  });
+
+  // ---- computeIoU ----
+
+  describe('computeIoU', () => {
+    test('identical boxes return 1.0', () => {
+      expect(computeIoU([0.1, 0.1, 0.3, 0.3], [0.1, 0.1, 0.3, 0.3])).toBeCloseTo(1.0, 5);
+    });
+
+    test('non-overlapping boxes return 0.0', () => {
+      expect(computeIoU([0, 0, 0.1, 0.1], [0.5, 0.5, 0.1, 0.1])).toBe(0);
+    });
+
+    test('partial overlap returns value between 0 and 1', () => {
+      const iou = computeIoU([0, 0, 0.4, 0.4], [0.2, 0.2, 0.4, 0.4]);
+      expect(iou).toBeGreaterThan(0);
+      expect(iou).toBeLessThan(1);
+    });
+
+    test('box fully inside another has correct IoU', () => {
+      // Inner box: [0.1, 0.1, 0.1, 0.1] area = 0.01
+      // Outer box: [0, 0, 0.5, 0.5] area = 0.25
+      // Intersection = 0.01, Union = 0.25
+      const iou = computeIoU([0, 0, 0.5, 0.5], [0.1, 0.1, 0.1, 0.1]);
+      expect(iou).toBeCloseTo(0.01 / 0.25, 4);
+    });
+
+    test('zero-area box returns 0', () => {
+      expect(computeIoU([0, 0, 0, 0], [0, 0, 0.1, 0.1])).toBe(0);
+    });
+  });
+
+  // ---- nms ----
+
+  describe('nms', () => {
+    test('keeps all boxes when no overlap', () => {
+      const boxes = [[0, 0, 0.1, 0.1], [0.5, 0.5, 0.1, 0.1], [0.9, 0.9, 0.1, 0.1]];
+      const scores = [0.9, 0.8, 0.7];
+      const kept = nms(boxes, scores, 0.45);
+      expect(kept).toHaveLength(3);
+    });
+
+    test('suppresses overlapping lower-confidence box', () => {
+      const boxes = [[0.1, 0.1, 0.3, 0.3], [0.12, 0.12, 0.3, 0.3]];
+      const scores = [0.9, 0.7];
+      const kept = nms(boxes, scores, 0.45);
+      expect(kept).toHaveLength(1);
+      expect(kept[0]).toBe(0); // higher-confidence box kept
+    });
+
+    test('returns empty for empty input', () => {
+      expect(nms([], [], 0.45)).toHaveLength(0);
+    });
+
+    test('single box is always kept', () => {
+      const kept = nms([[0.1, 0.1, 0.2, 0.2]], [0.5], 0.45);
+      expect(kept).toEqual([0]);
+    });
+
+    test('preserves order by confidence (highest first)', () => {
+      const boxes = [
+        [0, 0, 0.1, 0.1],
+        [0.5, 0.5, 0.1, 0.1],
+        [0.9, 0, 0.1, 0.1],
+      ];
+      const scores = [0.3, 0.9, 0.6];
+      const kept = nms(boxes, scores, 0.45);
+      // Should return indices sorted by descending score
+      expect(kept[0]).toBe(1);
     });
   });
 
@@ -609,12 +799,18 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
   const mockRunAllModels = jest.fn();
   const mockMergeSignalScores = jest.fn();
 
+  const mockRunLesionDetector = jest.fn();
+
   jest.mock('../signal-models', () => ({
     initModels: jest.fn().mockResolvedValue({ loaded: [] }),
     runAllModels: mockRunAllModels,
+    runLesionDetector: mockRunLesionDetector,
     mergeSignalScores: mockMergeSignalScores,
     bboxToZone: jest.fn(),
     LESION_CLASSES: ['comedone', 'papule', 'pustule', 'nodule', 'macule', 'patch'],
+    prepareImageTensor: jest.fn(),
+    computeIoU: jest.fn(),
+    nms: jest.fn(),
   }));
 
   const request = require('supertest');
@@ -853,5 +1049,55 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
     expect(l3).toHaveProperty('inflammation');
     expect(l3).toHaveProperty('sunDamage');
     expect(l3).toHaveProperty('elasticity');
+  });
+
+  // ---- POST /api/vision/detect-lesions (fast endpoint) ----
+
+  test('detect-lesions returns lesions array and latency_ms', async () => {
+    const mockLesions = [
+      { class: 'papule', confidence: 0.85, bbox: [0.3, 0.4, 0.05, 0.05], zone: 'left_cheek' },
+    ];
+    mockRunLesionDetector.mockResolvedValueOnce(mockLesions);
+
+    const res = await request(app)
+      .post('/api/vision/detect-lesions')
+      .send({ image_base64: 'dGVzdA==' })
+      .expect(200);
+
+    expect(res.body).toHaveProperty('lesions');
+    expect(res.body).toHaveProperty('latency_ms');
+    expect(Array.isArray(res.body.lesions)).toBe(true);
+    expect(typeof res.body.latency_ms).toBe('number');
+  });
+
+  test('detect-lesions returns empty lesions on error (graceful)', async () => {
+    mockRunLesionDetector.mockRejectedValueOnce(new Error('model failed'));
+
+    const res = await request(app)
+      .post('/api/vision/detect-lesions')
+      .send({ image_base64: 'dGVzdA==' })
+      .expect(200);
+
+    expect(res.body.lesions).toEqual([]);
+  });
+
+  test('detect-lesions returns 400 when image_base64 missing', async () => {
+    const res = await request(app)
+      .post('/api/vision/detect-lesions')
+      .send({})
+      .expect(400);
+
+    expect(res.body.error).toBe('image_base64 is required');
+  });
+
+  test('detect-lesions does not require authentication', async () => {
+    mockRunLesionDetector.mockResolvedValueOnce([]);
+
+    const res = await request(app)
+      .post('/api/vision/detect-lesions')
+      .send({ image_base64: 'dGVzdA==' })
+      .expect(200);
+
+    expect(res.body).toHaveProperty('lesions');
   });
 });

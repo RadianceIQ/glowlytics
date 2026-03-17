@@ -15,6 +15,7 @@ import {
   FontSize,
   Spacing,
 } from '../src/constants/theme';
+import { formatMetricStatus, signalColorByRouteKey } from '../src/constants/signals';
 import {
   buildOverallSkinInsight,
   getLatestDailyForOutput,
@@ -84,13 +85,6 @@ const TopStatRing: React.FC<{ value: number | null; color: string; icon: string 
   );
 };
 
-const formatMetricStatus = (value: number) => {
-  if (value <= 25) return 'Calm';
-  if (value <= 50) return 'Stable';
-  if (value <= 75) return 'Elevated';
-  return 'Watch';
-};
-
 export default function Home() {
   const router = globalRouter;
   const protocol = useStore((s) => s.protocol);
@@ -145,9 +139,9 @@ export default function Home() {
     return modelOutputs.filter((output) => ids.has(output.daily_id));
   }, [dailyRecords, modelOutputs]);
 
-  const acneHistory = outputHistory.map((output) => output.acne_score);
-  const sunHistory = outputHistory.map((output) => output.sun_damage_score);
-  const ageHistory = outputHistory.map((output) => output.skin_age_score);
+  const acneHistory = useMemo(() => outputHistory.map((o) => o.acne_score), [outputHistory]);
+  const sunHistory = useMemo(() => outputHistory.map((o) => o.sun_damage_score), [outputHistory]);
+  const ageHistory = useMemo(() => outputHistory.map((o) => o.skin_age_score), [outputHistory]);
 
   const overallInsight = useMemo(
     () =>
@@ -155,28 +149,22 @@ export default function Home() {
         latestOutput,
         baselineOutput: baseline,
         latestDaily,
+        serverSignalScores: latestOutput?.signal_scores,
+        serverSignalFeatures: latestOutput?.signal_features,
+        serverSignalConfidence: latestOutput?.signal_confidence,
+        serverLesions: latestOutput?.lesions,
       }),
     [latestOutput, baseline, latestDaily]
   );
 
   const topStats = useMemo<TopStat[]>(() => {
-    if (!overallInsight) {
-      return [
-        { key: 'hydration', label: 'Hydration', value: null, color: Colors.primary, icon: 'water-outline' },
-        { key: 'elasticity', label: 'Elasticity', value: null, color: Colors.secondary, icon: 'arrow-expand-horizontal' },
-        { key: 'inflammation', label: 'Inflammation', value: null, color: Colors.error, icon: 'fire' },
-        { key: 'sun_damage', label: 'Sun Damage', value: null, color: Colors.warning, icon: 'weather-sunny' },
-        { key: 'structure', label: 'Structure', value: null, color: Colors.info, icon: 'waves' },
-      ];
-    }
-
-    const s = overallInsight.signals;
+    const s = overallInsight?.signals;
     return [
-      { key: 'hydration', label: 'Hydration', value: s.hydration, color: Colors.primary, icon: 'water-outline' },
-      { key: 'elasticity', label: 'Elasticity', value: s.elasticity, color: Colors.secondary, icon: 'arrow-expand-horizontal' },
-      { key: 'inflammation', label: 'Inflammation', value: s.inflammation, color: Colors.error, icon: 'fire' },
-      { key: 'sun_damage', label: 'Sun Damage', value: s.sunDamage, color: Colors.warning, icon: 'weather-sunny' },
-      { key: 'structure', label: 'Structure', value: s.structure, color: Colors.info, icon: 'waves' },
+      { key: 'hydration', label: 'Hydration', value: s?.hydration ?? null, color: signalColorByRouteKey('hydration'), icon: 'water-outline' },
+      { key: 'elasticity', label: 'Elasticity', value: s?.elasticity ?? null, color: signalColorByRouteKey('elasticity'), icon: 'arrow-expand-horizontal' },
+      { key: 'inflammation', label: 'Inflammation', value: s?.inflammation ?? null, color: signalColorByRouteKey('inflammation'), icon: 'fire' },
+      { key: 'sun_damage', label: 'Sun Damage', value: s?.sunDamage ?? null, color: signalColorByRouteKey('sun_damage'), icon: 'weather-sunny' },
+      { key: 'structure', label: 'Structure', value: s?.structure ?? null, color: signalColorByRouteKey('structure'), icon: 'waves' },
     ];
   }, [overallInsight]);
 

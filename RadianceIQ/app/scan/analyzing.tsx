@@ -17,6 +17,7 @@ import Animated, {
 import { Colors, FontFamily, FontSize, BorderRadius, Spacing } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import { analyzeWithFallback } from '../../src/services/skinAnalysis';
+import { getEstimatedCycleDay } from '../../src/utils/cycleDay';
 
 type FeatherIcon = React.ComponentProps<typeof Feather>['name'];
 
@@ -58,8 +59,6 @@ export default function AnalyzingScreen() {
 
   const user = useStore((s) => s.user);
   const protocol = useStore((s) => s.protocol);
-  const modelOutputs = useStore((s) => s.modelOutputs);
-  const pendingPhotoBase64 = useStore((s) => s.pendingPhotoBase64);
   const addDailyRecord = useStore((s) => s.addDailyRecord);
   const addModelOutput = useStore((s) => s.addModelOutput);
   const clearPendingPhotoBase64 = useStore((s) => s.clearPendingPhotoBase64);
@@ -72,8 +71,11 @@ export default function AnalyzingScreen() {
   const apiDone = useRef(false);
   const apiResult = useRef<any>(null);
   const holdingOnApiStage = useRef(false);
+  const postApiStarted = useRef(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const hasStarted = useRef(false);
+  const scannerDataRef = useRef({ inflammation_index: 0, pigmentation_index: 0, texture_index: 0 });
+  const cycleDayRef = useRef<number | undefined>(undefined);
 
   // Animations
   const orbScale = useSharedValue(0.8);
@@ -108,6 +110,10 @@ export default function AnalyzingScreen() {
   };
 
   const runPostApiStages = () => {
+    // Guard: ensure this is called exactly once even if both timer + API resolve simultaneously
+    if (postApiStarted.current) return;
+    postApiStarted.current = true;
+
     const t1 = setTimeout(() => {
       advanceStage(7);
       const t2 = setTimeout(() => {
@@ -130,14 +136,8 @@ export default function AnalyzingScreen() {
     }
 
     try {
-      const currentUser = user || useStore.getState().user;
-      const currentProtocol = protocol || useStore.getState().protocol;
-
-      const scannerData = {
-        inflammation_index: parseFloat(params.inflammation || '40'),
-        pigmentation_index: parseFloat(params.pigmentation || '30'),
-        texture_index: parseFloat(params.texture || '35'),
-      };
+      const state = useStore.getState();
+      const currentProtocol = protocol || state.protocol;
 
       let savedPhotoUri: string | undefined;
       if (params.photoUri) {
@@ -146,22 +146,13 @@ export default function AnalyzingScreen() {
 
       clearPendingPhotoBase64();
 
-      const xpBefore = useStore.getState().gamification.xp;
-      const badgesBefore = useStore.getState().gamification.badges.length;
-
-      const estimatedCycleDay = (() => {
-        if (currentUser?.period_applicable !== 'yes' || !currentUser?.period_last_start_date) return undefined;
-        const start = new Date(currentUser.period_last_start_date);
-        const today = new Date();
-        const diff = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        const cycleLen = currentUser.cycle_length_days || 28;
-        return ((diff % cycleLen) + cycleLen) % cycleLen + 1;
-      })();
+      const xpBefore = state.gamification.xp;
+      const badgesBefore = state.gamification.badges.length;
 
       const dailyRecord = addDailyRecord({
         date: new Date().toISOString().split('T')[0],
         scanner_reading_id: `scan_${Date.now()}`,
-        scanner_indices: scannerData,
+        scanner_indices: scannerDataRef.current,
         scanner_quality_flag: 'pass',
         scan_region: currentProtocol?.scan_region || 'whole_face',
         photo_uri: savedPhotoUri,
@@ -169,7 +160,7 @@ export default function AnalyzingScreen() {
         sunscreen_used: params.sunscreen === 'yes',
         new_product_added: params.newProduct === 'yes',
         period_status_confirmed: params.periodAccurate as any,
-        cycle_day_estimated: estimatedCycleDay,
+        cycle_day_estimated: cycleDayRef.current,
         sleep_quality: params.sleep as any,
         stress_level: params.stress as any,
         drinks_yesterday: params.drinks || undefined,
@@ -230,6 +221,18 @@ export default function AnalyzingScreen() {
     };
   }, []);
 
+  // Bail out if store never hydrates within 5s
+  useEffect(() => {
+    if (hasStarted.current || user) return;
+    const bail = setTimeout(() => {
+      if (!hasStarted.current) {
+        router.replace('/(tabs)/today');
+      }
+    }, 5000);
+    timers.current.push(bail);
+    return () => clearTimeout(bail);
+  }, [user]);
+
   // Wait for store to hydrate, then fire analysis
   useEffect(() => {
     if (hasStarted.current || !user || !protocol) return;
@@ -276,22 +279,19 @@ export default function AnalyzingScreen() {
       pigmentation_index: parseFloat(params.pigmentation || '30'),
       texture_index: parseFloat(params.texture || '35'),
     };
+    scannerDataRef.current = scannerData;
 
-    const estimatedCycleDay = (() => {
-      if (user.period_applicable !== 'yes' || !user.period_last_start_date) return undefined;
-      const start = new Date(user.period_last_start_date);
-      const today = new Date();
-      const diff = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-      const cycleLen = user.cycle_length_days || 28;
-      return ((diff % cycleLen) + cycleLen) % cycleLen + 1;
-    })();
+    const estimatedCycleDay = getEstimatedCycleDay(user);
+    cycleDayRef.current = estimatedCycleDay;
+
+    const { modelOutputs: prevOutputs, pendingPhotoBase64 } = useStore.getState();
 
     analyzeWithFallback({
       scannerData,
       photoUri: params.photoUri || undefined,
       userProfile: user,
       protocol,
-      previousOutputs: modelOutputs,
+      previousOutputs: prevOutputs,
       dailyContext: {
         sunscreen_used: params.sunscreen === 'yes',
         new_product_added: params.newProduct === 'yes',
@@ -334,7 +334,7 @@ export default function AnalyzingScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={[Colors.backgroundDeep, '#6B8799', '#081522']}
+          colors={[Colors.backgroundDeep, Colors.gradientMid, Colors.gradientEnd]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -377,7 +377,7 @@ export default function AnalyzingScreen() {
 
       <View style={styles.container}>
         <LinearGradient
-          colors={[Colors.backgroundDeep, '#6B8799', '#081522']}
+          colors={[Colors.backgroundDeep, Colors.gradientMid, Colors.gradientEnd]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -484,13 +484,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   statusMessage: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.lg,
     textAlign: 'center',
   },
   stepText: {
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: Colors.textOnDarkMuted,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
   },
@@ -518,13 +518,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   errorTitle: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xl,
     marginTop: Spacing.lg,
   },
   errorSubtitle: {
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: Colors.textOnDarkDim,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
     marginTop: Spacing.sm,
@@ -537,7 +537,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   retryText: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.md,
   },

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
@@ -15,12 +16,20 @@ import { Colors, FontFamily, FontSize, BorderRadius, Spacing } from '../../src/c
 import { Button } from '../../src/components/Button';
 import { CameraFaceMesh } from '../../src/components/CameraFaceMesh';
 import { DirectionIndicators } from '../../src/components/DirectionIndicators';
+import { LesionOverlay } from '../../src/components/LesionOverlay';
 import { useFaceTracking } from '../../src/hooks/useFaceTracking';
 import { getDirections } from '../../src/services/faceTracking';
 import { checkPhotoQuality } from '../../src/services/photoQuality';
 import { useStore } from '../../src/store/useStore';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
 import { trackEvent } from '../../src/services/analytics';
+import {
+  initLesionDetection,
+  detectLesions,
+  releaseLesionDetection,
+  isReady as isLesionModelReady,
+} from '../../src/services/onDeviceLesionDetection';
+import type { DetectedLesion } from '../../src/types';
 
 export default function CameraScreen() {
   const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
@@ -35,12 +44,16 @@ export default function CameraScreen() {
     if (!canPerformScan()) {
       (async () => {
         setPaywallVisible(true);
-        const purchased = await presentPaywall();
-        setPaywallVisible(false);
-        if (purchased) {
-          const sub = await checkSubscriptionStatus(useStore.getState().subscription);
-          useStore.getState().setSubscription(sub);
+        try {
+          const purchased = await presentPaywall();
+          if (purchased) {
+            const sub = await checkSubscriptionStatus(useStore.getState().subscription);
+            useStore.getState().setSubscription(sub);
+          }
+        } catch {
+          // RevenueCat config error — non-fatal
         }
+        setPaywallVisible(false);
         if (!useStore.getState().canPerformScan()) {
           router.back();
         }
@@ -55,15 +68,23 @@ export default function CameraScreen() {
   const [qualityIssues, setQualityIssues] = useState<string[]>([]);
   const [autoCountdown, setAutoCountdown] = useState(0);
   const [paywallVisible, setPaywallVisible] = useState(false);
+  const [detectedLesions, setDetectedLesions] = useState<DetectedLesion[]>([]);
+  const [modelDownloading, setModelDownloading] = useState(false);
+  const detectingRef = useRef(false);
+  const detectionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastFrameUriRef = useRef<string | null>(null);
   const alignedStartRef = useRef<number | null>(null);
 
-  const { trackingState } = useFaceTracking(cameraRef, cameraReady && !capturing && !paywallVisible);
+  const { trackingState, lastFrameUri } = useFaceTracking(cameraRef, cameraReady && !capturing && !paywallVisible);
+
+  // Keep ref in sync so detection loop reads latest URI without causing effect re-runs
+  useEffect(() => { lastFrameUriRef.current = lastFrameUri; }, [lastFrameUri]);
   const directions = getDirections(trackingState.issues);
 
   // Animations
   const flashOpacity = useSharedValue(0);
   const buttonScale = useSharedValue(1);
-  const ringColor = useSharedValue(0); // 0 = muted, 1 = primary
+  // ringColor removed — was assigned but never read in any animated style
 
   // Auto-capture: track continuous alignment
   useEffect(() => {
@@ -84,10 +105,65 @@ export default function CameraScreen() {
     }
   }, [trackingState]);
 
+  // Initialize on-device lesion detection model
+  useEffect(() => {
+    setModelDownloading(true);
+    initLesionDetection((pct) => {
+      // Could show download progress in UI if desired
+    }).finally(() => setModelDownloading(false));
+
+    return () => releaseLesionDetection();
+  }, []);
+
+  // On-device lesion detection when face is aligned
+  useEffect(() => {
+    if (trackingState.status !== 'aligned' || capturing || !isLesionModelReady()) {
+      if (detectionTimerRef.current) {
+        clearInterval(detectionTimerRef.current);
+        detectionTimerRef.current = null;
+      }
+      if (detectedLesions.length > 0) setDetectedLesions([]);
+      return;
+    }
+
+    const detect = async () => {
+      const uri = lastFrameUriRef.current;
+      if (detectingRef.current || !uri) return;
+      detectingRef.current = true;
+
+      try {
+        const base64 = await FileSystemLegacy.readAsStringAsync(uri, {
+          encoding: FileSystemLegacy.EncodingType.Base64,
+        });
+
+        const lesions = await detectLesions(base64);
+        setDetectedLesions(lesions);
+
+        if (lesions.length > 0) {
+          trackEvent('realtime_lesions_detected', { count: lesions.length, source: 'on_device' });
+        }
+      } catch {
+        // Detection failed — non-fatal
+      } finally {
+        detectingRef.current = false;
+      }
+    };
+
+    // Run immediately, then every 1.2s
+    detect();
+    detectionTimerRef.current = setInterval(detect, 1200);
+
+    return () => {
+      if (detectionTimerRef.current) {
+        clearInterval(detectionTimerRef.current);
+        detectionTimerRef.current = null;
+      }
+    };
+  }, [trackingState.status, capturing]);
+
   // Button animation based on alignment
   useEffect(() => {
     if (trackingState.status === 'aligned') {
-      ringColor.value = withTiming(1, { duration: 400 });
       buttonScale.value = withRepeat(
         withSequence(
           withTiming(1.0, { duration: 400 }),
@@ -96,7 +172,6 @@ export default function CameraScreen() {
         -1,
       );
     } else {
-      ringColor.value = withTiming(0, { duration: 300 });
       buttonScale.value = withTiming(1, { duration: 200 });
     }
   }, [trackingState.status]);
@@ -183,6 +258,16 @@ export default function CameraScreen() {
         width={SCREEN_W}
         height={SCREEN_H}
       />
+
+      {/* Real-time lesion bounding boxes */}
+      {detectedLesions.length > 0 && (
+        <LesionOverlay
+          lesions={detectedLesions}
+          width={SCREEN_W}
+          height={SCREEN_H}
+          mirrored
+        />
+      )}
 
       {/* Direction indicators */}
       {trackingState.status === 'misaligned' && (

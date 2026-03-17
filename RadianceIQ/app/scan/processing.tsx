@@ -128,7 +128,7 @@ export default function ProcessingScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[Colors.backgroundDeep, '#6B8799', '#081522']}
+        colors={[Colors.backgroundDeep, Colors.gradientMid, Colors.gradientEnd]}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFill}

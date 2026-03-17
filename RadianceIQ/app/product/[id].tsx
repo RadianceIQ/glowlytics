@@ -19,6 +19,7 @@ import {
   Spacing,
   BorderRadius,
 } from '../../src/constants/theme';
+import { SIGNAL_COLORS, SIGNAL_LABELS } from '../../src/constants/signals';
 import { useStore } from '../../src/store/useStore';
 import {
   computeProductEffectiveness,
@@ -58,22 +59,6 @@ const ratingDotColor: Record<IngredientRating, string> = {
   concerning: '#D14343',
 };
 
-const SIGNAL_LABELS: Record<keyof CompositeSignals, string> = {
-  structure: 'Structure',
-  hydration: 'Hydration',
-  inflammation: 'Inflammation',
-  sunDamage: 'Sun Damage',
-  elasticity: 'Elasticity',
-};
-
-const SIGNAL_COLORS: Record<keyof CompositeSignals, string> = {
-  structure: Colors.info,
-  hydration: Colors.primary,
-  inflammation: Colors.error,
-  sunDamage: Colors.warning,
-  elasticity: Colors.secondary,
-};
-
 const GOAL_LABELS: Record<string, string> = {
   acne: 'Acne Management',
   sun_damage: 'Sun Protection',
@@ -105,6 +90,10 @@ export default function ProductDetailScreen() {
         latestOutput,
         baselineOutput: baseline,
         latestDaily,
+        serverSignalScores: latestOutput?.signal_scores,
+        serverSignalFeatures: latestOutput?.signal_features,
+        serverSignalConfidence: latestOutput?.signal_confidence,
+        serverLesions: latestOutput?.lesions,
       }),
     [latestOutput, baseline, latestDaily],
   );

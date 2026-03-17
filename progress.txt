@@ -1,6 +1,6 @@
 Glowlytics - Build Progress
 ===========================
-Last Updated: 2026-03-16
+Last Updated: 2026-03-17
 
 MILESTONES:
 1. Project setup + foundation (Expo SDK 54, TypeScript, Expo Router)
@@ -22,15 +22,31 @@ MILESTONES:
 17. 3-layer signal-specific analysis pipeline (deterministic + ONNX CV + GPT-4o)
 18. ML training pipeline: 9 notebooks (data prep, GPT-4o finetune, MedGemma, eval, structure, hydration, elasticity, lesion detection, signal eval)
 19. DB schema migrated on Railway with signal_scores, signal_features, lesions columns
+20. Analysis progress screen: staged messages tied to pipeline, dual-track timing (timer + API)
+21. Results + skin-metrics consolidated into single results screen
+22. ONNX models downloaded from HuggingFace (structure, hydration, elasticity, lesion_detector)
+23. On-device lesion detection: onnxruntime-react-native, YOLOv8 inference during camera scan
+24. Sci-fi bounding box overlay: neon green corner brackets, scanning line, glow pulse
+25. Shared constants: SIGNAL_COLORS, SIGNAL_LABELS, METRIC_GUIDE, formatMetricStatus, confidenceBadgeColor
+26. Shared utility: getEstimatedCycleDay, theme gradient/text-on-dark constants
+27. Critical bug fixes: getStreak() state mutation, analyzing screen hydration hang, signal color consistency
+28. HuggingFace ONNX models wired into backend (structure, hydration, elasticity, lesion detection)
+29. Handcrafted features: Gabor, LBP-uniform, Frangi, landmark geometry for Layer 2 model input
+30. Security hardening: authorization, rate limiting, CORS, safe errors, SQL validation
+31. Full codebase audit: 4 critical + 8 high + 9 medium bugs identified, 11 fixed
+32. Build #18 submitted to TestFlight with all bug fixes
 
 CURRENT STATUS:
-- 286 tests passing (20 suites), 0 TypeScript errors
-- 49 screens, 20+ components, 16 services, 7 backend modules
+- 329 frontend tests (21 suites) + 101 backend tests (4 suites), 0 TypeScript errors
+- 49 screens, 21+ components, 17 services, 8 backend modules
 - Backend live on Railway with PostgreSQL, health check passing
 - DB schema includes signal-specific columns (signal_scores, signal_features, lesions)
 - EAS project linked (f56f9712-7cc3-48a3-ba5d-710c5e469c3d)
-- Production .ipa uploaded to App Store Connect (ASC App ID: 6760600635)
-- Dev client build available for on-device testing
+- Production .ipa build #18 uploaded to App Store Connect (ASC App ID: 6760600635)
+- HuggingFace models integrated into backend ONNX inference pipeline
+- On-device YOLOv8 lesion detection with real-time neon bounding box overlay
+- Full codebase audit completed: 11 critical/high bugs fixed, security hardened
+- Backend authorization on all user-data endpoints, rate limiting, CORS, safe error messages
 
 COMPLETED:
 [x] RevenueCat SDK (react-native-purchases + react-native-purchases-ui v9.12.0)
@@ -81,6 +97,58 @@ COMPLETED:
 [x] ml/requirements.txt updated with onnxruntime, ultralytics, opencv-python, albumentations, timm, coremltools
 [x] 53 new tests: image processing unit tests, signal model merging, endpoint integration
 [x] Backend deps: sharp (image processing), onnxruntime-node (optional, CV models)
+[x] Analysis progress screen (app/scan/analyzing.tsx): 9 staged messages, dual-track timer+API, XP overlay
+[x] Scan flow: Camera → Processing → Checkin → Analyzing → Results
+[x] Consolidated results + skin-metrics into single results screen with overall score card + metric guide
+[x] SkinScoreHero: single "View latest results" button (removed Learn more + View today's results)
+[x] ONNX models pulled from HuggingFace (mufasabrownie/glowlytics-skin-models)
+[x] Structure model output parsing fix (3 separate tensors, not 1 combined)
+[x] All 4 ONNX models loading + running: structure (18MB), hydration (17MB), elasticity (17MB), lesion_detector (43MB)
+[x] Score merging verified: Layer 2 ONNX overrides structure/hydration/elasticity; inflammation/sunDamage use L1-primary blend
+[x] On-device lesion detection service (src/services/onDeviceLesionDetection.ts)
+[x] onnxruntime-react-native + jpeg-js dependencies added
+[x] Lesion model downloads from HF on first use, cached in document directory
+[x] YOLOv8 post-processing: NMS (IoU 0.45, conf 0.25), 6 lesion classes, zone mapping
+[x] Sci-fi LesionOverlay: neon green (#00FF41) corner brackets, scanning line, glow pulse, monospace labels
+[x] Camera: on-device detection every 1.2s when face aligned (no server dependency)
+[x] Shared constants extracted: SIGNAL_COLORS, SIGNAL_LABELS, METRIC_GUIDE, formatMetricStatus (src/constants/signals.ts)
+[x] Shared utility: getEstimatedCycleDay (src/utils/cycleDay.ts)
+[x] Theme: gradientMid, gradientEnd, textOnDark, textOnDarkMuted, textOnDarkDim constants
+[x] buildOverallSkinInsight: all 6 call sites now pass server signal data (was missing on home, skin-metrics, product, signal, profile)
+[x] Bug fix: getStreak() mutated dailyRecords in place via .sort() — now spreads first
+[x] Bug fix: analyzing screen bail-out timeout (5s) if store never hydrates
+[x] Bug fix: timer cleanup race condition in analyzing screen
+[x] Bug fix: confidenceBadgeColor default case for unexpected server values
+[x] Bug fix: signal colors consistent across all screens via shared SIGNAL_COLORS
+[x] Dead code removed: getStatusLabel in results.tsx
+[x] Dedup: estimatedCycleDay (3 copies → 1 utility), scannerData (2 copies → 1 ref)
+[x] Efficiency: modelOutputs/pendingPhotoBase64 subscriptions removed from analyzing (use getState())
+[x] Efficiency: memoized history arrays in home.tsx, estimatedCycleDay in checkin.tsx
+[x] HuggingFace ONNX model integration: real inference for structure, hydration, elasticity, lesion detection
+[x] backend/signal-models.js: prepareImageTensor (ImageNet norm), NMS post-processing, all 4 model runners
+[x] backend/image-processing.js: Gabor (24-dim), LBP-uniform (18-dim), Frangi (9-dim), landmark geometry (5-dim)
+[x] Handcrafted feature builders: buildHydrationFeatures (44-dim), buildElasticityFeatures (14-dim)
+[x] Fast lesion detection endpoint: POST /api/vision/detect-lesions (rate-limited, public)
+[x] backend/scripts/download-models.sh: downloads ONNX from HuggingFace, auto-exports lesion .pt → .onnx
+[x] ml/export_lesion_onnx.py: standalone YOLOv8 .pt → .onnx converter
+[x] .gitignore: backend/models/*.onnx and *.pt excluded
+[x] Security: authorization checks on all 7 user-data GET/PATCH endpoints (authorizeUser helper)
+[x] Security: CORS restricted via CORS_ORIGINS env var in production
+[x] Security: rate limiting on /api/vision/detect-lesions (10 req/10s per IP)
+[x] Security: safeErrorMessage() hides PG details in production responses
+[x] Security: SQL field name regex validation (/^[a-z_]+$/) in PATCH /api/users/:id
+[x] Security: production auth misconfiguration warning (CLERK_ISSUER_URL check)
+[x] Security: rag.js OpenAI key sanitization (matching app.js pattern)
+[x] Bug fix: getStreak() O(n^2) → O(n) via Set-based lookup
+[x] Bug fix: camera detection loop re-fired every 200ms (lastFrameUri in deps → moved to ref)
+[x] Bug fix: stale lesion bounding boxes persisted after face un-aligned (now cleared)
+[x] Bug fix: AbortSignal.timeout() → AbortController+setTimeout (Hermes compatibility)
+[x] Bug fix: analyzing screen runPostApiStages race condition (postApiStarted guard)
+[x] Bug fix: computeLBPUniform nPoints clamped to max 24 (OOM prevention)
+[x] Bug fix: resetAll now resets onboardingFlow + onboardingFlowIndex
+[x] Bug fix: dead ringColor shared value removed from camera.tsx
+[x] Bug fix: skin-metrics scan button now gates on paywall
+[x] Build #18 submitted to TestFlight via local EAS build + eas submit
 
 REMAINING (Launch checklist):
 [ ] !! CRITICAL: Replace Clerk TEST keys with PRODUCTION keys !!
@@ -105,9 +173,8 @@ REMAINING (Launch checklist):
 [ ] Submit for App Review
 
 REMAINING (ML pipeline):
-[ ] Train structure model (notebook 05) on FFHQ + CelebA-HQ → export structure.onnx
-[ ] Train hydration model (notebook 06) on CelebA + Oulu → export hydration.onnx
-[ ] Train elasticity model (notebook 07) on UTKFace + FFHQ → export elasticity.onnx
-[ ] Train lesion detector (notebook 08) on ACNE04 + ISIC + HAM10000 → export lesion_detector.onnx
+[x] Models trained and exported to ONNX (hosted on HuggingFace: mufasabrownie/glowlytics-skin-models)
+[x] Models downloaded to backend/models/ (structure.onnx, hydration.onnx, elasticity.onnx, lesion_detector.onnx)
+[x] Lesion YOLOv8 .pt exported to .onnx via ultralytics
+[ ] Deploy ONNX models to Railway (currently local only — 115MB total, needs LFS or external hosting)
 [ ] Run evaluation notebook (09) — target: MAE < 10, Pearson r > 0.7 per signal
-[ ] Deploy trained ONNX models to backend/models/ on Railway

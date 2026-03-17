@@ -97,12 +97,13 @@ cd backend && npm test
 
 ## Scan Flow Architecture
 
-Camera → Processing → Checkin → Results
+Camera → Processing → Checkin → Analyzing → Results
 
-1. **Camera** (`app/scan/camera.tsx`): Face tracking, quality checks, auto-capture after 2s aligned
+1. **Camera** (`app/scan/camera.tsx`): Face tracking, quality checks, auto-capture after 2s aligned, **real-time on-device lesion detection** (YOLOv8 via `onDeviceLesionDetection` service, neon bounding box overlay every 1.2s while aligned)
 2. **Processing** (`app/scan/processing.tsx`): Pre-encodes photo to base64, stores in `pendingPhotoBase64`, shows animation
-3. **Checkin** (`app/scan/checkin.tsx`): Collects daily context (sunscreen, new product, sleep, stress), then runs `analyzeWithFallback` with real user answers
-4. **Results** (`app/scan/results.tsx`): Displays scores, face mesh, signal breakdown, lesion overlay, RAG recommendations
+3. **Checkin** (`app/scan/checkin.tsx`): Collects daily context (sunscreen, new product, sleep, stress)
+4. **Analyzing** (`app/scan/analyzing.tsx`): Runs `analyzeWithFallback` with real user answers, 9-stage progress animation, stores results + awards XP
+5. **Results** (`app/scan/results.tsx`): Displays scores, face mesh, signal breakdown, lesion overlay, RAG recommendations
 
 Analysis runs **after** checkin — never with hardcoded context. The `pendingPhotoBase64` store field avoids re-encoding the photo.
 
@@ -119,8 +120,11 @@ The vision endpoint (`/api/vision/analyze`) runs 3 layers in **parallel**:
 
 2. **Layer 2 — Custom CV Models** (`backend/signal-models.js`, ~200ms)
    - ONNX models: structure (MobileNetV3), hydration (EfficientNet-B0), elasticity (EfficientNet-B0)
-   - YOLOv8 lesion detector (comedone, papule, pustule, nodule, macule, patch)
-   - Graceful fallback to Layer 1 when models not yet trained
+   - YOLOv8 lesion detector (comedone, papule, pustule, nodule, macule, patch) with NMS post-processing
+   - Models downloaded via `backend/scripts/download-models.sh` from HuggingFace (`mufasabrownie/glowlytics-skin-models`)
+   - Handcrafted features: Gabor (24-dim), LBP-uniform (18-dim), Frangi (9-dim), landmark geometry (5-dim)
+   - `image-processing.js` builds hydration (44-dim) and elasticity (14-dim) feature vectors for Layer 2
+   - Graceful fallback to Layer 1 when models not available
 
 3. **Layer 3 — Fine-tuned GPT-4o** (existing, ~3-5s)
    - Holistic condition classification + severity grading
@@ -137,16 +141,23 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 ## Important Context
 
 - Vision API runs 3-layer parallel pipeline: deterministic features + ONNX models + GPT-4o (API key server-side only, 30s timeout)
+- Fast lesion detection endpoint: `POST /api/vision/detect-lesions` (public, rate-limited, runs only YOLOv8)
+- On-device lesion detection: `src/services/onDeviceLesionDetection.ts` — runs on camera frames during alignment
+- Real-time bounding boxes: `LesionOverlay.tsx` — neon sci-fi corner brackets with scanning line animation
 - RAG pipeline queries Pinecone for AAD/ACOG guideline context
-- 286 tests (20 suites), 0 TS errors
+- 329 tests (21 suites), 0 TS errors
 - Authentication via Clerk is mandatory when CLERK_PUBLISHABLE_KEY is set
+- Backend authorization: all user-data endpoints verify `req.auth.userId` matches requested resource
+- Backend security: CORS restricted via `CORS_ORIGINS` env var, rate limiting on public endpoints, `safeErrorMessage()` hides PG details in production
 - Face tracking thresholds (faceTracking.ts) and photo quality thresholds (photoQuality.ts) both use 20% min fill
 - Gamification system: XP, 6 levels, 15 badges, weekly challenges, personal bests
 - Premium users' `free_scans_used` counter does not increment — freezes during subscription
-- `useFaceTracking` cleans up temp frame photos to prevent storage leaks
+- `useFaceTracking` cleans up temp frame photos to prevent storage leaks; exposes `lastFrameUri` for lesion detection
 - RevenueCat functions guard on `env.REVENUECAT_API_KEY` — all are safe to call without a key
 - PostHog analytics guard on `env.POSTHOG_API_KEY` — all no-op when key is empty
 - Subscription state persisted in Zustand: tier, is_active, expires_at, product_id, free_scans_used
-- Scan gating: camera tab, camera screen, home scan buttons → paywall if free scans exhausted
+- Scan gating: camera tab, camera screen, home scan buttons, skin-metrics → paywall if free scans exhausted
 - Report gating: reports require active subscription
 - Profile screen: subscription card with upgrade/manage, Customer Center for active subscribers
+- Model download: `backend/scripts/download-models.sh` fetches ONNX files from HuggingFace
+- Lesion export: `ml/export_lesion_onnx.py` converts YOLOv8 .pt → .onnx

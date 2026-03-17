@@ -22,6 +22,8 @@ Glowlytics is a skin health tracking app that enables users to gain insights int
 - **PostgreSQL** database
 - **Open Beauty Facts API** - skincare product ingredients lookup via barcode (waterfall: Open Beauty Facts → Open Food Facts → UPCitemdb → NIH DailyMed)
 - **Vision LLM API** — Fine-tuned GPT-4o for skin image analysis with condition detection (9 types × 8 facial zones), personalized feedback, local fallback
+- **3-layer parallel vision pipeline** — Layer 1: deterministic features (CIELAB, ITA, GLCM, LBP, Gabor, Frangi) + Layer 2: ONNX CV models (structure MobileNetV3, hydration/elasticity EfficientNet-B0, YOLOv8 lesion detector) + Layer 3: fine-tuned GPT-4o. Score merging: L2 overrides > L1+L3 blend.
+- **On-device lesion detection** — YOLOv8 ONNX model via onnxruntime-react-native, CoreML on iOS. Downloads from HuggingFace on first use, cached locally. Real-time inference during camera scan.
 - **RAG pipeline** — Pinecone vector DB + OpenAI text-embedding-3-small, 19 curated AAD/ACOG guideline chunks, auto-queried on each scan for evidence-based recommendations
 - **On-device photo quality** — expo-face-detector for real face detection (fill %, centering, angle validation)
 - Scanner data: **deterministic simulation** with seeded PRNG for reproducible readings
@@ -127,8 +129,20 @@ Glowlytics is a skin health tracking app that enables users to gain insights int
 
 #### Step 2 - Scan
 - "Scan the same region: [region name]"
-- Scanner reading (simulated, quick)
-- Photo capture with baseline overlay + live quality check
+- Photo capture with face mesh overlay + live quality check
+- **Real-time on-device lesion detection** via YOLOv8 ONNX model (onnxruntime-react-native)
+  - Sci-fi corner bracket bounding boxes with neon green (#00FF41) aesthetic
+  - Scanning line + glow pulse animations
+  - Runs every 1.2s when face aligned, no server dependency
+  - 6 lesion classes: comedone, papule, pustule, nodule, macule, patch
+- Auto-capture after 2s continuous face alignment
+
+#### Step 2.5 - Analysis Progress (NEW)
+- Staged progress screen between checkin and results
+- 9 stages with timed advancement tied to 3-layer pipeline
+- Stages 0-5 advance on timers (~4.1s), stage 6 holds until API resolves
+- Dual-track timing: timer + API fire in parallel, handshake when both ready
+- XP/badge overlay before navigation to results
 
 #### Step 3 - Daily Quick Check-in (ultra minimal)
 Always ask:
@@ -417,7 +431,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 
 ---
 
-## Implementation Status (as of 2026-03-15)
+## Implementation Status (as of 2026-03-17)
 
 ### Completed (Ship-Ready)
 - All 3 user journeys fully implemented (onboarding, daily scan, report)
@@ -446,9 +460,9 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - **App Store metadata** — description, keywords, screenshot specs for iPhone 15 Pro Max
 - **Demo script** — 7-minute structured walkthrough with talking points
 - **Production build submitted** — v1.0.0 build #3 uploaded to App Store Connect
-- **286 unit tests** across 20 suites (scoring, insights, scanner, subscription, analytics, product lookup, ingredient DB, signal history, signal-models)
-- 49 screen files, 20+ components, 16 services, 7 backend files, Zustand store
-- EAS dev client + production builds succeeding
+- **329 unit tests** across 21 suites (scoring, insights, scanner, subscription, analytics, product lookup, ingredient DB, signal history, signal-models, image-processing)
+- 49 screen files, 21+ components, 17 services, 8 backend files, Zustand store
+- EAS dev client + production builds succeeding (build #18 on TestFlight)
 
 ### SDK Migration (SDK 55 → 54)
 - Downgraded to Expo SDK 54 (`expo ~54.0.0`, `react 19.1.0`, `react-native 0.81.5`)
@@ -479,9 +493,23 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 ### Completed (2026-03-16): Signal-Specific Analysis Pipeline
 - **3-layer parallel pipeline** in `/api/vision/analyze` — deterministic image processing + ONNX CV models + GPT-4o
 - **Layer 1**: CIELAB a*, ITA variance, GLCM, LBP, specular analysis via `sharp` (~100ms)
-- **Layer 2**: ONNX model inference for structure/hydration/elasticity + YOLOv8 lesion detection (placeholder until models trained)
+- **Layer 2**: ONNX model inference for structure/hydration/elasticity + YOLOv8 lesion detection
 - **Layer 3**: Existing fine-tuned GPT-4o (unchanged)
 - **Frontend**: Signal Breakdown section on results screen (per-signal bars + confidence badges), lesion bounding boxes on FacialMesh
+
+### Completed (2026-03-17): HuggingFace Models + Real-Time Lesion Detection + Security Hardening
+- **ONNX models wired**: All 4 model runners (`runStructureModel`, `runHydrationModel`, `runElasticityModel`, `runLesionDetector`) now perform real inference via `onnxruntime-node`
+- **Handcrafted features**: Gabor filter bank (24-dim), LBP-uniform (18-dim), Frangi vesselness (9-dim), landmark geometry (5-dim) computed in `image-processing.js`
+- **Feature builders**: `buildHydrationFeatures()` (44-dim) and `buildElasticityFeatures()` (14-dim) assembled for Layer 2 models
+- **NMS post-processing**: YOLOv8 output transposed, confidence-filtered, NMS with IoU 0.45, mapped to 6 lesion classes + zones
+- **Model download script**: `backend/scripts/download-models.sh` fetches from HuggingFace (`mufasabrownie/glowlytics-skin-models`)
+- **Fast detection endpoint**: `POST /api/vision/detect-lesions` — public, rate-limited (10/10s), runs only YOLOv8
+- **On-device detection**: `onDeviceLesionDetection.ts` service runs YOLOv8 on camera frames during alignment
+- **Real-time overlay**: `LesionOverlay.tsx` — neon sci-fi corner brackets with scanning line, glow pulse, monospace labels
+- **Camera integration**: Detection every 1.2s while face aligned, clears on un-align, Hermes-compatible AbortController
+- **Security hardening**: Authorization checks on all user-data endpoints, CORS restriction, rate limiting, safe error messages, SQL field validation, production auth guard
+- **Codebase audit**: 4 critical + 8 high + 9 medium bugs identified; 11 critical/high fixed, 8 medium documented
+- **Build #18** submitted to TestFlight with all fixes
 - **DB schema**: Added signal_scores, signal_features, lesions JSONB columns to model_outputs
 - **ML pipeline**: 5 new training notebooks (05-09) for structure, hydration, elasticity, lesion detection, evaluation
 - **Tests**: 53 new tests (image processing unit, signal model merging, endpoint integration)
@@ -492,7 +520,8 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - Push notifications for scan reminders
 - PDF export for clinician reports (currently stub)
 - Session replay via PostHog (currently disabled)
-- On-device YOLOv8-nano lesion detection (CoreML/TFLite export from notebook 08)
+- Deploy ONNX models to Railway (115MB total, needs LFS or external hosting)
+- Remaining medium-priority bugs: streak duplication, TodayScreen dead code, duplicate DB schema (see memory/bugs_audit_20260317.md)
 
 ---
 

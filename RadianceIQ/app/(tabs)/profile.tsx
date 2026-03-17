@@ -87,7 +87,15 @@ export default function ProfileTab() {
     const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
     const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
     const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
-    return buildOverallSkinInsight({ latestOutput, baselineOutput: baseline, latestDaily });
+    return buildOverallSkinInsight({
+      latestOutput,
+      baselineOutput: baseline,
+      latestDaily,
+      serverSignalScores: latestOutput?.signal_scores,
+      serverSignalFeatures: latestOutput?.signal_features,
+      serverSignalConfidence: latestOutput?.signal_confidence,
+      serverLesions: latestOutput?.lesions,
+    });
   }, [modelOutputs, dailyRecords]);
 
   // Compute product effectiveness scores
@@ -226,9 +234,13 @@ export default function ProfileTab() {
             )}
             <TouchableOpacity
               style={styles.modeButton}
-              onPress={() => {
+              onPress={async () => {
                 trackEvent('subscription_manage_tapped');
-                presentCustomerCenter();
+                try {
+                  await presentCustomerCenter();
+                } catch {
+                  Alert.alert('Subscription', 'Unable to open subscription management. Please try again later.');
+                }
               }}
               activeOpacity={0.7}
             >
@@ -246,10 +258,14 @@ export default function ProfileTab() {
             <TouchableOpacity
               style={styles.modeButton}
               onPress={async () => {
-                const purchased = await presentPaywall();
-                if (purchased) {
-                  const sub = await checkSubscriptionStatus(subscription);
-                  setSubscription(sub);
+                try {
+                  const purchased = await presentPaywall();
+                  if (purchased) {
+                    const sub = await checkSubscriptionStatus(subscription);
+                    setSubscription(sub);
+                  }
+                } catch {
+                  Alert.alert('Subscription', 'Unable to load upgrade options. Please try again later.');
                 }
               }}
               activeOpacity={0.7}

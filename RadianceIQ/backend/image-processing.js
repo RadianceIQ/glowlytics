@@ -177,6 +177,283 @@ function computeLBP(grayPixels, width, height) {
 }
 
 /**
+ * Compute LBP with configurable radius and number of points.
+ * Returns uniform LBP histogram (nPoints+2 bins for uniform patterns + 1 non-uniform bin).
+ */
+function computeLBPUniform(grayPixels, width, height, radius, nPoints) {
+  radius = radius || 2;
+  nPoints = Math.min(nPoints || 16, 24); // Clamp to prevent OOM from 1 << nPoints
+
+  // Pre-compute sampling offsets
+  const offsets = [];
+  for (let p = 0; p < nPoints; p++) {
+    const angle = (2 * Math.PI * p) / nPoints;
+    offsets.push({ dx: radius * Math.cos(angle), dy: -radius * Math.sin(angle) });
+  }
+
+  // Build uniform LBP lookup: count bit transitions
+  function transitions(pattern) {
+    let count = 0;
+    for (let i = 0; i < nPoints; i++) {
+      const bit1 = (pattern >> i) & 1;
+      const bit2 = (pattern >> ((i + 1) % nPoints)) & 1;
+      if (bit1 !== bit2) count++;
+    }
+    return count;
+  }
+
+  // Map uniform patterns to bin indices (nPoints+1 uniform + 1 non-uniform)
+  // Uniform patterns: bin = popcount (number of set bits), range 0..nPoints
+  // Non-uniform patterns: bin = nPoints + 1
+  const nBins = nPoints + 2;
+
+  function popcount(v) {
+    let c = 0;
+    while (v) { c += v & 1; v >>= 1; }
+    return c;
+  }
+
+  const patternToBin = new Int32Array(1 << nPoints);
+  for (let p = 0; p < (1 << nPoints); p++) {
+    if (transitions(p) <= 2) {
+      patternToBin[p] = popcount(p); // 0..nPoints
+    } else {
+      patternToBin[p] = nPoints + 1; // non-uniform bin
+    }
+  }
+
+  const histogram = new Float32Array(nBins);
+  let total = 0;
+  const margin = Math.ceil(radius);
+
+  for (let y = margin; y < height - margin; y++) {
+    for (let x = margin; x < width - margin; x++) {
+      const center = grayPixels[y * width + x];
+      let pattern = 0;
+
+      for (let p = 0; p < nPoints; p++) {
+        const nx = x + offsets[p].dx;
+        const ny = y + offsets[p].dy;
+
+        // Bilinear interpolation
+        const fx = Math.floor(nx);
+        const fy = Math.floor(ny);
+        const cx = Math.min(fx + 1, width - 1);
+        const cy = Math.min(fy + 1, height - 1);
+        const tx = nx - fx;
+        const ty = ny - fy;
+
+        const val =
+          (1 - tx) * (1 - ty) * grayPixels[fy * width + fx] +
+          tx * (1 - ty) * grayPixels[fy * width + cx] +
+          (1 - tx) * ty * grayPixels[cy * width + fx] +
+          tx * ty * grayPixels[cy * width + cx];
+
+        if (val >= center) {
+          pattern |= (1 << p);
+        }
+      }
+
+      histogram[patternToBin[pattern]]++;
+      total++;
+    }
+  }
+
+  // Normalize
+  if (total > 0) {
+    for (let i = 0; i < nBins; i++) {
+      histogram[i] /= total;
+    }
+  }
+
+  return histogram;
+}
+
+/**
+ * Compute Gabor filter bank features on cheek region.
+ * 4 orientations x 3 frequencies = 12 kernels, 2 stats each = 24 features.
+ */
+function computeGaborFeatures(grayPixels, width, height) {
+  const orientations = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4];
+  const frequencies = [0.1, 0.25, 0.4];
+  const ksize = 31;
+  const sigma = 4.0;
+  const halfK = Math.floor(ksize / 2);
+  const features = new Float32Array(24);
+
+  // Focus on cheek region for speed
+  const roiY0 = Math.round(height * 0.3);
+  const roiY1 = Math.round(height * 0.7);
+  const roiX0 = Math.round(width * 0.2);
+  const roiX1 = Math.round(width * 0.8);
+
+  let idx = 0;
+  for (const theta of orientations) {
+    for (const freq of frequencies) {
+      // Pre-compute Gabor kernel
+      const kernel = new Float32Array(ksize * ksize);
+      const cosT = Math.cos(theta);
+      const sinT = Math.sin(theta);
+      const sigma2 = 2 * sigma * sigma;
+
+      for (let ky = -halfK; ky <= halfK; ky++) {
+        for (let kx = -halfK; kx <= halfK; kx++) {
+          const xPrime = kx * cosT + ky * sinT;
+          const yPrime = -kx * sinT + ky * cosT;
+          const gaussian = Math.exp(-(xPrime * xPrime + yPrime * yPrime) / sigma2);
+          kernel[(ky + halfK) * ksize + (kx + halfK)] = gaussian * Math.cos(2 * Math.PI * freq * xPrime);
+        }
+      }
+
+      // Convolve on ROI
+      let sum = 0;
+      let sumSq = 0;
+      let count = 0;
+
+      for (let y = roiY0; y < roiY1; y += 2) { // stride 2 for speed
+        for (let x = roiX0; x < roiX1; x += 2) {
+          let response = 0;
+          for (let ky = -halfK; ky <= halfK; ky += 2) { // stride 2 in kernel
+            for (let kx = -halfK; kx <= halfK; kx += 2) {
+              const py = y + ky;
+              const px = x + kx;
+              if (py >= 0 && py < height && px >= 0 && px < width) {
+                response += grayPixels[py * width + px] * kernel[(ky + halfK) * ksize + (kx + halfK)];
+              }
+            }
+          }
+          sum += response;
+          sumSq += response * response;
+          count++;
+        }
+      }
+
+      const mean = count > 0 ? sum / count : 0;
+      const variance = count > 0 ? sumSq / count - mean * mean : 0;
+      features[idx++] = mean;
+      features[idx++] = Math.sqrt(Math.max(0, variance));
+    }
+  }
+
+  return features;
+}
+
+/**
+ * Compute Frangi-like wrinkle features for 3 ROIs.
+ * ROIs: forehead (y: 0-25%), left crow's feet (x: 0-25%, y: 25-50%), right crow's feet (x: 75-100%, y: 25-50%)
+ * Per ROI: wrinkle_density, wrinkle_intensity, max_response = 9 features total.
+ */
+function computeFrangiFeatures(grayPixels, width, height) {
+  const features = new Float32Array(9);
+  const scales = [1, 2, 3, 4];
+
+  const rois = [
+    { x0: Math.round(width * 0.15), y0: 0, x1: Math.round(width * 0.85), y1: Math.round(height * 0.25) }, // forehead
+    { x0: 0, y0: Math.round(height * 0.25), x1: Math.round(width * 0.25), y1: Math.round(height * 0.5) }, // left crow's feet
+    { x0: Math.round(width * 0.75), y0: Math.round(height * 0.25), x1: width, y1: Math.round(height * 0.5) }, // right crow's feet
+  ];
+
+  for (let r = 0; r < rois.length; r++) {
+    const roi = rois[r];
+    const rw = roi.x1 - roi.x0;
+    const rh = roi.y1 - roi.y0;
+    if (rw < 4 || rh < 4) continue;
+
+    let maxVesselness = 0;
+    let vesselnessSum = 0;
+    let wrinklePixels = 0;
+    let roiPixels = 0;
+
+    // Multi-scale Frangi
+    for (const scale of scales) {
+      for (let y = roi.y0 + scale; y < roi.y1 - scale; y += 2) {
+        for (let x = roi.x0 + scale; x < roi.x1 - scale; x += 2) {
+          // Hessian via second-order finite differences
+          const c = grayPixels[y * width + x];
+          const ixx = grayPixels[y * width + (x + scale)] + grayPixels[y * width + (x - scale)] - 2 * c;
+          const iyy = grayPixels[(y + scale) * width + x] + grayPixels[(y - scale) * width + x] - 2 * c;
+          const ixy = (
+            grayPixels[(y + scale) * width + (x + scale)] +
+            grayPixels[(y - scale) * width + (x - scale)] -
+            grayPixels[(y + scale) * width + (x - scale)] -
+            grayPixels[(y - scale) * width + (x + scale)]
+          ) / 4;
+
+          // Eigenvalues of 2x2 Hessian
+          const trace = ixx + iyy;
+          const det = ixx * iyy - ixy * ixy;
+          const disc = Math.sqrt(Math.max(0, trace * trace / 4 - det));
+          const lambda1 = trace / 2 + disc;
+          const lambda2 = trace / 2 - disc;
+
+          // Vesselness (simplified Frangi)
+          const absL1 = Math.abs(lambda1);
+          const absL2 = Math.abs(lambda2);
+          if (absL2 < 0.001) continue;
+
+          const Rb = absL1 / absL2;
+          const S = Math.sqrt(absL1 * absL1 + absL2 * absL2);
+          const vesselness = Math.exp(-Rb * Rb / 0.5) * (1 - Math.exp(-S * S / 200));
+
+          if (vesselness > 0.05) wrinklePixels++;
+          vesselnessSum += vesselness;
+          if (vesselness > maxVesselness) maxVesselness = vesselness;
+          roiPixels++;
+        }
+      }
+    }
+
+    const density = roiPixels > 0 ? wrinklePixels / roiPixels : 0;
+    const intensity = roiPixels > 0 ? vesselnessSum / roiPixels : 0;
+    features[r * 3] = density;
+    features[r * 3 + 1] = intensity;
+    features[r * 3 + 2] = maxVesselness;
+  }
+
+  return features;
+}
+
+/**
+ * Compute canonical face landmark geometry features.
+ * Uses anthropometric average ratios since we don't have landmarks server-side.
+ * The CNN features (1280-dim) dominate prediction, so approximate ratios are acceptable.
+ */
+function computeLandmarkGeometry() {
+  // Golden ratio-derived canonical face proportions
+  return new Float32Array([
+    0.46,  // eye_distance_ratio (inter-ocular / face width)
+    0.36,  // nose_length_ratio (nose length / face height)
+    0.50,  // mouth_width_ratio (mouth width / face width)
+    0.33,  // upper_face_ratio (forehead to eyes / face height)
+    0.618, // face_symmetry (golden ratio proxy)
+  ]);
+}
+
+/**
+ * Build hydration model handcrafted features (44-dim).
+ * Assembles: 24 Gabor + 18 LBP(r=2,n=16) + 2 specular.
+ */
+function buildHydrationFeatures(features) {
+  const result = new Float32Array(44);
+  result.set(features.gabor_features, 0);         // 24
+  result.set(features.lbp_uniform_histogram, 24);  // 18
+  result[42] = features.hydration.specular_ratio;
+  result[43] = features.hydration.specular_uniformity;
+  return result;
+}
+
+/**
+ * Build elasticity model handcrafted features (14-dim).
+ * Assembles: 9 Frangi + 5 landmark geometry.
+ */
+function buildElasticityFeatures(features) {
+  const result = new Float32Array(14);
+  result.set(features.frangi_features, 0);       // 9
+  result.set(features.landmark_geometry, 9);     // 5
+  return result;
+}
+
+/**
  * Detect specular highlights in an RGB pixel buffer.
  * Specular pixels: R>200, G>200, B>200, max-min<30.
  * Returns ratio of specular pixels and their spatial uniformity.
@@ -383,7 +660,13 @@ async function extractFeatures(base64Image) {
     }
     const wrinkleIndex = wrinkleEnergy / (width * (foreheadHeight - 2));
 
-    return {
+    // ---- NEW: handcrafted features for Layer 2 models ----
+    const gabor_features = computeGaborFeatures(gray_values, width, height);
+    const lbp_uniform_histogram = computeLBPUniform(cheekGray, cheekWidth, cheekHeight, 2, 16);
+    const frangi_features = computeFrangiFeatures(gray_values, width, height);
+    const landmark_geometry = computeLandmarkGeometry();
+
+    const result = {
       inflammation: {
         a_star_mean: aStats.mean,
         a_star_std: aStats.std,
@@ -412,7 +695,18 @@ async function extractFeatures(base64Image) {
         wrinkle_index: wrinkleIndex,
         forehead_glcm: computeGLCM(foreheadGray, width, foreheadHeight),
       },
+      // Raw feature arrays for Layer 2 models
+      gabor_features,
+      lbp_uniform_histogram,
+      frangi_features,
+      landmark_geometry,
     };
+
+    // Pre-assembled handcrafted feature vectors for Layer 2
+    result.hydration_handcrafted = buildHydrationFeatures(result);
+    result.elasticity_handcrafted = buildElasticityFeatures(result);
+
+    return result;
   } catch (err) {
     console.warn('[image-processing] Feature extraction failed:', err.message);
     return estimateFeaturesFromBase64(base64Image);
@@ -439,7 +733,7 @@ function estimateFeaturesFromBase64(base64Image) {
   const variance = sumSq / sampleSize - mean * mean;
   const std = Math.sqrt(Math.max(0, variance));
 
-  return {
+  const result = {
     inflammation: {
       a_star_mean: (mean - 128) * 0.1,
       a_star_std: std * 0.05,
@@ -473,7 +767,16 @@ function estimateFeaturesFromBase64(base64Image) {
         energy: 0.1,
       },
     },
+    gabor_features: new Float32Array(24),
+    lbp_uniform_histogram: new Float32Array(18),
+    frangi_features: new Float32Array(9),
+    landmark_geometry: computeLandmarkGeometry(),
   };
+
+  result.hydration_handcrafted = buildHydrationFeatures(result);
+  result.elasticity_handcrafted = buildElasticityFeatures(result);
+
+  return result;
 }
 
 /**
@@ -537,11 +840,17 @@ module.exports = {
   extractFeatures,
   featuresToSignalScores,
   extractSummaryFeatures,
+  buildHydrationFeatures,
+  buildElasticityFeatures,
   // Exported for testing
   srgbToLab,
   computeITA,
   computeGLCM,
   computeLBP,
+  computeLBPUniform,
+  computeGaborFeatures,
+  computeFrangiFeatures,
+  computeLandmarkGeometry,
   analyzeSpecular,
   countSpots,
   stats,
