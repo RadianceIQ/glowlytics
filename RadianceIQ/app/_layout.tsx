@@ -13,6 +13,7 @@ import { useStore } from '../src/store/useStore';
 import { setAuthTokenProvider } from '../src/services/api';
 import { initRevenueCat, identifyUser, checkSubscriptionStatus } from '../src/services/subscription';
 import { initAnalytics, identifyUser as identifyAnalyticsUser } from '../src/services/analytics';
+import { initLesionDetection } from '../src/services/onDeviceLesionDetection';
 
 /**
  * Auth gate that only returns Redirect components — never its own navigator.
@@ -64,6 +65,9 @@ function ClerkGatedApp() {
         } catch {
           // RevenueCat init failures are non-fatal
         }
+
+        // Pre-download lesion detection model in background
+        initLesionDetection().catch(() => {});
       })();
     }
   }, []);

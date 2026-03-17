@@ -70,7 +70,6 @@ export default function CameraScreen() {
   const [autoCountdown, setAutoCountdown] = useState(0);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [detectedLesions, setDetectedLesions] = useState<DetectedLesion[]>([]);
-  const [modelDownloading, setModelDownloading] = useState(false);
   const detectingRef = useRef(false);
   const detectionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastFrameUriRef = useRef<string | null>(null);
@@ -106,13 +105,10 @@ export default function CameraScreen() {
     }
   }, [trackingState]);
 
-  // Initialize on-device lesion detection model
+  // Model is pre-downloaded at app startup (_layout.tsx).
+  // Just ensure session is loaded when camera mounts (no-op if already cached).
   useEffect(() => {
-    setModelDownloading(true);
-    initLesionDetection((pct) => {
-      // Could show download progress in UI if desired
-    }).finally(() => setModelDownloading(false));
-
+    initLesionDetection().catch(() => {});
     return () => releaseLesionDetection();
   }, []);
 
