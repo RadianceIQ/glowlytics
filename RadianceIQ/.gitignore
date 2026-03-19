@@ -45,8 +45,8 @@ backend/models/*.pt
 *.ipa
 build-*.ipa
 
-# On-device ONNX models (large binary, downloaded at runtime or bundled by EAS)
-assets/models/*.onnx
+# On-device ONNX models are tracked (needed for app bundle)
+# assets/models/*.onnx
 
 # Claude Code local settings
 .claude/
