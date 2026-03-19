@@ -10,6 +10,15 @@ import {
 import type { FaceZoneInsight, SeverityLevel } from '../services/skinInsights';
 import type { DetectedLesion } from '../types';
 
+const LESION_COLORS: Record<string, string> = {
+  comedone: '#F2B56A',
+  papule: '#FF9A5C',
+  pustule: '#FF7A78',
+  nodule: '#D94545',
+  macule: '#C4956A',
+  patch: '#B68AFF',
+};
+
 interface Props {
   zones: FaceZoneInsight[];
   selectedZoneKey: string;
@@ -21,18 +30,6 @@ const severityColors: Record<SeverityLevel, string> = {
   low: Colors.success,
   moderate: Colors.warning,
   high: Colors.error,
-};
-
-const FACE_MODEL_WIDTH = 248;
-const FACE_MODEL_HEIGHT = 300;
-
-const lesionColors: Record<string, string> = {
-  comedone: '#FFD700',
-  papule: '#FF7A78',
-  pustule: '#FF5252',
-  nodule: '#D32F2F',
-  macule: '#B68AFF',
-  patch: '#4DA6FF',
 };
 
 export const FaceAssessmentMap: React.FC<Props> = ({
@@ -71,6 +68,25 @@ export const FaceAssessmentMap: React.FC<Props> = ({
           <View style={styles.mouth} />
         </View>
 
+        {lesions && lesions.length > 0 && lesions.map((lesion, i) => {
+          const [bx, by] = lesion.bbox;
+          const cx = bx + lesion.bbox[2] / 2;
+          const cy = by + lesion.bbox[3] / 2;
+          return (
+            <View
+              key={`lesion-${i}`}
+              style={[
+                styles.lesionDot,
+                {
+                  top: `${cy * 100}%`,
+                  left: `${cx * 100}%`,
+                  backgroundColor: LESION_COLORS[lesion.class] || Colors.error,
+                },
+              ]}
+            />
+          );
+        })}
+
         {zones.map((zone) => {
           const selected = zone.key === selectedZoneKey;
           const markerTransform = selected
@@ -103,27 +119,6 @@ export const FaceAssessmentMap: React.FC<Props> = ({
                 </Text>
               </TouchableOpacity>
             </Animated.View>
-          );
-        })}
-
-        {lesions && lesions.length > 0 && lesions.map((lesion, i) => {
-          const [bx, by, bw, bh] = lesion.bbox;
-          const cx = (bx + bw / 2) * 100;
-          const cy = (by + bh / 2) * 100;
-          const dotColor = lesionColors[lesion.class] || Colors.error;
-          return (
-            <View
-              key={`lesion-${i}`}
-              style={[
-                styles.lesionDot,
-                {
-                  top: `${cy}%`,
-                  left: `${cx}%`,
-                  backgroundColor: dotColor,
-                  borderColor: dotColor,
-                },
-              ]}
-            />
           );
         })}
       </View>
@@ -204,11 +199,11 @@ const styles = StyleSheet.create({
   },
   lesionDot: {
     position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    transform: [{ translateX: -5 }, { translateY: -5 }],
-    opacity: 0.85,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    transform: [{ translateX: -4 }, { translateY: -4 }],
   },
 });

@@ -4,7 +4,6 @@ import type {
   DailyRecord,
   DetectedCondition,
   DetectedLesion,
-  MetricRecommendation,
   ModelOutput,
   RagRecommendation,
   ScanProtocol,
@@ -329,8 +328,6 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
   signal_features?: SignalFeatures;
   lesions?: DetectedLesion[];
   signal_confidence?: SignalConfidence;
-  signal_recommendations?: Record<string, string[]>;
-  metric_recommendations?: Record<string, MetricRecommendation>;
 }> => {
   try {
     // Try real Vision API via backend proxy if API base URL is configured and photo is available
@@ -371,21 +368,38 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
           lesions: result.lesions,
           signal_confidence: result.signal_confidence,
         };
-      } catch (err) {
-        console.error('[Glowlytics] Vision API failed:', err);
-        throw new Error('Unable to reach our servers. Please check your internet connection and try again.');
+      } catch (err: any) {
+        console.warn('[Glowlytics] Vision API failed:', err?.message || err);
+        throw new Error(
+          err?.message?.includes('Network') || err?.message?.includes('abort') || err?.message?.includes('fetch')
+            ? 'Unable to reach our servers. Please check your internet connection and try again.'
+            : err?.message || 'Analysis failed. Please try again.',
+        );
       }
-    }
-
-    if (!input.photoUri) {
+    } else if (!env.API_BASE_URL) {
+      // Dev mode — no backend configured, use local heuristics
+      console.log('[Glowlytics] No API_BASE_URL configured — using LOCAL heuristic analysis');
+      return analyzeSkiN(input);
+    } else {
       throw new Error('No photo was captured. Please try scanning again.');
     }
-    // No API_BASE_URL configured
-    throw new Error('Unable to reach our servers. Please check your internet connection and try again.');
   } catch (outerErr) {
-    // Re-throw user-facing errors so the analyzing screen can display them
-    if (outerErr instanceof Error) throw outerErr;
-    throw new Error('Unable to reach our servers. Please check your internet connection and try again.');
+    // Emergency fallback — return safe zeroed result if even local heuristics fail
+    console.error('[Glowlytics] Unexpected error in analyzeWithFallback — using emergency fallback:', outerErr);
+    try {
+      return await analyzeSkiN(input);
+    } catch (innerErr) {
+      console.error('[Glowlytics] Local heuristics also failed — returning zeroed result:', innerErr);
+      return {
+        acne_score: 0,
+        sun_damage_score: 0,
+        skin_age_score: 0,
+        confidence: 'low' as Confidence,
+        primary_driver: 'analysis error',
+        recommended_action: 'We had trouble analyzing your scan. Please try again.',
+        escalation_flag: false,
+      };
+    }
   }
 };
 

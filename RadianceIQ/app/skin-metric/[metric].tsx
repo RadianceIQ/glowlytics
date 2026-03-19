@@ -66,13 +66,6 @@ export default function MetricAssessmentDetail() {
     }
   }, [detail]);
 
-  // Prefer server-generated metric recommendations when available
-  const serverMetricRec = metric ? latestOutput?.metric_recommendations?.[metric] : undefined;
-  const effectiveReport = serverMetricRec?.report || detail?.report || '';
-  const effectiveStopUsing = serverMetricRec?.stop_using || detail?.stopUsing || '';
-  const effectiveConsiderUsing = serverMetricRec?.consider_using || detail?.considerUsing || '';
-  const effectiveContinueUsing = serverMetricRec?.continue_using || detail?.continueUsing || '';
-
   const activeZone = detail?.zones.find((zone) => zone.key === selectedZone) || detail?.zones[0];
   const zoneReportMotion = useRef(new Animated.Value(1)).current;
 
@@ -180,25 +173,25 @@ export default function MetricAssessmentDetail() {
 
       <View style={styles.productCard}>
         <Text style={styles.productTitle}>Detailed report and product guidance</Text>
-        <Text style={styles.productBody}>{effectiveReport}</Text>
+        <Text style={styles.productBody}>{detail.report}</Text>
         <View style={styles.recommendationStack}>
           <View style={styles.recommendationRow}>
             <Text style={styles.recommendationLabel}>Stop using</Text>
-            <Text style={styles.recommendationText}>{effectiveStopUsing}</Text>
+            <Text style={styles.recommendationText}>{detail.stopUsing}</Text>
           </View>
           <View style={styles.recommendationRow}>
             <Text style={styles.recommendationLabel}>Consider using</Text>
-            <Text style={styles.recommendationText}>{effectiveConsiderUsing}</Text>
+            <Text style={styles.recommendationText}>{detail.considerUsing}</Text>
           </View>
           <View style={styles.recommendationRow}>
             <Text style={styles.recommendationLabel}>Continue</Text>
-            <Text style={styles.recommendationText}>{effectiveContinueUsing}</Text>
+            <Text style={styles.recommendationText}>{detail.continueUsing}</Text>
           </View>
         </View>
       </View>
 
       <Text style={styles.disclaimer}>
-        For informational purposes only — not medical advice. Consult a dermatologist for diagnosis or treatment.
+        For informational purposes only. Not medical advice. Consult a dermatologist for diagnosis and treatment.
       </Text>
 
       <Button title="Back to all metrics" variant="ghost" onPress={() => router.back()} />
@@ -396,10 +389,10 @@ const styles = StyleSheet.create({
   disclaimer: {
     color: Colors.textMuted,
     fontFamily: FontFamily.sans,
+    fontStyle: 'italic',
     fontSize: FontSize.xs,
-    textAlign: 'center',
     lineHeight: FontSize.xs * 1.5,
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.lg,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
   },
 });

@@ -28,8 +28,9 @@ import { trackEvent } from '../../src/services/analytics';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 
+// Single source of truth for tab bar dimensions — no magic numbers
 const TAB_BAR_HEIGHT = 64;
-const TAB_BAR_MARGIN = Spacing.md;
+const TAB_BAR_MARGIN = 16;
 
 const TabGlyph: React.FC<{ icon: IconName; label: string; focused: boolean }> = ({
   icon,
@@ -114,7 +115,7 @@ export default function TabsLayout() {
           <BlurView
             intensity={60}
             tint="systemChromeMaterialLight"
-            style={styles.blurFill}
+            style={[StyleSheet.absoluteFill, styles.blurFill]}
           />
         ),
         tabBarStyle: [
@@ -217,6 +218,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: Spacing.md,
     right: Spacing.md,
+    bottom: Spacing.md,
     backgroundColor: 'rgba(255, 255, 255, 0.65)',
     borderRadius: BorderRadius.full,
     borderTopWidth: 0,
@@ -229,7 +231,6 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
   },
   blurFill: {
-    flex: 1,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
   },
@@ -269,6 +270,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: -(TAB_BAR_HEIGHT * 0.3),
   },
   cameraOuter: {
     width: 56,

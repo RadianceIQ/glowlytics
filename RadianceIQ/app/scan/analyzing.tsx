@@ -321,8 +321,6 @@ export default function AnalyzingScreen() {
         signal_features: analysis.signal_features,
         lesions: finalLesions,
         signal_confidence: analysis.signal_confidence,
-        signal_recommendations: analysis.signal_recommendations,
-        metric_recommendations: analysis.metric_recommendations,
       });
 
       const currentState = useStore.getState();
@@ -431,13 +429,13 @@ export default function AnalyzingScreen() {
     }, 15000);
     timers.current.push(tSlow);
 
-    // Hard timeout at 45s -- show error with retry instead of navigating with no data
+    // Hard timeout at 45s -- force navigate to results with whatever we have
     const tHardTimeout = setTimeout(() => {
       if (!apiDone.current) {
         console.error('[Glowlytics] Analysis hard timeout at 45s');
         trackEvent('scan_analysis_timeout', { analysis_time_ms: 45000 });
         apiDone.current = true;
-        setError('Analysis is taking too long. Please check your connection and try again.');
+        runPostApiStages();
       }
     }, 45000);
     timers.current.push(tHardTimeout);
@@ -597,7 +595,7 @@ export default function AnalyzingScreen() {
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.content}>
-          <Feather name="wifi-off" size={48} color={Colors.error} />
+          <Feather name="alert-circle" size={48} color={Colors.error} />
           <Text style={styles.errorTitle}>Analysis failed</Text>
           <Text style={styles.errorSubtitle}>{error}</Text>
           <View style={styles.errorButtons}>
