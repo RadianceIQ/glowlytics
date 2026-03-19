@@ -15,6 +15,7 @@
       "backgroundColor": "#FAFAF7"
     },
     "ios": {
+      "buildNumber": "16",
       "supportsTablet": true,
       "bundleIdentifier": "com.glowlytics.app",
       "usesAppleSignIn": true,
