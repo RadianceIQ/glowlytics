@@ -69,7 +69,7 @@
           }
         }
       ],
-      ["expo-asset", { "assets": ["./assets/models"] }],
+      ["expo-asset", { "assets": ["./assets/models"], "extensions": ["onnx"] }],
       "expo-font",
       "expo-notifications",
       "expo-web-browser",

@@ -57,10 +57,14 @@ function ClerkGatedApp() {
     if (!loaded.current) {
       loaded.current = true;
       setAuthTokenProvider(() => getToken());
-      setTimeout(() => loadPersistedData(), 0);
 
-      // Initialize analytics + RevenueCat after auth — gate app on completion
+      // Initialize store + analytics + RevenueCat — gate app on completion
       (async () => {
+        // Hydrate persisted data FIRST so AuthRedirector sees onboarding_complete
+        console.log('[App] Loading persisted data...');
+        await loadPersistedData();
+        console.log('[App] Persisted data loaded');
+
         try {
           console.log('[App] Initializing analytics...');
           await initAnalytics();
@@ -81,7 +85,7 @@ function ClerkGatedApp() {
           console.warn('[App] Analytics init failed:', e?.message || e);
         }
 
-        // App is ready — RevenueCat init (including offerings fetch) is complete
+        // App is ready — store hydrated + RevenueCat init complete
         console.log('[App] Init complete — rendering app');
         identifyAnalyticsUser(userId || 'anonymous');
         trackEvent('app_init_complete', {
