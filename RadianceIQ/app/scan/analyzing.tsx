@@ -431,13 +431,13 @@ export default function AnalyzingScreen() {
     }, 15000);
     timers.current.push(tSlow);
 
-    // Hard timeout at 45s -- force navigate to results with whatever we have
+    // Hard timeout at 45s -- show error with retry instead of navigating with no data
     const tHardTimeout = setTimeout(() => {
       if (!apiDone.current) {
         console.error('[Glowlytics] Analysis hard timeout at 45s');
         trackEvent('scan_analysis_timeout', { analysis_time_ms: 45000 });
         apiDone.current = true;
-        runPostApiStages();
+        setError('Analysis is taking too long. Please check your connection and try again.');
       }
     }, 45000);
     timers.current.push(tHardTimeout);
