@@ -1,22 +1,24 @@
 /**
  * On-device YOLOv8 lesion detection via ONNX Runtime.
  *
- * Downloads the model from HuggingFace on first use, caches locally,
- * and runs inference on camera frames. Post-processes with NMS.
+ * Model is bundled as an app asset via expo-asset plugin.
+ * Falls back to HuggingFace download if bundled asset unavailable.
+ * Runs inference on camera frames with NMS post-processing.
  */
 import { InferenceSession, Tensor } from 'onnxruntime-react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode as decodeJpeg } from 'jpeg-js';
 import type { DetectedLesion, LesionClass, FacialRegion } from '../types';
+import { trackEvent } from './analytics';
 
-const MODEL_URL =
-  'https://huggingface.co/mufasabrownie/glowlytics-skin-models/resolve/main/lesion_detector.onnx';
+const TAG = '[LesionDetection]';
+
 const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
 const MODEL_PATH = `${MODELS_DIR}lesion_detector.onnx`;
 
 const INPUT_SIZE = 640;
 const NUM_CLASSES = 6;
-const CONF_THRESHOLD = 0.25;
+const CONF_THRESHOLD = 0.02;
 const IOU_THRESHOLD = 0.45;
 
 const LESION_CLASSES = ['comedone', 'papule', 'pustule', 'nodule', 'macule', 'patch'];
@@ -28,58 +30,69 @@ let loadingPromise: Promise<boolean> | null = null;
 // Model lifecycle
 // ---------------------------------------------------------------------------
 
-/** Check if the model file is cached on disk. */
-async function isModelCached(): Promise<boolean> {
-  const info = await FileSystem.getInfoAsync(MODEL_PATH);
-  return info.exists && !info.isDirectory;
-}
-
-/** Download the model from HuggingFace. Shows progress via callback. */
-async function downloadModel(
-  onProgress?: (pct: number) => void,
-): Promise<boolean> {
+/**
+ * Resolve model path: try bundled asset first, then check document cache.
+ * Lazy-imports expo-asset so this module doesn't crash in Expo Go.
+ */
+async function resolveModelPath(): Promise<string | null> {
+  // 1. Try bundled asset (native builds only — expo-asset crashes in Expo Go)
   try {
-    await FileSystem.makeDirectoryAsync(MODELS_DIR, { intermediates: true });
-
-    const download = FileSystem.createDownloadResumable(
-      MODEL_URL,
-      MODEL_PATH,
-      {},
-      (progress) => {
-        const pct = progress.totalBytesWritten / progress.totalBytesExpectedToWrite;
-        onProgress?.(pct);
-      },
-    );
-
-    const result = await download.downloadAsync();
-    return !!result?.uri;
+    const { Asset } = await import('expo-asset');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const asset = Asset.fromModule(require('../../assets/models/lesion_detector.onnx'));
+    await asset.downloadAsync(); // Copies from bundle to readable path (instant, no network)
+    if (asset.localUri) {
+      console.log(TAG, 'Using bundled model at:', asset.localUri);
+      return asset.localUri;
+    }
   } catch (err) {
-    console.warn('[lesion-detection] Download failed:', err);
-    return false;
+    console.warn(TAG, 'Bundled asset not available (expected in Expo Go):', err);
   }
+
+  // 2. Check if model was previously downloaded to document directory
+  try {
+    const info = await FileSystem.getInfoAsync(MODEL_PATH);
+    if (info.exists && !info.isDirectory) {
+      console.log(TAG, 'Using cached model at:', MODEL_PATH);
+      return MODEL_PATH;
+    }
+  } catch {
+    // Not cached
+  }
+
+  console.warn(TAG, 'No model available — on-device detection disabled');
+  return null;
 }
 
-/** Ensure model is ready: download if needed, then load the ONNX session. */
+/** Ensure model is ready: resolve path, then load the ONNX session. */
 export async function initLesionDetection(
-  onProgress?: (pct: number) => void,
+  _onProgress?: (pct: number) => void,
 ): Promise<boolean> {
-  if (session) return true;
-  if (loadingPromise) return loadingPromise;
+  if (session) {
+    console.log(TAG, 'Session already loaded');
+    return true;
+  }
+  if (loadingPromise) {
+    console.log(TAG, 'Init already in progress — awaiting');
+    return loadingPromise;
+  }
 
   loadingPromise = (async () => {
     try {
-      const cached = await isModelCached();
-      if (!cached) {
-        const ok = await downloadModel(onProgress);
-        if (!ok) return false;
-      }
+      console.log(TAG, 'Initializing...');
+      const modelPath = await resolveModelPath();
+      if (!modelPath) return false;
 
-      session = await InferenceSession.create(MODEL_PATH, {
+      console.log(TAG, 'Creating ONNX inference session...');
+      session = await InferenceSession.create(modelPath, {
         executionProviders: ['coreml', 'cpu'],
       });
+      console.log(TAG, 'ONNX session created successfully');
+      trackEvent('lesion_model_loaded', { source: modelPath.includes('ExponentAsset') ? 'bundled' : 'cached' });
       return true;
-    } catch (err) {
-      console.warn('[lesion-detection] Init failed:', err);
+    } catch (err: any) {
+      console.error(TAG, 'Init failed:', err?.message || err);
+      trackEvent('lesion_model_failed', { error: String(err?.message || err) });
       return false;
     } finally {
       loadingPromise = null;
@@ -91,6 +104,7 @@ export async function initLesionDetection(
 
 /** Release the model session. */
 export function releaseLesionDetection(): void {
+  console.log(TAG, 'Releasing session');
   session = null;
 }
 
@@ -113,7 +127,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 /**
- * Decode a JPEG frame, resize to 640×640, normalize to [0,1], CHW layout.
+ * Decode a JPEG frame, resize to 640x640, normalize to [0,1], CHW layout.
  */
 function preprocessFrame(jpegBase64: string): Float32Array | null {
   try {
@@ -145,7 +159,7 @@ function preprocessFrame(jpegBase64: string): Float32Array | null {
 
     return tensor;
   } catch (err) {
-    console.warn('[lesion-detection] Preprocess failed:', err);
+    console.warn(TAG, 'Preprocess failed:', err);
     return null;
   }
 }
@@ -263,7 +277,7 @@ export async function detectLesions(frameBase64: string): Promise<DetectedLesion
       zone: bboxToZone(box.cx, box.cy),
     }));
   } catch (err) {
-    console.warn('[lesion-detection] Inference failed:', err);
+    console.warn(TAG, 'Inference failed:', err);
     return [];
   }
 }

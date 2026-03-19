@@ -5,9 +5,10 @@ import type {
   UserProfile, ScanProtocol, ProductEntry, DailyRecord,
   ModelOutput, PrimaryGoal, ScanRegion, HealthConnectionState,
   GamificationState, Badge, WeeklyChallenge, LevelName,
-  OnboardingScreenName, SubscriptionState,
+  OnboardingScreenName, SubscriptionState, NotificationSettings,
+  DetectedLesion,
 } from '../types';
-import { defaultSubscription, canScan as canScanPure } from '../services/subscription';
+import { defaultSubscription, canScan as canScanPure, startTrial as computeTrial } from '../services/subscription';
 import * as api from '../services/api';
 import {
   getLevelForXP,
@@ -31,15 +32,19 @@ interface AppState {
   onboardingFlow: OnboardingScreenName[];
   onboardingFlowIndex: number;
 
-  // Pending scan result (processing→checkin handoff)
+  // Pending scan result (processing→analyzing handoff)
   pendingScanResult: Partial<ModelOutput> | null;
   pendingPhotoBase64: string | null;
+  pendingLesions: DetectedLesion[] | null;
 
   // Gamification
   gamification: GamificationState;
 
   // Subscription
   subscription: SubscriptionState;
+
+  // Notifications
+  notificationSettings: NotificationSettings;
 
   // Actions
   setOnboardingStep: (step: number) => void;
@@ -57,6 +62,7 @@ interface AppState {
   clearPendingScanResult: () => void;
   setPendingPhotoBase64: (base64: string | null) => void;
   clearPendingPhotoBase64: () => void;
+  setPendingLesions: (lesions: DetectedLesion[] | null) => void;
   getStreak: () => number;
   getLatestOutput: () => ModelOutput | null;
   getOutputHistory: (days: number) => ModelOutput[];
@@ -70,6 +76,9 @@ interface AppState {
   setSubscription: (sub: SubscriptionState) => void;
   incrementFreeScansUsed: () => void;
   canPerformScan: () => boolean;
+  startTrial: () => void;
+  setNotificationTime: (time: string | null) => void;
+  setNotificationsEnabled: (enabled: boolean) => void;
 }
 
 const generateId = () => {
@@ -149,12 +158,14 @@ export const useStore = create<AppState>((set, get) => ({
   dailyRecords: [],
   modelOutputs: [],
   onboardingStep: 0,
-  onboardingFlow: ['welcome', 'age-range', 'sex', 'location', 'skin-goal', 'supplements', 'exercise', 'shower-frequency', 'hand-washing', 'camera-permission', 'ready'],
+  onboardingFlow: ['welcome', 'age-range', 'sex', 'location', 'skin-goal', 'supplements', 'exercise', 'shower-frequency', 'hand-washing', 'scan-reminder', 'camera-permission', 'ready', 'paywall'],
   onboardingFlowIndex: 0,
   pendingScanResult: null,
   pendingPhotoBase64: null,
+  pendingLesions: null,
   gamification: defaultGamification(),
   subscription: defaultSubscription(),
+  notificationSettings: { notifications_enabled: false, notification_time: null },
 
   setOnboardingStep: (step) => set({ onboardingStep: step }),
   setOnboardingFlow: (flow) => set({ onboardingFlow: flow }),
@@ -273,9 +284,6 @@ export const useStore = create<AppState>((set, get) => ({
       user_id: user.user_id,
     };
     set((s) => ({ dailyRecords: [...s.dailyRecords, entry] }));
-    if (!get().subscription.is_active) {
-      get().incrementFreeScansUsed();
-    }
     get().persistData();
     syncToBackend(() => api.addDailyRecord(entry));
 
@@ -307,6 +315,7 @@ export const useStore = create<AppState>((set, get) => ({
   clearPendingScanResult: () => set({ pendingScanResult: null }),
   setPendingPhotoBase64: (base64) => set({ pendingPhotoBase64: base64 }),
   clearPendingPhotoBase64: () => set({ pendingPhotoBase64: null }),
+  setPendingLesions: (lesions) => set({ pendingLesions: lesions }),
 
   getStreak: () => {
     const records = get().dailyRecords;
@@ -445,6 +454,34 @@ export const useStore = create<AppState>((set, get) => ({
 
   canPerformScan: () => canScanPure(get().subscription),
 
+  startTrial: () => {
+    const trialFields = computeTrial();
+    set((s) => ({
+      subscription: { ...s.subscription, ...trialFields },
+    }));
+    // Sync trial dates to backend
+    const user = get().user;
+    if (user) {
+      syncToBackend(() => api.updateUser(user.user_id, {
+        trial_start_date: trialFields.trial_start_date,
+        trial_end_date: trialFields.trial_end_date,
+      } as any));
+    }
+    get().persistData();
+  },
+
+  setNotificationTime: (time) => {
+    set({ notificationSettings: { notifications_enabled: time !== null, notification_time: time } });
+    get().persistData();
+  },
+
+  setNotificationsEnabled: (enabled) => {
+    set((s) => ({
+      notificationSettings: { ...s.notificationSettings, notifications_enabled: enabled },
+    }));
+    get().persistData();
+  },
+
   loadPersistedData: async () => {
     try {
       const data = await AsyncStorage.getItem('glowlytics_data');
@@ -464,7 +501,13 @@ export const useStore = create<AppState>((set, get) => ({
           dailyRecords: parsed.dailyRecords || [],
           modelOutputs: parsed.modelOutputs || [],
           gamification: parsed.gamification || defaultGamification(),
-          subscription: parsed.subscription || defaultSubscription(),
+          subscription: {
+            ...defaultSubscription(),
+            ...parsed.subscription,
+            trial_start_date: parsed.subscription?.trial_start_date ?? null,
+            trial_end_date: parsed.subscription?.trial_end_date ?? null,
+          },
+          notificationSettings: parsed.notificationSettings || { notifications_enabled: false, notification_time: null },
         });
         return;
       }
@@ -477,9 +520,9 @@ export const useStore = create<AppState>((set, get) => ({
 
   persistData: async () => {
     try {
-      const { user, protocol, products, dailyRecords, modelOutputs, gamification, subscription } = get();
+      const { user, protocol, products, dailyRecords, modelOutputs, gamification, subscription, notificationSettings } = get();
       await AsyncStorage.setItem('glowlytics_data', JSON.stringify({
-        user, protocol, products, dailyRecords, modelOutputs, gamification, subscription,
+        user, protocol, products, dailyRecords, modelOutputs, gamification, subscription, notificationSettings,
       }));
     } catch (e) {
       console.log('Failed to persist data', e);
@@ -498,8 +541,10 @@ export const useStore = create<AppState>((set, get) => ({
       onboardingFlowIndex: 0,
       pendingScanResult: null,
       pendingPhotoBase64: null,
+      pendingLesions: null,
       gamification: defaultGamification(),
       subscription: defaultSubscription(),
+      notificationSettings: { notifications_enabled: false, notification_time: null },
     });
     AsyncStorage.removeItem('glowlytics_data');
   },

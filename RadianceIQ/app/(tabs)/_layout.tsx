@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -10,13 +10,14 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  withSpring,
+  Easing,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BorderRadius,
   Colors,
   FontFamily,
-  FontSize,
   Shadows,
   Spacing,
 } from '../../src/constants/theme';
@@ -27,22 +28,44 @@ import { trackEvent } from '../../src/services/analytics';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
 
+const TAB_BAR_HEIGHT = 64;
+const TAB_BAR_MARGIN = Spacing.md;
+
 const TabGlyph: React.FC<{ icon: IconName; label: string; focused: boolean }> = ({
   icon,
   label,
   focused,
-}) => (
-  <View style={styles.tabGlyph}>
-    <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-      <Feather
-        name={icon}
-        size={20}
-        color={focused ? Colors.text : Colors.textMuted}
-      />
-    </View>
-    <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
-  </View>
-);
+}) => {
+  const scale = useSharedValue(1);
+  const dotOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    scale.value = withSpring(focused ? 1 : 0.92, { damping: 15, stiffness: 180 });
+    dotOpacity.value = withTiming(focused ? 1 : 0, { duration: 200 });
+  }, [focused]);
+
+  const iconAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const dotAnimStyle = useAnimatedStyle(() => ({
+    opacity: dotOpacity.value,
+  }));
+
+  return (
+    <Animated.View style={[styles.tabGlyph, iconAnimStyle]}>
+      <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+        <Feather
+          name={icon}
+          size={20}
+          color={focused ? Colors.text : Colors.textMuted}
+        />
+      </View>
+      <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
+      <Animated.View style={[styles.activeDot, dotAnimStyle]} />
+    </Animated.View>
+  );
+};
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -50,25 +73,29 @@ export default function TabsLayout() {
   const dailyRecords = useStore((s) => s.dailyRecords);
   const isFirstScan = dailyRecords.length === 0;
 
-  // First-scan glow animation for camera button
-  const glowOpacity = useSharedValue(0.12);
+  const glowOpacity = useSharedValue(0.15);
+  const cameraScale = useSharedValue(1);
 
   useEffect(() => {
     if (isFirstScan) {
       glowOpacity.value = withRepeat(
         withSequence(
-          withTiming(0.35, { duration: 1200 }),
-          withTiming(0.12, { duration: 1200 }),
+          withTiming(0.5, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.15, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
         ),
         -1,
       );
     } else {
-      glowOpacity.value = withTiming(0.12, { duration: 300 });
+      glowOpacity.value = withTiming(0.15, { duration: 300 });
     }
   }, [isFirstScan]);
 
   const cameraGlowStyle = useAnimatedStyle(() => ({
-    borderColor: `rgba(58, 158, 143, ${glowOpacity.value})`,
+    shadowOpacity: glowOpacity.value,
+  }));
+
+  const cameraPressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: cameraScale.value }],
   }));
 
   return (
@@ -77,30 +104,31 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        sceneStyle: { paddingBottom: 80 + Math.max(insets.bottom - 4, 0), backgroundColor: Colors.background },
+        sceneStyle: {
+          paddingBottom: TAB_BAR_HEIGHT + TAB_BAR_MARGIN + insets.bottom,
+          backgroundColor: Colors.background,
+        },
         tabBarShowLabel: false,
         tabBarHideOnKeyboard: true,
         tabBarBackground: () => (
           <BlurView
-            intensity={40}
-            tint="light"
-            style={[StyleSheet.absoluteFill, styles.blurFill]}
+            intensity={60}
+            tint="systemChromeMaterialLight"
+            style={styles.blurFill}
           />
         ),
         tabBarStyle: [
           styles.tabBar,
           {
-            height: 64 + Math.max(insets.bottom - 4, 0),
-            paddingBottom: Math.max(insets.bottom - 4, Spacing.xs),
+            height: TAB_BAR_HEIGHT,
+            bottom: TAB_BAR_MARGIN + insets.bottom,
           },
         ],
       }}
     >
       <Tabs.Screen
         name="index"
-        options={{
-          href: null,
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="today"
@@ -110,11 +138,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="trend"
+        name="products"
         options={{
-          title: 'Trend',
+          title: 'Products',
           tabBarIcon: ({ focused }) => (
-            <TabGlyph icon="trending-up" label="Trend" focused={focused} />
+            <TabGlyph icon="shopping-bag" label="Products" focused={focused} />
           ),
         }}
       />
@@ -128,6 +156,12 @@ export default function TabsLayout() {
               accessibilityLabel="Open camera"
               accessibilityState={accessibilityState}
               onLongPress={onLongPress}
+              onPressIn={() => {
+                cameraScale.value = withSpring(0.9, { damping: 15, stiffness: 200 });
+              }}
+              onPressOut={() => {
+                cameraScale.value = withSpring(1, { damping: 15, stiffness: 200 });
+              }}
               onPress={async () => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 const canScan = useStore.getState().canPerformScan();
@@ -148,9 +182,9 @@ export default function TabsLayout() {
               }}
               style={styles.cameraButton}
             >
-              <Animated.View style={[styles.cameraOuter, cameraGlowStyle]}>
+              <Animated.View style={[styles.cameraOuter, cameraGlowStyle, cameraPressStyle]}>
                 <View style={styles.cameraInner}>
-                  <Feather name="camera" size={22} color={Colors.text} />
+                  <Feather name="camera" size={22} color="#FFFFFF" />
                 </View>
               </Animated.View>
             </Pressable>
@@ -183,20 +217,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: Spacing.md,
     right: Spacing.md,
-    bottom: Spacing.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
     borderRadius: BorderRadius.full,
     borderTopWidth: 0,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
+    borderWidth: 0,
     paddingTop: Spacing.xs,
     elevation: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
-    shadowRadius: 24,
+    shadowRadius: 20,
   },
   blurFill: {
+    flex: 1,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
   },
@@ -204,7 +237,7 @@ const styles = StyleSheet.create({
     minWidth: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 2,
   },
   iconWrap: {
     width: 36,
@@ -220,16 +253,22 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: FontFamily.sansMedium,
     fontSize: 10,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   tabLabelActive: {
     color: Colors.text,
+  },
+  activeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+    marginTop: 1,
   },
   cameraButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -20,
   },
   cameraOuter: {
     width: 56,
@@ -239,7 +278,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(58, 158, 143, 0.15)',
+    borderColor: 'rgba(58, 158, 143, 0.12)',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 16,
   },
   cameraInner: {
     width: 46,

@@ -41,6 +41,16 @@ yarn-error.*
 backend/models/*.onnx
 backend/models/*.pt
 
+# Build artifacts
+*.ipa
+build-*.ipa
+
+# On-device ONNX models (large binary, downloaded at runtime or bundled by EAS)
+assets/models/*.onnx
+
+# Claude Code local settings
+.claude/
+
 # generated native folders
 /ios
 /android

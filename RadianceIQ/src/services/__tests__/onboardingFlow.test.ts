@@ -18,8 +18,10 @@ describe('onboardingFlow', () => {
       expect(flow).toContain('exercise');
       expect(flow).toContain('shower-frequency');
       expect(flow).toContain('hand-washing');
+      expect(flow).toContain('scan-reminder');
       expect(flow).toContain('camera-permission');
       expect(flow).toContain('ready');
+      expect(flow).toContain('paywall');
       expect(flow).not.toContain('menstrual');
       expect(flow).not.toContain('cycle-details');
     });
@@ -28,7 +30,7 @@ describe('onboardingFlow', () => {
       const flow = buildOnboardingFlow('male');
       expect(flow).not.toContain('menstrual');
       expect(flow).not.toContain('cycle-details');
-      expect(flow.length).toBe(11);
+      expect(flow.length).toBe(13); // +2 for scan-reminder and paywall
     });
 
     it('inserts menstrual screen for female users', () => {
@@ -72,7 +74,7 @@ describe('onboardingFlow', () => {
       expect(flow).not.toContain('cycle-details');
     });
 
-    it('always starts with welcome and ends with ready', () => {
+    it('always starts with welcome and ends with paywall', () => {
       const flows = [
         buildOnboardingFlow(),
         buildOnboardingFlow('male'),
@@ -81,17 +83,17 @@ describe('onboardingFlow', () => {
       ];
       for (const flow of flows) {
         expect(flow[0]).toBe('welcome');
-        expect(flow[flow.length - 1]).toBe('ready');
+        expect(flow[flow.length - 1]).toBe('paywall');
       }
     });
 
     it('has correct length for each path', () => {
-      expect(buildOnboardingFlow().length).toBe(11);
-      expect(buildOnboardingFlow('male').length).toBe(11);
-      expect(buildOnboardingFlow('female').length).toBe(12);
-      expect(buildOnboardingFlow('female', 'regular').length).toBe(13);
-      expect(buildOnboardingFlow('female', 'irregular').length).toBe(13);
-      expect(buildOnboardingFlow('female', 'no').length).toBe(12);
+      expect(buildOnboardingFlow().length).toBe(13);       // base + scan-reminder + paywall
+      expect(buildOnboardingFlow('male').length).toBe(13);
+      expect(buildOnboardingFlow('female').length).toBe(14);
+      expect(buildOnboardingFlow('female', 'regular').length).toBe(15);
+      expect(buildOnboardingFlow('female', 'irregular').length).toBe(15);
+      expect(buildOnboardingFlow('female', 'no').length).toBe(14);
     });
   });
 
@@ -100,6 +102,8 @@ describe('onboardingFlow', () => {
       expect(screenToRoute('welcome')).toBe('/onboarding/welcome');
       expect(screenToRoute('age-range')).toBe('/onboarding/age-range');
       expect(screenToRoute('camera-permission')).toBe('/onboarding/camera-permission');
+      expect(screenToRoute('scan-reminder')).toBe('/onboarding/scan-reminder');
+      expect(screenToRoute('paywall')).toBe('/onboarding/paywall');
     });
   });
 

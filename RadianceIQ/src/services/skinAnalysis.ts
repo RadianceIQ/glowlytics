@@ -4,6 +4,7 @@ import type {
   DailyRecord,
   DetectedCondition,
   DetectedLesion,
+  MetricRecommendation,
   ModelOutput,
   RagRecommendation,
   ScanProtocol,
@@ -328,61 +329,64 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
   signal_features?: SignalFeatures;
   lesions?: DetectedLesion[];
   signal_confidence?: SignalConfidence;
+  signal_recommendations?: Record<string, string[]>;
+  metric_recommendations?: Record<string, MetricRecommendation>;
 }> => {
-  // Try real Vision API via backend proxy if API base URL is configured and photo is available
-  if (env.API_BASE_URL && input.photoUri) {
-    try {
-      console.log('[Glowlytics] Calling Vision API at:', env.API_BASE_URL);
-      const result = await analyzeWithVisionAPI(input.photoUri, {
-        primary_goal: input.protocol.primary_goal,
-        scan_region: input.protocol.scan_region,
-        sunscreen_used: input.dailyContext.sunscreen_used,
-        sleep_quality: input.dailyContext.sleep_quality,
-        stress_level: input.dailyContext.stress_level,
-        scan_count: input.previousOutputs.length,
-      }, input.preEncodedBase64);
+  try {
+    // Try real Vision API via backend proxy if API base URL is configured and photo is available
+    if (env.API_BASE_URL && input.photoUri) {
+      try {
+        console.log('[Glowlytics] Calling Vision API at:', env.API_BASE_URL);
+        const result = await analyzeWithVisionAPI(input.photoUri, {
+          primary_goal: input.protocol.primary_goal,
+          scan_region: input.protocol.scan_region,
+          sunscreen_used: input.dailyContext.sunscreen_used,
+          sleep_quality: input.dailyContext.sleep_quality,
+          stress_level: input.dailyContext.stress_level,
+          scan_count: input.previousOutputs.length,
+        }, input.preEncodedBase64);
 
-      console.log('[Glowlytics] Vision API success — scores from fine-tuned GPT-4o model');
+        console.log('[Glowlytics] Vision API success — scores from fine-tuned GPT-4o model');
 
-      // Check for escalation
-      let escalation = false;
-      if (input.previousOutputs.length > 0) {
-        const last = input.previousOutputs[input.previousOutputs.length - 1];
-        if (
-          Math.abs(result.acne_score - last.acne_score) > 20 ||
-          Math.abs(result.sun_damage_score - last.sun_damage_score) > 20
-        ) {
-          escalation = true;
+        // Check for escalation
+        let escalation = false;
+        if (input.previousOutputs.length > 0) {
+          const last = input.previousOutputs[input.previousOutputs.length - 1];
+          if (
+            Math.abs(result.acne_score - last.acne_score) > 20 ||
+            Math.abs(result.sun_damage_score - last.sun_damage_score) > 20
+          ) {
+            escalation = true;
+          }
         }
+
+        return {
+          ...result,
+          escalation_flag: escalation,
+          conditions: result.conditions,
+          rag_recommendations: result.rag_recommendations,
+          personalized_feedback: result.personalized_feedback,
+          signal_scores: result.signal_scores,
+          signal_features: result.signal_features,
+          lesions: result.lesions,
+          signal_confidence: result.signal_confidence,
+        };
+      } catch (err) {
+        console.error('[Glowlytics] Vision API failed:', err);
+        throw new Error('Unable to reach our servers. Please check your internet connection and try again.');
       }
-
-      return {
-        ...result,
-        escalation_flag: escalation,
-        conditions: result.conditions,
-        rag_recommendations: result.rag_recommendations,
-        personalized_feedback: result.personalized_feedback,
-        signal_scores: result.signal_scores,
-        signal_features: result.signal_features,
-        lesions: result.lesions,
-        signal_confidence: result.signal_confidence,
-      };
-    } catch (err) {
-      console.warn('[Glowlytics] Vision API failed — falling back to LOCAL heuristic analysis (NOT the fine-tuned model):', err);
-      console.warn('[Glowlytics] To use the fine-tuned model, ensure the backend is running: cd backend && node server.js');
     }
-  } else {
+
     if (!input.photoUri) {
-      console.warn('[Glowlytics] No photo URI provided — using LOCAL heuristic analysis');
+      throw new Error('No photo was captured. Please try scanning again.');
     }
-    if (!env.API_BASE_URL) {
-      console.warn('[Glowlytics] No API_BASE_URL configured — using LOCAL heuristic analysis');
-    }
+    // No API_BASE_URL configured
+    throw new Error('Unable to reach our servers. Please check your internet connection and try again.');
+  } catch (outerErr) {
+    // Re-throw user-facing errors so the analyzing screen can display them
+    if (outerErr instanceof Error) throw outerErr;
+    throw new Error('Unable to reach our servers. Please check your internet connection and try again.');
   }
-
-  // Fallback to local simulated analysis
-  console.log('[Glowlytics] Using LOCAL heuristic analysis (mock scanner data, NOT fine-tuned model)');
-  return analyzeSkiN(input);
 };
 
 export const getExplanation = (

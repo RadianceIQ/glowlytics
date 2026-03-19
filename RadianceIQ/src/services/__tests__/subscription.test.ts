@@ -25,7 +25,9 @@ jest.mock('react-native-purchases-ui', () => ({
 
 import {
   canScan,
-  remainingFreeScans,
+  isTrialActive,
+  trialDaysRemaining,
+  startTrial,
   defaultSubscription,
   subscriptionFromCustomerInfo,
   restorePurchases,
@@ -36,6 +38,7 @@ describe('subscription', () => {
   describe('canScan', () => {
     it('returns true for premium subscribers', () => {
       const sub: SubscriptionState = {
+        ...defaultSubscription(),
         tier: 'premium',
         is_active: true,
         expires_at: '2026-04-14T00:00:00Z',
@@ -45,77 +48,78 @@ describe('subscription', () => {
       expect(canScan(sub)).toBe(true);
     });
 
-    it('returns true for free users under the limit', () => {
+    it('returns true for users with active trial', () => {
+      const future = new Date();
+      future.setDate(future.getDate() + 5);
       const sub: SubscriptionState = {
         ...defaultSubscription(),
-        free_scans_used: 0,
+        trial_start_date: new Date().toISOString(),
+        trial_end_date: future.toISOString(),
       };
       expect(canScan(sub)).toBe(true);
     });
 
-    it('returns true for free users with 2 scans used', () => {
+    it('returns false for users with expired trial', () => {
+      const past = new Date();
+      past.setDate(past.getDate() - 1);
       const sub: SubscriptionState = {
         ...defaultSubscription(),
-        free_scans_used: 2,
-      };
-      expect(canScan(sub)).toBe(true);
-    });
-
-    it('returns false for free users who have used all 3 free scans', () => {
-      const sub: SubscriptionState = {
-        ...defaultSubscription(),
-        free_scans_used: 3,
+        trial_start_date: new Date(past.getTime() - 7 * 86400000).toISOString(),
+        trial_end_date: past.toISOString(),
       };
       expect(canScan(sub)).toBe(false);
     });
 
-    it('returns false for free users who have exceeded the limit', () => {
-      const sub: SubscriptionState = {
-        ...defaultSubscription(),
-        free_scans_used: 5,
-      };
+    it('returns false for free users with no trial', () => {
+      const sub = defaultSubscription();
       expect(canScan(sub)).toBe(false);
     });
   });
 
-  describe('remainingFreeScans', () => {
-    it('returns Infinity for premium subscribers', () => {
-      const sub: SubscriptionState = {
-        tier: 'premium',
-        is_active: true,
-        expires_at: '2026-04-14T00:00:00Z',
-        product_id: 'glowlytics_premium_monthly',
-        free_scans_used: 0,
-      };
-      expect(remainingFreeScans(sub)).toBe(Infinity);
+  describe('isTrialActive', () => {
+    it('returns false when no trial dates', () => {
+      expect(isTrialActive(defaultSubscription())).toBe(false);
     });
 
-    it('returns 3 for new free users', () => {
-      expect(remainingFreeScans(defaultSubscription())).toBe(3);
-    });
-
-    it('returns 1 when 2 scans used', () => {
+    it('returns true when trial end date is in future', () => {
+      const future = new Date();
+      future.setDate(future.getDate() + 3);
       const sub: SubscriptionState = {
         ...defaultSubscription(),
-        free_scans_used: 2,
+        trial_start_date: new Date().toISOString(),
+        trial_end_date: future.toISOString(),
       };
-      expect(remainingFreeScans(sub)).toBe(1);
+      expect(isTrialActive(sub)).toBe(true);
+    });
+  });
+
+  describe('trialDaysRemaining', () => {
+    it('returns 0 when no trial', () => {
+      expect(trialDaysRemaining(defaultSubscription())).toBe(0);
     });
 
-    it('returns 0 when all scans used', () => {
+    it('returns positive days for active trial', () => {
+      const future = new Date();
+      future.setDate(future.getDate() + 5);
       const sub: SubscriptionState = {
         ...defaultSubscription(),
-        free_scans_used: 3,
+        trial_start_date: new Date().toISOString(),
+        trial_end_date: future.toISOString(),
       };
-      expect(remainingFreeScans(sub)).toBe(0);
+      expect(trialDaysRemaining(sub)).toBeGreaterThanOrEqual(4);
+      expect(trialDaysRemaining(sub)).toBeLessThanOrEqual(5);
     });
+  });
 
-    it('never returns negative', () => {
-      const sub: SubscriptionState = {
-        ...defaultSubscription(),
-        free_scans_used: 10,
-      };
-      expect(remainingFreeScans(sub)).toBe(0);
+  describe('startTrial', () => {
+    it('returns trial dates 7 days apart', () => {
+      const result = startTrial();
+      expect(result.trial_start_date).toBeDefined();
+      expect(result.trial_end_date).toBeDefined();
+      const start = new Date(result.trial_start_date!);
+      const end = new Date(result.trial_end_date!);
+      const diff = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      expect(diff).toBe(7);
     });
   });
 
@@ -188,6 +192,8 @@ describe('subscription', () => {
       expect(sub.expires_at).toBeNull();
       expect(sub.product_id).toBeNull();
       expect(sub.free_scans_used).toBe(0);
+      expect(sub.trial_start_date).toBeNull();
+      expect(sub.trial_end_date).toBeNull();
     });
   });
 });

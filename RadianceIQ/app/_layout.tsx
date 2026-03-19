@@ -1,5 +1,5 @@
 import 'react-native-get-random-values';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Stack, Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
@@ -11,9 +11,11 @@ import { env } from '../src/config/env';
 import { Colors } from '../src/constants/theme';
 import { useStore } from '../src/store/useStore';
 import { setAuthTokenProvider } from '../src/services/api';
-import { initRevenueCat, identifyUser, checkSubscriptionStatus } from '../src/services/subscription';
-import { initAnalytics, identifyUser as identifyAnalyticsUser } from '../src/services/analytics';
-import { initLesionDetection } from '../src/services/onDeviceLesionDetection';
+import { initRevenueCat, identifyUser, checkSubscriptionStatus, setupCustomerInfoListener } from '../src/services/subscription';
+import { initAnalytics, identifyUser as identifyAnalyticsUser, trackEvent } from '../src/services/analytics';
+// Lazy import — onnxruntime-react-native crashes in Expo Go
+const initLesionDetection = () =>
+  import('../src/services/onDeviceLesionDetection').then((m) => m.initLesionDetection());
 
 /**
  * Auth gate that only returns Redirect components — never its own navigator.
@@ -24,19 +26,21 @@ function AuthRedirector() {
   const onboardingComplete = useStore((s) => s.user?.onboarding_complete ?? false);
 
   if (!isLoaded) {
-    // Clerk still loading — stay on index (splash screen)
+    if (__DEV__) console.log('[AuthRedirector] Clerk not loaded yet');
     return null;
   }
 
   if (!isSignedIn) {
+    if (__DEV__) console.log('[AuthRedirector] Not signed in → sign-in');
     return <Redirect href="/auth/sign-in" />;
   }
 
   if (!onboardingComplete) {
+    if (__DEV__) console.log('[AuthRedirector] Onboarding incomplete → welcome');
     return <Redirect href="/onboarding/welcome" />;
   }
 
-  // Signed in + onboarding complete → redirect to tabs
+  if (__DEV__) console.log('[AuthRedirector] All good → tabs');
   return <Redirect href="/(tabs)/today" />;
 }
 
@@ -46,6 +50,8 @@ function ClerkGatedApp() {
   const setSubscription = useStore((s) => s.setSubscription);
   const subscription = useStore((s) => s.subscription);
   const loaded = useRef(false);
+  const listenerCleanup = useRef<() => void>(() => {});
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
     if (!loaded.current) {
@@ -53,24 +59,52 @@ function ClerkGatedApp() {
       setAuthTokenProvider(() => getToken());
       setTimeout(() => loadPersistedData(), 0);
 
-      // Initialize analytics + RevenueCat after auth
+      // Initialize analytics + RevenueCat after auth — gate app on completion
       (async () => {
         try {
+          console.log('[App] Initializing analytics...');
           await initAnalytics();
           if (userId) identifyAnalyticsUser(userId);
-          await initRevenueCat();
-          if (userId) await identifyUser(userId);
-          const sub = await checkSubscriptionStatus(subscription);
-          setSubscription(sub);
-        } catch {
-          // RevenueCat init failures are non-fatal
+          try {
+            console.log('[App] Initializing RevenueCat...');
+            await initRevenueCat();
+            listenerCleanup.current = setupCustomerInfoListener();
+            if (userId) await identifyUser(userId);
+            const currentSub = useStore.getState().subscription;
+            const sub = await checkSubscriptionStatus(currentSub);
+            setSubscription(sub);
+            console.log('[App] RevenueCat ready');
+          } catch (e: any) {
+            console.warn('[App] RevenueCat init failed:', e?.message || e);
+          }
+        } catch (e: any) {
+          console.warn('[App] Analytics init failed:', e?.message || e);
         }
 
-        // Pre-download lesion detection model in background
+        // App is ready — RevenueCat init (including offerings fetch) is complete
+        console.log('[App] Init complete — rendering app');
+        identifyAnalyticsUser(userId || 'anonymous');
+        trackEvent('app_init_complete', {
+          has_revenuecat_key: !!env.REVENUECAT_API_KEY,
+          has_posthog_key: !!env.POSTHOG_API_KEY,
+          has_api_url: !!env.API_BASE_URL,
+        });
+        setAppReady(true);
+
+        // Pre-download lesion detection model in background (lazy — skips in Expo Go)
         initLesionDetection().catch(() => {});
       })();
     }
+
+    return () => {
+      listenerCleanup.current();
+    };
   }, []);
+
+  // Gate on init completion — prevents paywall race condition
+  if (!appReady) {
+    return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
+  }
 
   return (
     <SafeAreaProvider>

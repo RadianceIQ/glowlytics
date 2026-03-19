@@ -4,6 +4,7 @@ import type {
   Confidence,
   DetectedCondition,
   DetectedLesion,
+  MetricRecommendation,
   RagRecommendation,
   SignalConfidence,
   SignalFeatures,
@@ -24,6 +25,8 @@ export interface VisionAnalysisResult {
   signal_features?: SignalFeatures;
   lesions?: DetectedLesion[];
   signal_confidence?: SignalConfidence;
+  signal_recommendations?: Record<string, string[]>;
+  metric_recommendations?: Record<string, MetricRecommendation>;
 }
 
 export async function imageToBase64(uri: string): Promise<string> {
@@ -98,5 +101,7 @@ export async function analyzeWithVisionAPI(
     signal_features: result.signal_features,
     lesions: result.lesions,
     signal_confidence: result.signal_confidence,
+    signal_recommendations: result.signal_recommendations,
+    metric_recommendations: result.metric_recommendations,
   };
 }

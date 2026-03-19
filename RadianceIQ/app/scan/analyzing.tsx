@@ -4,12 +4,15 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedProps,
   withTiming,
   withRepeat,
   withSequence,
+  withDelay,
   Easing,
   FadeIn,
   FadeOut,
@@ -18,30 +21,152 @@ import { Colors, FontFamily, FontSize, BorderRadius, Spacing } from '../../src/c
 import { useStore } from '../../src/store/useStore';
 import { analyzeWithFallback } from '../../src/services/skinAnalysis';
 import { getEstimatedCycleDay } from '../../src/utils/cycleDay';
+import { trackEvent } from '../../src/services/analytics';
 
-type FeatherIcon = React.ComponentProps<typeof Feather>['name'];
+// ---------------------------------------------------------------------------
+// Animated SVG circle for Reanimated
+// ---------------------------------------------------------------------------
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
+// ---------------------------------------------------------------------------
+// Stage durations (internal timer track -- unchanged from original)
+// ---------------------------------------------------------------------------
 interface Stage {
-  message: string;
-  icon: FeatherIcon;
   duration: number; // ms, 0 = holds until API done
 }
 
 const STAGES: Stage[] = [
-  { message: 'Preparing your scan...', icon: 'camera', duration: 600 },
-  { message: 'Analyzing inflammation...', icon: 'thermometer', duration: 700 },
-  { message: 'Checking hydration...', icon: 'droplet', duration: 700 },
-  { message: 'Measuring structure...', icon: 'grid', duration: 700 },
-  { message: 'Evaluating sun damage...', icon: 'sun', duration: 700 },
-  { message: 'Assessing elasticity...', icon: 'activity', duration: 700 },
-  { message: 'Running AI analysis...', icon: 'cpu', duration: 0 },
-  { message: 'Generating recommendations...', icon: 'file-text', duration: 800 },
-  { message: 'Compiling results...', icon: 'check-circle', duration: 600 },
+  { duration: 600 },
+  { duration: 700 },
+  { duration: 700 },
+  { duration: 700 },
+  { duration: 700 },
+  { duration: 700 },
+  { duration: 0 },   // API hold stage
+  { duration: 800 },
+  { duration: 600 },
 ];
+
+// Calm rotating messages mapped to stage ranges
+const CALM_MESSAGES = [
+  'Analyzing your skin...',
+  'Mapping conditions...',
+  'Generating insights...',
+  'Almost ready...',
+];
+
+const calmMessageForStage = (stage: number): string => {
+  if (stage <= 1) return CALM_MESSAGES[0];
+  if (stage <= 4) return CALM_MESSAGES[1];
+  if (stage <= 6) return CALM_MESSAGES[2];
+  return CALM_MESSAGES[3];
+};
 
 const CALM_EASING = Easing.out(Easing.cubic);
 const API_STAGE = 6;
 
+// ---------------------------------------------------------------------------
+// Progress ring constants
+// ---------------------------------------------------------------------------
+const RING_RADIUS = 60;
+const RING_STROKE = 3;
+const RING_SIZE = (RING_RADIUS + RING_STROKE) * 2;
+const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+// ---------------------------------------------------------------------------
+// Particle configuration
+// ---------------------------------------------------------------------------
+interface ParticleConfig {
+  size: number;
+  startX: number;
+  startY: number;
+  driftX: number;
+  driftY: number;
+  durationX: number;
+  durationY: number;
+  opacityDuration: number;
+  delay: number;
+}
+
+const PARTICLES: ParticleConfig[] = [
+  { size: 6, startX: -80, startY: -160, driftX: 30, driftY: -20, durationX: 6000, durationY: 5000, opacityDuration: 4000, delay: 0 },
+  { size: 4, startX: 90, startY: -100, driftX: -20, driftY: 25, durationX: 7000, durationY: 6000, opacityDuration: 5000, delay: 800 },
+  { size: 5, startX: -60, startY: 120, driftX: 25, driftY: -15, durationX: 5500, durationY: 7000, opacityDuration: 4500, delay: 400 },
+  { size: 3, startX: 70, startY: 140, driftX: -15, driftY: -25, durationX: 6500, durationY: 5500, opacityDuration: 5500, delay: 1200 },
+];
+
+// ---------------------------------------------------------------------------
+// Floating particle component
+// ---------------------------------------------------------------------------
+function FloatingParticle({ config }: { config: ParticleConfig }) {
+  const translateX = useSharedValue(config.startX);
+  const translateY = useSharedValue(config.startY);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    // Fade in after delay, then pulse
+    opacity.value = withDelay(
+      config.delay,
+      withRepeat(
+        withSequence(
+          withTiming(0.35, { duration: config.opacityDuration / 2, easing: CALM_EASING }),
+          withTiming(0.1, { duration: config.opacityDuration / 2, easing: CALM_EASING }),
+        ),
+        -1,
+      ),
+    );
+
+    // Gentle drift loops
+    translateX.value = withDelay(
+      config.delay,
+      withRepeat(
+        withSequence(
+          withTiming(config.startX + config.driftX, { duration: config.durationX, easing: Easing.inOut(Easing.ease) }),
+          withTiming(config.startX, { duration: config.durationX, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+      ),
+    );
+
+    translateY.value = withDelay(
+      config.delay,
+      withRepeat(
+        withSequence(
+          withTiming(config.startY + config.driftY, { duration: config.durationY, easing: Easing.inOut(Easing.ease) }),
+          withTiming(config.startY, { duration: config.durationY, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+      ),
+    );
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          width: config.size,
+          height: config.size,
+          borderRadius: config.size / 2,
+          backgroundColor: Colors.primary,
+        },
+        animStyle,
+      ]}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
 export default function AnalyzingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -49,12 +174,6 @@ export default function AnalyzingScreen() {
     pigmentation: string;
     texture: string;
     photoUri: string;
-    sunscreen: string;
-    newProduct: string;
-    periodAccurate: string;
-    sleep: string;
-    stress: string;
-    drinks: string;
   }>();
 
   const user = useStore((s) => s.user);
@@ -64,9 +183,10 @@ export default function AnalyzingScreen() {
   const clearPendingPhotoBase64 = useStore((s) => s.clearPendingPhotoBase64);
 
   const [currentStage, setCurrentStage] = useState(0);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [slowWarning, setSlowWarning] = useState(false);
   const [xpFeedback, setXpFeedback] = useState<{ xp: number; badge?: string } | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const apiDone = useRef(false);
   const apiResult = useRef<any>(null);
@@ -76,12 +196,18 @@ export default function AnalyzingScreen() {
   const hasStarted = useRef(false);
   const scannerDataRef = useRef({ inflammation_index: 0, pigmentation_index: 0, texture_index: 0 });
   const cycleDayRef = useRef<number | undefined>(undefined);
+  const analysisStartTime = useRef(0);
 
+  // ---------------------------------------------------------------------------
   // Animations
-  const orbScale = useSharedValue(0.8);
-  const orbOpacity = useSharedValue(0);
+  // ---------------------------------------------------------------------------
+  const logoScale = useSharedValue(0.9);
+  const logoOpacity = useSharedValue(0);
   const glowPulse = useSharedValue(0.3);
-  const progressWidth = useSharedValue(0);
+  const ringProgress = useSharedValue(0);
+
+  // Message index derived from stage for cross-fade key
+  const [displayedMessage, setDisplayedMessage] = useState(CALM_MESSAGES[0]);
 
   const progressForStage = (stage: number) => {
     if (stage <= 5) return (stage + 1) / STAGES.length;
@@ -92,10 +218,14 @@ export default function AnalyzingScreen() {
 
   const advanceStage = (stage: number) => {
     setCurrentStage(stage);
+    setDisplayedMessage(calmMessageForStage(stage));
     const target = progressForStage(stage);
-    progressWidth.value = withTiming(target, { duration: 400, easing: CALM_EASING });
+    ringProgress.value = withTiming(target, { duration: 400, easing: CALM_EASING });
   };
 
+  // ---------------------------------------------------------------------------
+  // Photo persistence (unchanged)
+  // ---------------------------------------------------------------------------
   const persistPhoto = async (tempUri: string): Promise<string | undefined> => {
     try {
       const photosDir = `${FileSystemLegacy.documentDirectory}scan_photos/`;
@@ -109,8 +239,10 @@ export default function AnalyzingScreen() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Post-API stage runner (unchanged guard logic)
+  // ---------------------------------------------------------------------------
   const runPostApiStages = () => {
-    // Guard: ensure this is called exactly once even if both timer + API resolve simultaneously
     if (postApiStarted.current) return;
     postApiStarted.current = true;
 
@@ -128,6 +260,9 @@ export default function AnalyzingScreen() {
     timers.current.push(t1);
   };
 
+  // ---------------------------------------------------------------------------
+  // Persist results + navigate (unchanged)
+  // ---------------------------------------------------------------------------
   const persistAndNavigate = async () => {
     const analysis = apiResult.current;
     if (!analysis) {
@@ -146,6 +281,14 @@ export default function AnalyzingScreen() {
 
       clearPendingPhotoBase64();
 
+      // Use camera-detected lesions as fallback if backend returned none
+      const cameraLesions = state.pendingLesions;
+      const finalLesions = (analysis.lesions && analysis.lesions.length > 0)
+        ? analysis.lesions
+        : cameraLesions || undefined;
+      // Clear pending lesions after use
+      useStore.getState().setPendingLesions(null);
+
       const xpBefore = state.gamification.xp;
       const badgesBefore = state.gamification.badges.length;
 
@@ -157,13 +300,9 @@ export default function AnalyzingScreen() {
         scan_region: currentProtocol?.scan_region || 'whole_face',
         photo_uri: savedPhotoUri,
         photo_quality_flag: 'pass',
-        sunscreen_used: params.sunscreen === 'yes',
-        new_product_added: params.newProduct === 'yes',
-        period_status_confirmed: params.periodAccurate as any,
+        sunscreen_used: false,
+        new_product_added: false,
         cycle_day_estimated: cycleDayRef.current,
-        sleep_quality: params.sleep as any,
-        stress_level: params.stress as any,
-        drinks_yesterday: params.drinks || undefined,
       });
 
       addModelOutput({
@@ -180,8 +319,10 @@ export default function AnalyzingScreen() {
         personalized_feedback: analysis.personalized_feedback,
         signal_scores: analysis.signal_scores,
         signal_features: analysis.signal_features,
-        lesions: analysis.lesions,
+        lesions: finalLesions,
         signal_confidence: analysis.signal_confidence,
+        signal_recommendations: analysis.signal_recommendations,
+        metric_recommendations: analysis.metric_recommendations,
       });
 
       const currentState = useStore.getState();
@@ -198,16 +339,29 @@ export default function AnalyzingScreen() {
         return;
       }
     } catch {
-      // Persistence failed — still navigate to results
+      // Persistence failed -- still navigate to results
     }
 
     router.replace('/scan/results');
   };
 
-  // Start animations immediately + cleanup timers on unmount
+  // ---------------------------------------------------------------------------
+  // Start animations + cleanup
+  // ---------------------------------------------------------------------------
   useEffect(() => {
-    orbScale.value = withTiming(1, { duration: 600, easing: CALM_EASING });
-    orbOpacity.value = withTiming(1, { duration: 400, easing: CALM_EASING });
+    // Fade logo in
+    logoOpacity.value = withTiming(1, { duration: 600, easing: CALM_EASING });
+
+    // Gentle breathing pulse on logo (continuous)
+    logoScale.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.95, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+    );
+
+    // Background glow pulse
     glowPulse.value = withRepeat(
       withSequence(
         withTiming(0.7, { duration: 1200 }),
@@ -221,7 +375,9 @@ export default function AnalyzingScreen() {
     };
   }, []);
 
+  // ---------------------------------------------------------------------------
   // Bail out if store never hydrates within 5s
+  // ---------------------------------------------------------------------------
   useEffect(() => {
     if (hasStarted.current || user) return;
     const bail = setTimeout(() => {
@@ -233,7 +389,9 @@ export default function AnalyzingScreen() {
     return () => clearTimeout(bail);
   }, [user]);
 
-  // Wait for store to hydrate, then fire analysis
+  // ---------------------------------------------------------------------------
+  // Main effect: timer track + API call (with reliability fix)
+  // ---------------------------------------------------------------------------
   useEffect(() => {
     if (hasStarted.current || !user || !protocol) return;
     hasStarted.current = true;
@@ -250,8 +408,8 @@ export default function AnalyzingScreen() {
     // Move to stage 6 (hold stage) after stage 5 completes
     const tHold = setTimeout(() => {
       advanceStage(API_STAGE);
-      // Drift animation while waiting for API
-      progressWidth.value = withRepeat(
+      // Drift animation on ring while waiting for API
+      ringProgress.value = withRepeat(
         withSequence(
           withTiming(0.72, { duration: 2000, easing: CALM_EASING }),
           withTiming(0.66, { duration: 2000, easing: CALM_EASING }),
@@ -273,7 +431,18 @@ export default function AnalyzingScreen() {
     }, 15000);
     timers.current.push(tSlow);
 
-    // --- API track: fire immediately ---
+    // Hard timeout at 45s -- force navigate to results with whatever we have
+    const tHardTimeout = setTimeout(() => {
+      if (!apiDone.current) {
+        console.error('[Glowlytics] Analysis hard timeout at 45s');
+        trackEvent('scan_analysis_timeout', { analysis_time_ms: 45000 });
+        apiDone.current = true;
+        runPostApiStages();
+      }
+    }, 45000);
+    timers.current.push(tHardTimeout);
+
+    // --- API track: encode photo + fire analysis ---
     const scannerData = {
       inflammation_index: parseFloat(params.inflammation || '40'),
       pigmentation_index: parseFloat(params.pigmentation || '30'),
@@ -284,52 +453,140 @@ export default function AnalyzingScreen() {
     const estimatedCycleDay = getEstimatedCycleDay(user);
     cycleDayRef.current = estimatedCycleDay;
 
-    const { modelOutputs: prevOutputs, pendingPhotoBase64 } = useStore.getState();
+    const { modelOutputs: prevOutputs, pendingPhotoBase64: existingBase64 } = useStore.getState();
+    analysisStartTime.current = Date.now();
 
-    analyzeWithFallback({
-      scannerData,
-      photoUri: params.photoUri || undefined,
-      userProfile: user,
-      protocol,
-      previousOutputs: prevOutputs,
-      dailyContext: {
-        sunscreen_used: params.sunscreen === 'yes',
-        new_product_added: params.newProduct === 'yes',
-        cycle_day_estimated: estimatedCycleDay,
-        sleep_quality: params.sleep || undefined,
-        stress_level: params.stress || undefined,
-      },
-      preEncodedBase64: pendingPhotoBase64 || undefined,
-      skipDelay: true,
-    })
+    // Pre-encode photo if not already done (camera now skips processing screen)
+    const encodeAndAnalyze = async () => {
+      let base64 = existingBase64;
+      if (!base64 && params.photoUri) {
+        try {
+          const { imageToBase64 } = await import('../../src/services/visionAPI');
+          base64 = await imageToBase64(params.photoUri);
+          useStore.getState().setPendingPhotoBase64(base64);
+        } catch {
+          // Encoding failed — analysis will try without pre-encoded base64
+        }
+      }
+      return analyzeWithFallback({
+        scannerData,
+        photoUri: params.photoUri || undefined,
+        userProfile: user,
+        protocol,
+        previousOutputs: prevOutputs,
+        dailyContext: {
+          sunscreen_used: false,
+          new_product_added: false,
+          cycle_day_estimated: estimatedCycleDay,
+        },
+        preEncodedBase64: base64 || undefined,
+        skipDelay: true,
+      });
+    };
+
+    encodeAndAnalyze()
       .then((result) => {
         apiResult.current = result;
         apiDone.current = true;
         setSlowWarning(false);
 
+        trackEvent('scan_analysis_completed', {
+          analysis_time_ms: Date.now() - analysisStartTime.current,
+          acne_score: result.acne_score ?? 0,
+          sun_damage_score: result.sun_damage_score ?? 0,
+          skin_age_score: result.skin_age_score ?? 0,
+          has_lesions: Array.isArray(result.lesions) && result.lesions.length > 0,
+        });
+
+        // --- Primary path: timer track is already holding at API stage ---
         if (holdingOnApiStage.current) {
           runPostApiStages();
         }
+
+        // --- Safety net: timer track already passed the API stage ---
+        // If holdingOnApiStage is false, the timer moved on but the API just
+        // finished. Kick post-API stages directly so results are not lost.
+        if (!holdingOnApiStage.current) {
+          runPostApiStages();
+        }
+
+        // --- Failsafe: 3-second backstop ---
+        // In case neither code path above triggered postApiStages (e.g. a
+        // timing race), force it after 3 seconds.
+        const tFailsafe = setTimeout(() => {
+          if (!postApiStarted.current) {
+            console.warn('[Glowlytics] Failsafe: forcing post-API stages after 3s');
+            runPostApiStages();
+          }
+        }, 3000);
+        timers.current.push(tFailsafe);
       })
-      .catch(() => {
-        setError(true);
+      .catch((err) => {
+        console.error('[Glowlytics] Analysis failed:', err?.message || err, err?.stack);
+        trackEvent('scan_analysis_failed', {
+          error: String(err?.message || err),
+          analysis_time_ms: Date.now() - analysisStartTime.current,
+        });
+        setError(err?.message || 'Something went wrong. Please try again.');
       });
 
-  }, [user, protocol]);
+  }, [user, protocol, retryCount]);
 
-  const orbAnimStyle = useAnimatedStyle(() => ({
-    opacity: orbOpacity.value,
-    transform: [{ scale: orbScale.value }],
+  // ---------------------------------------------------------------------------
+  // Animated styles
+  // ---------------------------------------------------------------------------
+  const logoAnimStyle = useAnimatedStyle(() => ({
+    opacity: logoOpacity.value,
+    transform: [{ scale: logoScale.value }],
   }));
 
   const glowAnimStyle = useAnimatedStyle(() => ({
     opacity: glowPulse.value,
   }));
 
-  const progressStyle = useAnimatedStyle(() => ({
-    width: `${progressWidth.value * 100}%` as any,
+  // Progress ring: strokeDashoffset animated
+  const ringAnimatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: CIRCUMFERENCE * (1 - ringProgress.value),
   }));
 
+  // ---------------------------------------------------------------------------
+  // Retry handler (unchanged logic, updated shared values)
+  // ---------------------------------------------------------------------------
+  const handleRetry = () => {
+    setError(null);
+    setSlowWarning(false);
+    setCurrentStage(0);
+    setDisplayedMessage(CALM_MESSAGES[0]);
+    setXpFeedback(null);
+    apiDone.current = false;
+    apiResult.current = null;
+    holdingOnApiStage.current = false;
+    postApiStarted.current = false;
+    hasStarted.current = false;
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    ringProgress.value = 0;
+    logoOpacity.value = withTiming(1, { duration: 600, easing: CALM_EASING });
+    logoScale.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.95, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+    );
+    glowPulse.value = withRepeat(
+      withSequence(
+        withTiming(0.7, { duration: 1200 }),
+        withTiming(0.3, { duration: 1200 }),
+      ),
+      -1,
+    );
+    setRetryCount((c) => c + 1);
+  };
+
+  // ---------------------------------------------------------------------------
+  // Error screen
+  // ---------------------------------------------------------------------------
   if (error) {
     return (
       <View style={styles.container}>
@@ -340,24 +597,34 @@ export default function AnalyzingScreen() {
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.content}>
-          <Feather name="alert-circle" size={48} color={Colors.error} />
-          <Text style={styles.errorTitle}>Something went wrong</Text>
-          <Text style={styles.errorSubtitle}>We couldn&apos;t complete your analysis.</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => router.replace('/(tabs)/today')}
-          >
-            <Text style={styles.retryText}>Go back</Text>
-          </TouchableOpacity>
+          <Feather name="wifi-off" size={48} color={Colors.error} />
+          <Text style={styles.errorTitle}>Analysis failed</Text>
+          <Text style={styles.errorSubtitle}>{error}</Text>
+          <View style={styles.errorButtons}>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={handleRetry}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.goBackButton}
+              onPress={() => router.replace('/(tabs)/today')}
+            >
+              <Text style={styles.goBackText}>Go back</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
   }
 
-  const stage = STAGES[currentStage];
-
+  // ---------------------------------------------------------------------------
+  // Main render
+  // ---------------------------------------------------------------------------
   return (
     <>
+      {/* XP feedback overlay */}
       {xpFeedback && (
         <Animated.View
           entering={FadeIn.duration(300)}
@@ -376,8 +643,10 @@ export default function AnalyzingScreen() {
       )}
 
       <View style={styles.container}>
+        {/* Background gradient — smooth 5-stop to avoid visible banding */}
         <LinearGradient
-          colors={[Colors.backgroundDeep, Colors.gradientMid, Colors.gradientEnd]}
+          colors={['#3D5A6E', '#4A6B80', Colors.gradientMid, '#2A4A5E', Colors.gradientEnd]}
+          locations={[0, 0.25, 0.45, 0.7, 1]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -393,34 +662,74 @@ export default function AnalyzingScreen() {
           />
         </Animated.View>
 
-        <View style={styles.content}>
-          {/* Logo */}
-          <Animated.View style={orbAnimStyle}>
-            <Image
-              source={require('../../assets/icon.png')}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
-          </Animated.View>
+        {/* Floating particles */}
+        <View style={styles.particlesContainer}>
+          {PARTICLES.map((p, i) => (
+            <FloatingParticle key={i} config={p} />
+          ))}
+        </View>
 
-          {/* Status message with icon */}
-          <View style={styles.messageContainer}>
-            <Animated.View
-              key={currentStage}
-              entering={FadeIn.duration(400)}
-              exiting={FadeOut.duration(400)}
-              style={styles.messageRow}
-            >
-              <Feather name={stage.icon} size={20} color={Colors.primary} />
-              <Text style={styles.statusMessage}>{stage.message}</Text>
+        <View style={styles.content}>
+          {/* Progress ring + logo */}
+          <View style={styles.ringContainer}>
+            <Animated.View style={logoAnimStyle}>
+              <Svg
+                width={RING_SIZE}
+                height={RING_SIZE}
+                viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+              >
+                <Defs>
+                  <SvgGradient id="ringGlow" x1="0" y1="0" x2="1" y2="1">
+                    <Stop offset="0" stopColor="#7DE7E1" stopOpacity={1} />
+                    <Stop offset="1" stopColor="#3A9E8F" stopOpacity={0.8} />
+                  </SvgGradient>
+                </Defs>
+                {/* Background ring */}
+                <Circle
+                  cx={RING_SIZE / 2}
+                  cy={RING_SIZE / 2}
+                  r={RING_RADIUS}
+                  stroke="rgba(125, 231, 225, 0.12)"
+                  strokeWidth={RING_STROKE}
+                  fill="none"
+                />
+                {/* Animated progress ring with gradient glow */}
+                <AnimatedCircle
+                  cx={RING_SIZE / 2}
+                  cy={RING_SIZE / 2}
+                  r={RING_RADIUS}
+                  stroke="url(#ringGlow)"
+                  strokeWidth={RING_STROKE + 1}
+                  fill="none"
+                  strokeDasharray={`${CIRCUMFERENCE}`}
+                  strokeLinecap="round"
+                  rotation="-90"
+                  origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+                  animatedProps={ringAnimatedProps}
+                />
+              </Svg>
+              {/* Logo emblem centered inside ring */}
+              <Image
+                source={require('../../assets/logo-emblem.png')}
+                style={styles.logoEmblem}
+                resizeMode="contain"
+              />
             </Animated.View>
           </View>
 
-          {/* Step counter */}
-          <Text style={styles.stepText}>
-            Step {currentStage + 1} of {STAGES.length}
-          </Text>
+          {/* Rotating calm message */}
+          <View style={styles.messageContainer}>
+            <Animated.Text
+              key={displayedMessage}
+              entering={FadeIn.duration(500)}
+              exiting={FadeOut.duration(500)}
+              style={styles.statusMessage}
+            >
+              {displayedMessage}
+            </Animated.Text>
+          </View>
 
+          {/* Slow warning */}
           {slowWarning && (
             <Animated.Text
               entering={FadeIn.duration(300)}
@@ -430,25 +739,14 @@ export default function AnalyzingScreen() {
             </Animated.Text>
           )}
         </View>
-
-        {/* Progress bar */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressTrack}>
-            <Animated.View style={[styles.progressFill, progressStyle]}>
-              <LinearGradient
-                colors={[Colors.primaryDark, Colors.primary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-            </Animated.View>
-          </View>
-        </View>
       </View>
     </>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -462,37 +760,46 @@ const styles = StyleSheet.create({
     height: 300,
     borderRadius: BorderRadius.full,
   },
+  particlesContainer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.lg,
+    gap: Spacing.xl,
     paddingHorizontal: Spacing.xl,
   },
-  logoImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 24,
+  ringContainer: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+  },
+  logoEmblem: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    top: (RING_SIZE - 56) / 2,
+    left: (RING_SIZE - 56) / 2,
   },
   messageContainer: {
     height: 30,
     justifyContent: 'center',
-  },
-  messageRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
   },
   statusMessage: {
     color: Colors.textOnDark,
-    fontFamily: FontFamily.sansSemiBold,
+    fontFamily: FontFamily.sans,
     fontSize: FontSize.lg,
     textAlign: 'center',
-  },
-  stepText: {
-    color: Colors.textOnDarkMuted,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.sm,
+    letterSpacing: 0.3,
   },
   slowWarning: {
     color: Colors.warning,
@@ -500,23 +807,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     marginTop: Spacing.sm,
   },
-  progressContainer: {
-    position: 'absolute',
-    bottom: 60,
-    left: Spacing.xl,
-    right: Spacing.xl,
-  },
-  progressTrack: {
-    height: 3,
-    backgroundColor: Colors.surfaceHighlight,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
+  // Error screen
   errorTitle: {
     color: Colors.textOnDark,
     fontFamily: FontFamily.sansBold,
@@ -529,8 +820,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     marginTop: Spacing.sm,
   },
-  retryButton: {
+  errorButtons: {
     marginTop: Spacing.xl,
+    gap: Spacing.md,
+    alignItems: 'center',
+  },
+  retryButton: {
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     backgroundColor: Colors.primary,
@@ -541,6 +836,16 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.md,
   },
+  goBackButton: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+  },
+  goBackText: {
+    color: Colors.textOnDarkMuted,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+  },
+  // XP overlay
   xpOverlay: {
     position: 'absolute',
     top: 0,

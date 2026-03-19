@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   camera_permission_status VARCHAR(20) DEFAULT 'not_requested',
   health_connection JSONB DEFAULT '{}'::jsonb,
   onboarding_complete BOOLEAN DEFAULT FALSE,
+  trial_start_date TIMESTAMPTZ,
+  trial_end_date TIMESTAMPTZ,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );

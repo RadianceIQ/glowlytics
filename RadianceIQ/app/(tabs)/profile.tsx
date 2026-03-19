@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
@@ -15,8 +16,11 @@ import {
   presentPaywall,
   presentCustomerCenter,
   checkSubscriptionStatus,
-  remainingFreeScans,
+  restorePurchases,
+  isTrialActive,
+  trialDaysRemaining,
 } from '../../src/services/subscription';
+import { scheduleDailyReminder, cancelDailyReminder } from '../../src/services/notifications';
 import { trackEvent, resetAnalytics } from '../../src/services/analytics';
 import { createDemoSeed } from '../../src/services/demoData';
 import { computeProductEffectiveness } from '../../src/services/ingredientDB';
@@ -69,7 +73,11 @@ export default function ProfileTab() {
   const gamification = useStore((s) => s.gamification);
   const subscription = useStore((s) => s.subscription);
   const setSubscription = useStore((s) => s.setSubscription);
+  const notificationSettings = useStore((s) => s.notificationSettings);
+  const setNotificationTime = useStore((s) => s.setNotificationTime);
   const resetAll = useStore((s) => s.resetAll);
+
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   const clerkUser = useUser ? useUser() : null;
   const clerk = useClerk ? useClerk() : null;
@@ -195,7 +203,7 @@ export default function ProfileTab() {
           activeOpacity={0.7}
         >
           <Feather name="shield" size={16} color={Colors.primaryLight} />
-          <Text style={styles.modeButtonText}>Privacy Policy</Text>
+          <Text style={styles.modeButtonText}>Terms & Privacy Policy</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -250,11 +258,16 @@ export default function ProfileTab() {
           </>
         ) : (
           <>
-            <InfoRow label="Plan" value="Free" />
             <InfoRow
-              label="Free scans remaining"
-              value={String(remainingFreeScans(subscription))}
+              label="Plan"
+              value={isTrialActive(subscription) ? 'Free Trial' : 'Free'}
             />
+            {isTrialActive(subscription) && (
+              <InfoRow
+                label="Trial days remaining"
+                value={String(trialDaysRemaining(subscription))}
+              />
+            )}
             <TouchableOpacity
               style={styles.modeButton}
               onPress={async () => {
@@ -273,7 +286,108 @@ export default function ProfileTab() {
               <Feather name="zap" size={16} color={Colors.primary} />
               <Text style={[styles.modeButtonText, { color: Colors.primary }]}>Upgrade to Glow Pro</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modeButton}
+              onPress={async () => {
+                try {
+                  const sub = await restorePurchases(subscription);
+                  setSubscription(sub);
+                  if (sub.is_active) {
+                    Alert.alert('Restored', 'Your subscription has been restored.');
+                  } else {
+                    Alert.alert('Nothing to restore', 'No previous purchases found.');
+                  }
+                } catch {
+                  Alert.alert('Restore failed', 'Unable to restore purchases. Please try again later.');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Feather name="refresh-cw" size={16} color={Colors.primaryLight} />
+              <Text style={styles.modeButtonText}>Restore Purchases</Text>
+            </TouchableOpacity>
           </>
+        )}
+      </View>
+
+      {/* Notifications */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Notifications</Text>
+        <TouchableOpacity
+          style={styles.infoRow}
+          onPress={() => {
+            if (notificationSettings.notifications_enabled) {
+              setShowTimePicker(true);
+            }
+          }}
+          activeOpacity={notificationSettings.notifications_enabled ? 0.7 : 1}
+        >
+          <Text style={styles.infoLabel}>Daily reminder</Text>
+          <Text style={styles.infoValue}>
+            {notificationSettings.notifications_enabled && notificationSettings.notification_time
+              ? notificationSettings.notification_time
+              : 'Off'}
+          </Text>
+        </TouchableOpacity>
+        {showTimePicker && (
+          <DateTimePicker
+            value={(() => {
+              const [h, m] = (notificationSettings.notification_time || '08:00').split(':').map(Number);
+              const d = new Date(2000, 0, 1, h, m);
+              return d;
+            })()}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={async (_, selected) => {
+              setShowTimePicker(Platform.OS === 'ios');
+              if (selected) {
+                const h = selected.getHours();
+                const m = selected.getMinutes();
+                const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                await scheduleDailyReminder(h, m);
+                setNotificationTime(timeStr);
+              }
+            }}
+            themeVariant="light"
+          />
+        )}
+        {notificationSettings.notifications_enabled ? (
+          <View style={{ gap: Spacing.sm }}>
+            <TouchableOpacity
+              style={styles.modeButton}
+              onPress={() => setShowTimePicker(!showTimePicker)}
+              activeOpacity={0.7}
+            >
+              <Feather name="clock" size={16} color={Colors.primary} />
+              <Text style={[styles.modeButtonText, { color: Colors.primary }]}>Change time</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modeButton}
+              onPress={async () => {
+                await cancelDailyReminder();
+                setNotificationTime(null);
+                setShowTimePicker(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <Feather name="bell-off" size={16} color={Colors.error} />
+              <Text style={[styles.modeButtonText, { color: Colors.error }]}>Turn off reminders</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.modeButton}
+            onPress={async () => {
+              const defaultTime = '08:00';
+              const [h, m] = defaultTime.split(':').map(Number);
+              await scheduleDailyReminder(h, m);
+              setNotificationTime(defaultTime);
+            }}
+            activeOpacity={0.7}
+          >
+            <Feather name="bell" size={16} color={Colors.primary} />
+            <Text style={[styles.modeButtonText, { color: Colors.primary }]}>Enable daily reminder</Text>
+          </TouchableOpacity>
         )}
       </View>
 

@@ -22,6 +22,7 @@ import {
   BorderRadius,
 } from '../../src/constants/theme';
 import { useStaggeredEntrance, useShakeAnimation } from '../../src/utils/animations';
+import { trackEvent } from '../../src/services/analytics';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -55,6 +56,7 @@ export default function ForgotPasswordScreen() {
         strategy: 'reset_password_email_code',
         identifier: trimmed,
       });
+      trackEvent('forgot_password_requested');
       setStep('reset');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unable to send reset code.';
@@ -92,6 +94,7 @@ export default function ForgotPasswordScreen() {
 
       if (result.status === 'complete' && result.createdSessionId) {
         await setActive({ session: result.createdSessionId });
+        trackEvent('forgot_password_completed');
         setSuccess(true);
         setTimeout(() => router.replace('/auth/sign-in'), 1500);
       } else {

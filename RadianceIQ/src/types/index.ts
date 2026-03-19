@@ -22,7 +22,8 @@ export type BirthControlType = 'pill' | 'iud' | 'patch' | 'ring' | 'injection' |
 export type OnboardingScreenName =
   | 'welcome' | 'age-range' | 'sex' | 'location' | 'skin-goal'
   | 'menstrual' | 'cycle-details' | 'supplements' | 'exercise'
-  | 'shower-frequency' | 'hand-washing' | 'camera-permission' | 'ready';
+  | 'shower-frequency' | 'hand-washing' | 'scan-reminder'
+  | 'camera-permission' | 'ready' | 'paywall';
 
 export interface HealthConnectionState {
   status: PermissionStatus;
@@ -104,6 +105,13 @@ export interface DailyRecord {
   drinks_yesterday?: string;
 }
 
+export interface MetricRecommendation {
+  report: string;
+  stop_using: string;
+  consider_using: string;
+  continue_using: string;
+}
+
 export interface ModelOutput {
   output_id: string;
   daily_id: string;
@@ -121,6 +129,8 @@ export interface ModelOutput {
   signal_features?: SignalFeatures;
   lesions?: DetectedLesion[];
   signal_confidence?: SignalConfidence;
+  signal_recommendations?: Record<string, string[]>;
+  metric_recommendations?: Record<string, MetricRecommendation>;
 }
 
 export interface ScanResult {
@@ -163,6 +173,14 @@ export interface SubscriptionState {
   expires_at: string | null;
   product_id: string | null;
   free_scans_used: number;
+  trial_start_date: string | null;
+  trial_end_date: string | null;
+}
+
+// Notification settings
+export interface NotificationSettings {
+  notifications_enabled: boolean;
+  notification_time: string | null; // HH:MM format
 }
 
 // Gamification

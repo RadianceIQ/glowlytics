@@ -113,10 +113,22 @@ Glowlytics is a skin health tracking app that enables users to gain insights int
 - Trust signal card explaining photo privacy
 - CTA: **Enable camera access** (triggers system dialog)
 
+#### Screen 12.5 — Scan Reminder (NEW)
+- "When is your daily skin routine?"
+- "We'll send a gentle reminder so you never miss a scan."
+- Native scrollable time picker (default 8:00 AM)
+- CTA: **Set reminder** (requests notification permissions, schedules daily) / **Skip**
+
 #### Screen 13 — Ready
 - "You're ready to start tracking."
 - Luminous orb animation
-- CTA: **Take my baseline scan** / **Explore first** → Home
+- CTA: **Continue** → Paywall
+
+#### Screen 14 — Paywall (NEW)
+- Inline RevenueCatUI.Paywall component
+- On purchase/restore → set onboarding_complete, navigate to tabs
+- On dismiss/skip → start 7-day free trial, set onboarding_complete, navigate to tabs
+- Tracks: `onboarding_paywall_purchased`, `onboarding_paywall_skipped`, `onboarding_paywall_restored`
 
 ---
 
@@ -439,8 +451,10 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - **Auth token wiring** — Clerk getToken() injected into API client on app startup
 - **Animated auth screens** with Headspace-inspired staggered entrances, error shake, success haptics
 - **Clerk authentication** with Sign in with Apple, Google, and Email/Password
-- **RevenueCat subscription** — "Glow Pro" entitlement, 3-free-scan trial, monthly/yearly/lifetime products, native paywall UI via RevenueCatUI, Customer Center for subscription management
-- **Scan gating** — camera tab, camera screen, home scan buttons redirect to paywall when free scans exhausted
+- **RevenueCat subscription** — "Glow Pro" entitlement, 7-day free trial (started on onboarding paywall skip), monthly/yearly/lifetime products, native paywall UI via RevenueCatUI, Customer Center for subscription management. Error 23 (CONFIGURATION_ERROR) silenced.
+- **Scan gating** — camera tab, camera screen, home scan buttons redirect to paywall when trial expired and not subscribed
+- **Daily scan notifications** — expo-notifications with configurable time picker in onboarding + profile settings
+- **Products tab** — full product management screen replacing Trend tab, with routine score ring, product cards with effectiveness rings, add via search/barcode/manual entry
 - **Report gating** — clinician reports require active "Glow Pro" subscription
 - **PostHog analytics** — 20 events tracked across auth, onboarding, scans, paywall conversion, engagement, and sign-out; user identification via Clerk userId
 - **Vision API** — fine-tuned GPT-4o (`ft:gpt-4o-2024-08-06:personal:radianceiq-skin:DHBaOo20`) via backend proxy; API key server-side only
@@ -460,7 +474,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - **App Store metadata** — description, keywords, screenshot specs for iPhone 15 Pro Max
 - **Demo script** — 7-minute structured walkthrough with talking points
 - **Production build submitted** — v1.0.0 build #3 uploaded to App Store Connect
-- **329 unit tests** across 21 suites (scoring, insights, scanner, subscription, analytics, product lookup, ingredient DB, signal history, signal-models, image-processing)
+- **328 unit tests** across 21 suites (scoring, insights, scanner, subscription, analytics, product lookup, ingredient DB, signal history, signal-models, image-processing)
 - 49 screen files, 21+ components, 17 services, 8 backend files, Zustand store
 - EAS dev client + production builds succeeding (build #18 on TestFlight)
 
@@ -515,9 +529,19 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - **Tests**: 53 new tests (image processing unit, signal model merging, endpoint integration)
 - **Dependencies**: sharp (backend), onnxruntime-node (optional), 6 new ML Python packages
 
+### Completed (2026-03-17): RevenueCat Fix + Trial + Notifications + Products Tab
+- **RevenueCat Error 23 fix**: `initRevenueCat()` catches CONFIGURATION_ERROR silently
+- **7-day free trial**: replaces 3-free-scan model; `startTrial()`, `isTrialActive()`, `trialDaysRemaining()`, `canScan()` rewritten
+- **Onboarding paywall**: `app/onboarding/paywall.tsx` — inline RevenueCatUI, skip starts trial, purchase completes onboarding
+- **Daily scan notifications**: `src/services/notifications.ts` + `app/onboarding/scan-reminder.tsx` — time picker, schedule/cancel daily reminders
+- **Products tab**: replaced Trend tab with full product management — routine score ring, ProductCard with effectiveness rings, AddProductSheet (search/barcode/manual), FAB
+- **Profile updates**: trial days remaining, notification settings section (enable/disable daily reminder)
+- **New components**: `ProductCard.tsx`, `AddProductSheet.tsx`
+- **Dependencies added**: `expo-notifications`, `@react-native-community/datetimepicker`
+- **Build #24** submitted to TestFlight with all changes
+
 ### Deferred (post-launch)
 - HealthKit/Health Connect native integration (requires EAS bare workflow)
-- Push notifications for scan reminders
 - PDF export for clinician reports (currently stub)
 - Session replay via PostHog (currently disabled)
 - Deploy ONNX models to Railway (115MB total, needs LFS or external hosting)
@@ -527,7 +551,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 
 ## Onboarding Implementation (Current)
 
-### Onboarding flow (13 screens, progressive disclosure)
+### Onboarding flow (15 screens, progressive disclosure)
 1. Welcome
 2. Age Range (2×3 grid)
 3. Biological Sex (branching: female → menstrual screens)
@@ -539,8 +563,10 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 9. Exercise Frequency
 10. Shower Frequency
 11. Hand Washing
-12. Camera Permission (pre-permission screen + system dialog)
-13. Ready (luminous orb animation → home)
+12. Scan Reminder (time picker for daily notifications)
+13. Camera Permission (pre-permission screen + system dialog)
+14. Ready (luminous orb animation → paywall)
+15. Paywall (RevenueCatUI inline, skip starts 7-day trial)
 
 ### Flow architecture
 - Dynamic flow array via `buildOnboardingFlow(sex, menstrualStatus)` in `src/services/onboardingFlow.ts`

@@ -354,8 +354,11 @@ export default function SignalDetailScreen() {
       .join(' ');
   }, [trendData]);
 
-  // ---- Recommendations ----
-  const recommendations = RECOMMENDATIONS[signalKey]?.[level] || [];
+  // ---- Recommendations (prefer server-generated, fall back to hardcoded) ----
+  const serverSignalRecs = latestOutput?.signal_recommendations?.[signalKey];
+  const recommendations = (serverSignalRecs && serverSignalRecs.length > 0)
+    ? serverSignalRecs
+    : (RECOMMENDATIONS[signalKey]?.[level] || []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -501,6 +504,11 @@ export default function SignalDetailScreen() {
             </View>
           ))}
         </Animated.View>
+
+        {/* ---- Disclaimer ---- */}
+        <Text style={styles.disclaimer}>
+          For informational purposes only — not medical advice. Consult a dermatologist for diagnosis or treatment.
+        </Text>
 
         {/* ---- Clinical Guidelines from RAG ---- */}
         {latestOutput?.rag_recommendations && latestOutput.rag_recommendations.length > 0 && (
@@ -661,5 +669,14 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.textSecondary,
     lineHeight: FontSize.md * 1.5,
+  },
+  disclaimer: {
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: FontSize.xs * 1.5,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
   },
 });

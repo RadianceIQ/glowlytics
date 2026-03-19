@@ -2,7 +2,7 @@
   "expo": {
     "name": "Glowlytics",
     "slug": "Glowlytics",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -69,7 +69,9 @@
           }
         }
       ],
+      ["expo-asset", { "assets": ["./assets/models"] }],
       "expo-font",
+      "expo-notifications",
       "expo-web-browser",
       "expo-mail-composer"
     ],

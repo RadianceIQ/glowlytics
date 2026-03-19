@@ -53,6 +53,8 @@ const resetStore = () => {
       expires_at: null,
       product_id: null,
       free_scans_used: 0,
+      trial_start_date: null,
+      trial_end_date: null,
     },
   });
 };
@@ -241,6 +243,8 @@ describe('useStore', () => {
         expires_at: '2026-04-14T00:00:00Z',
         product_id: 'glowlytics_premium_monthly',
         free_scans_used: 2,
+        trial_start_date: null,
+        trial_end_date: null,
       });
 
       const sub = useStore.getState().subscription;
@@ -257,14 +261,18 @@ describe('useStore', () => {
       expect(useStore.getState().subscription.free_scans_used).toBe(2);
     });
 
-    it('canPerformScan returns true for free user under limit', () => {
+    it('canPerformScan returns true for user with active trial', () => {
+      const future = new Date();
+      future.setDate(future.getDate() + 5);
+      useStore.getState().setSubscription({
+        ...useStore.getState().subscription,
+        trial_start_date: new Date().toISOString(),
+        trial_end_date: future.toISOString(),
+      });
       expect(useStore.getState().canPerformScan()).toBe(true);
     });
 
-    it('canPerformScan returns false after 3 free scans', () => {
-      useStore.getState().incrementFreeScansUsed();
-      useStore.getState().incrementFreeScansUsed();
-      useStore.getState().incrementFreeScansUsed();
+    it('canPerformScan returns false for free user without trial', () => {
       expect(useStore.getState().canPerformScan()).toBe(false);
     });
 
@@ -275,11 +283,13 @@ describe('useStore', () => {
         expires_at: '2026-04-14T00:00:00Z',
         product_id: 'glowlytics_premium_monthly',
         free_scans_used: 10,
+        trial_start_date: null,
+        trial_end_date: null,
       });
       expect(useStore.getState().canPerformScan()).toBe(true);
     });
 
-    it('addDailyRecord increments free_scans_used', () => {
+    it('addDailyRecord does not increment free_scans_used (trial model)', () => {
       useStore.getState().createUser({
         age_range: '25-34',
         period_applicable: 'no',
@@ -301,7 +311,8 @@ describe('useStore', () => {
         new_product_added: false,
       });
 
-      expect(useStore.getState().subscription.free_scans_used).toBe(1);
+      // Trial model — no longer incrementing free scans
+      expect(useStore.getState().subscription.free_scans_used).toBe(0);
     });
 
     it('does not increment free_scans_used for premium users', () => {
@@ -316,6 +327,8 @@ describe('useStore', () => {
         expires_at: '2026-04-14T00:00:00Z',
         product_id: 'glowlytics_premium_monthly',
         free_scans_used: 0,
+        trial_start_date: null,
+        trial_end_date: null,
       });
 
       useStore.getState().addDailyRecord({
@@ -342,6 +355,8 @@ describe('useStore', () => {
         expires_at: '2026-04-14T00:00:00Z',
         product_id: 'glowlytics_premium_monthly',
         free_scans_used: 5,
+        trial_start_date: null,
+        trial_end_date: null,
       });
 
       useStore.getState().resetAll();

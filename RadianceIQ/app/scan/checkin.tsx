@@ -8,6 +8,7 @@ import { Button } from '../../src/components/Button';
 import { OptionSelector } from '../../src/components/OptionSelector';
 import { useStore } from '../../src/store/useStore';
 import { getEstimatedCycleDay } from '../../src/utils/cycleDay';
+import { trackEvent } from '../../src/services/analytics';
 
 export default function DailyCheckin() {
   const router = useRouter();
@@ -41,6 +42,12 @@ export default function DailyCheckin() {
   const canContinue = sunscreen !== null && newProduct !== null;
 
   const handleSeeResults = () => {
+    trackEvent('scan_checkin_submitted', {
+      sunscreen: sunscreen === 'yes',
+      new_product: newProduct === 'yes',
+      sleep_quality: sleep,
+      stress_level: stress,
+    });
     router.replace({
       pathname: '/scan/analyzing',
       params: {

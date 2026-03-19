@@ -66,6 +66,13 @@ export default function MetricAssessmentDetail() {
     }
   }, [detail]);
 
+  // Prefer server-generated metric recommendations when available
+  const serverMetricRec = metric ? latestOutput?.metric_recommendations?.[metric] : undefined;
+  const effectiveReport = serverMetricRec?.report || detail?.report || '';
+  const effectiveStopUsing = serverMetricRec?.stop_using || detail?.stopUsing || '';
+  const effectiveConsiderUsing = serverMetricRec?.consider_using || detail?.considerUsing || '';
+  const effectiveContinueUsing = serverMetricRec?.continue_using || detail?.continueUsing || '';
+
   const activeZone = detail?.zones.find((zone) => zone.key === selectedZone) || detail?.zones[0];
   const zoneReportMotion = useRef(new Animated.Value(1)).current;
 
@@ -142,6 +149,7 @@ export default function MetricAssessmentDetail() {
           zones={detail.zones}
           selectedZoneKey={activeZone?.key || detail.zones[0].key}
           onSelectZone={setSelectedZone}
+          lesions={latestOutput?.lesions?.length ? latestOutput.lesions : undefined}
         />
         <View style={styles.zoneTabs}>
           {detail.zones.map((zone) => {
@@ -172,22 +180,26 @@ export default function MetricAssessmentDetail() {
 
       <View style={styles.productCard}>
         <Text style={styles.productTitle}>Detailed report and product guidance</Text>
-        <Text style={styles.productBody}>{detail.report}</Text>
+        <Text style={styles.productBody}>{effectiveReport}</Text>
         <View style={styles.recommendationStack}>
           <View style={styles.recommendationRow}>
             <Text style={styles.recommendationLabel}>Stop using</Text>
-            <Text style={styles.recommendationText}>{detail.stopUsing}</Text>
+            <Text style={styles.recommendationText}>{effectiveStopUsing}</Text>
           </View>
           <View style={styles.recommendationRow}>
             <Text style={styles.recommendationLabel}>Consider using</Text>
-            <Text style={styles.recommendationText}>{detail.considerUsing}</Text>
+            <Text style={styles.recommendationText}>{effectiveConsiderUsing}</Text>
           </View>
           <View style={styles.recommendationRow}>
             <Text style={styles.recommendationLabel}>Continue</Text>
-            <Text style={styles.recommendationText}>{detail.continueUsing}</Text>
+            <Text style={styles.recommendationText}>{effectiveContinueUsing}</Text>
           </View>
         </View>
       </View>
+
+      <Text style={styles.disclaimer}>
+        For informational purposes only — not medical advice. Consult a dermatologist for diagnosis or treatment.
+      </Text>
 
       <Button title="Back to all metrics" variant="ghost" onPress={() => router.back()} />
     </AtmosphereScreen>
@@ -380,5 +392,14 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
     lineHeight: 22,
+  },
+  disclaimer: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.xs,
+    textAlign: 'center',
+    lineHeight: FontSize.xs * 1.5,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
   },
 });

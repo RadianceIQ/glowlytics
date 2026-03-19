@@ -28,8 +28,10 @@ export function buildOnboardingFlow(
     'exercise',
     'shower-frequency',
     'hand-washing',
+    'scan-reminder',
     'camera-permission',
     'ready',
+    'paywall',
   );
 
   return flow;

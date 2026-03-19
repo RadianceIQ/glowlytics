@@ -10,6 +10,7 @@ import { OnboardingHero } from '../../src/components/OnboardingHero';
 import { useStore } from '../../src/store/useStore';
 import { lookupBarcode, searchOpenBeautyFacts } from '../../src/services/productLookup';
 import { computeProductEffectiveness } from '../../src/services/ingredientDB';
+import { trackEvent } from '../../src/services/analytics';
 import type { UsageSchedule } from '../../src/types';
 
 const MOCK_PRODUCTS = [
@@ -457,7 +458,10 @@ export default function Products() {
                     )}
                   </View>
                   <TouchableOpacity
-                    onPress={() => removeProduct(product.user_product_id)}
+                    onPress={() => {
+                      trackEvent('product_removed', { product_name: product.product_name });
+                      removeProduct(product.user_product_id);
+                    }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <Feather name="trash-2" size={16} color={Colors.textMuted} />

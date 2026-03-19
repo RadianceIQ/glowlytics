@@ -24,13 +24,22 @@ import { useStore } from '../../src/store/useStore';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
 import { trackEvent } from '../../src/services/analytics';
 import { env } from '../../src/config/env';
-import {
-  initLesionDetection,
-  detectLesions,
-  releaseLesionDetection,
-  isReady as isLesionModelReady,
-} from '../../src/services/onDeviceLesionDetection';
 import type { DetectedLesion } from '../../src/types';
+
+// Lazy import — onnxruntime-react-native crashes in Expo Go.
+// Module-level cache is safe: JS modules are singletons, loaded once per app session.
+type LesionModule = typeof import('../../src/services/onDeviceLesionDetection');
+let _lesionMod: Awaited<LesionModule> | null = null;
+const loadLesionModule = async (): Promise<Awaited<LesionModule> | null> => {
+  if (_lesionMod) return _lesionMod;
+  try {
+    _lesionMod = await import('../../src/services/onDeviceLesionDetection');
+    return _lesionMod;
+  } catch (err) {
+    console.warn('[Camera] Lesion detection module unavailable:', err);
+    return null;
+  }
+};
 
 export default function CameraScreen() {
   const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
@@ -105,11 +114,22 @@ export default function CameraScreen() {
     }
   }, [trackingState]);
 
-  // Model is pre-downloaded at app startup (_layout.tsx).
-  // Just ensure session is loaded when camera mounts (no-op if already cached).
+  // Lazy-load lesion detection — ONNX runtime crashes in Expo Go
   useEffect(() => {
-    initLesionDetection().catch(() => {});
-    return () => releaseLesionDetection();
+    console.log('[Camera] Initializing lesion detection model...');
+    loadLesionModule()
+      .then((m) => m?.initLesionDetection())
+      .then((ok) => {
+        console.log('[Camera] Lesion detection init:', ok ? 'SUCCESS' : 'SKIPPED');
+        trackEvent('camera_lesion_init', { success: !!ok });
+      })
+      .catch((err) => {
+        console.warn('[Camera] Lesion detection init error:', err);
+        trackEvent('camera_lesion_init', { success: false, error: String(err) });
+      });
+    return () => {
+      loadLesionModule().then((m) => m?.releaseLesionDetection()).catch(() => {});
+    };
   }, []);
 
   // Lesion detection when face is aligned — on-device first, server fallback
@@ -124,8 +144,15 @@ export default function CameraScreen() {
     }
 
     const detectOnDevice = async (base64: string): Promise<DetectedLesion[]> => {
-      if (!isLesionModelReady()) return [];
-      return detectLesions(base64);
+      const m = await loadLesionModule();
+      if (!m || !m.isReady()) {
+        return [];
+      }
+      const results = await m.detectLesions(base64);
+      if (results.length > 0) {
+        console.log('[Camera] On-device detection:', results.length, 'lesions found');
+      }
+      return results;
     };
 
     const detectViaServer = async (base64: string): Promise<DetectedLesion[]> => {
@@ -240,9 +267,13 @@ export default function CameraScreen() {
       // Quality check — use photo's native dimensions, not screen dimensions
       const quality = await checkPhotoQuality(photo.uri, photo.width, photo.height);
       if (quality.overallPass || quality.issues.length === 0) {
-        // Navigate to processing with photo
+        // Persist camera-detected lesions for results screen
+        if (detectedLesions.length > 0) {
+          useStore.getState().setPendingLesions(detectedLesions);
+        }
+        // Navigate directly to analyzing (skip processing screen)
         router.push({
-          pathname: '/scan/processing',
+          pathname: '/scan/analyzing',
           params: { photoUri: photo.uri },
         });
       } else {

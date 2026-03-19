@@ -32,6 +32,7 @@ import {
   Spacing,
   BorderRadius,
 } from '../../src/constants/theme';
+import { trackEvent } from '../../src/services/analytics';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -187,22 +188,26 @@ export default function SignUpScreen() {
 
   const handleOAuthSignUp = useCallback(
     async (strategy: 'oauth_apple' | 'oauth_google') => {
+      const isApple = strategy === 'oauth_apple';
+      const method = isApple ? 'oauth_apple' : 'oauth_google';
       try {
         setError(null);
-        const isApple = strategy === 'oauth_apple';
         setOauthLoading(isApple ? 'apple' : 'google');
+        trackEvent('auth_sign_up_started', { method });
 
         const startFlow = isApple ? startAppleOAuth : startGoogleOAuth;
         const { createdSessionId, setActive: oauthSetActive } = await startFlow();
 
         if (createdSessionId) {
           await oauthSetActive?.({ session: createdSessionId });
+          trackEvent('auth_sign_up_completed', { method });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : 'An error occurred during sign up.';
         if (!message.includes('cancel')) {
+          trackEvent('auth_sign_up_failed', { method, error: message });
           setError(message);
         }
       } finally {
@@ -229,6 +234,7 @@ export default function SignUpScreen() {
     try {
       setError(null);
       setLoading(true);
+      trackEvent('auth_sign_up_started', { method: 'email' });
 
       await signUp.create({ emailAddress: trimmedEmail, password });
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
@@ -262,11 +268,13 @@ export default function SignUpScreen() {
 
       if (result.status === 'complete' && result.createdSessionId) {
         await setActive({ session: result.createdSessionId });
+        trackEvent('auth_sign_up_completed', { method: 'email' });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Invalid verification code.';
+      trackEvent('auth_sign_up_failed', { method: 'email', error: message });
       setError(message);
     } finally {
       setLoading(false);

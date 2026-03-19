@@ -8,11 +8,13 @@ import {
   Spacing,
 } from '../constants/theme';
 import type { FaceZoneInsight, SeverityLevel } from '../services/skinInsights';
+import type { DetectedLesion } from '../types';
 
 interface Props {
   zones: FaceZoneInsight[];
   selectedZoneKey: string;
   onSelectZone: (zoneKey: string) => void;
+  lesions?: DetectedLesion[];
 }
 
 const severityColors: Record<SeverityLevel, string> = {
@@ -21,10 +23,23 @@ const severityColors: Record<SeverityLevel, string> = {
   high: Colors.error,
 };
 
+const FACE_MODEL_WIDTH = 248;
+const FACE_MODEL_HEIGHT = 300;
+
+const lesionColors: Record<string, string> = {
+  comedone: '#FFD700',
+  papule: '#FF7A78',
+  pustule: '#FF5252',
+  nodule: '#D32F2F',
+  macule: '#B68AFF',
+  patch: '#4DA6FF',
+};
+
 export const FaceAssessmentMap: React.FC<Props> = ({
   zones,
   selectedZoneKey,
   onSelectZone,
+  lesions,
 }) => {
   const pulse = useRef(new Animated.Value(1)).current;
 
@@ -88,6 +103,27 @@ export const FaceAssessmentMap: React.FC<Props> = ({
                 </Text>
               </TouchableOpacity>
             </Animated.View>
+          );
+        })}
+
+        {lesions && lesions.length > 0 && lesions.map((lesion, i) => {
+          const [bx, by, bw, bh] = lesion.bbox;
+          const cx = (bx + bw / 2) * 100;
+          const cy = (by + bh / 2) * 100;
+          const dotColor = lesionColors[lesion.class] || Colors.error;
+          return (
+            <View
+              key={`lesion-${i}`}
+              style={[
+                styles.lesionDot,
+                {
+                  top: `${cy}%`,
+                  left: `${cx}%`,
+                  backgroundColor: dotColor,
+                  borderColor: dotColor,
+                },
+              ]}
+            />
           );
         })}
       </View>
@@ -165,5 +201,14 @@ const styles = StyleSheet.create({
   },
   markerLabelSelected: {
     color: '#FFFFFF',
+  },
+  lesionDot: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    transform: [{ translateX: -5 }, { translateY: -5 }],
+    opacity: 0.85,
   },
 });

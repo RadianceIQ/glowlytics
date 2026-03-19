@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -12,20 +12,19 @@ import Animated, {
   FadeIn,
   FadeOut,
 } from 'react-native-reanimated';
-import { Colors, FontFamily, FontSize, BorderRadius, Spacing } from '../../src/constants/theme';
+import { Colors, FontFamily, FontSize, Spacing } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import { generateDefaultIndices } from '../../src/services/mockScanner';
 import { imageToBase64 } from '../../src/services/visionAPI';
+import { trackEvent } from '../../src/services/analytics';
 
 const STATUS_MESSAGES = [
-  'Analyzing skin structure...',
-  'Mapping conditions...',
-  'Generating insights...',
-  'Consulting guidelines...',
+  'Preparing your scan...',
+  'Encoding image data...',
 ];
 
 const CALM_EASING = Easing.out(Easing.cubic);
-const MIN_HOLD = 2000; // Minimum display time in ms
+const MIN_HOLD = 2000;
 
 export default function ProcessingScreen() {
   const router = useRouter();
@@ -37,38 +36,34 @@ export default function ProcessingScreen() {
   const [messageIndex, setMessageIndex] = useState(0);
   const hasStarted = useRef(false);
 
-  // Animations
-  const orbScale = useSharedValue(0.8);
-  const orbOpacity = useSharedValue(0);
+  const logoOpacity = useSharedValue(0);
+  const logoScale = useSharedValue(0.9);
   const glowPulse = useSharedValue(0.3);
-  const progressWidth = useSharedValue(0);
 
   useEffect(() => {
-    // Orb entrance
-    orbScale.value = withTiming(1, { duration: 600, easing: CALM_EASING });
-    orbOpacity.value = withTiming(1, { duration: 400, easing: CALM_EASING });
-
-    // Glow pulse
+    logoOpacity.value = withTiming(1, { duration: 500, easing: CALM_EASING });
+    logoScale.value = withRepeat(
+      withSequence(
+        withTiming(1.04, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.96, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+    );
     glowPulse.value = withRepeat(
       withSequence(
-        withTiming(0.7, { duration: 1200 }),
-        withTiming(0.3, { duration: 1200 }),
+        withTiming(0.6, { duration: 1500 }),
+        withTiming(0.2, { duration: 1500 }),
       ),
       -1,
     );
 
-    // Progress bar
-    progressWidth.value = withTiming(1, { duration: MIN_HOLD + 2000, easing: CALM_EASING });
-
-    // Cycle status messages
     const interval = setInterval(() => {
       setMessageIndex((prev) => (prev + 1) % STATUS_MESSAGES.length);
     }, 1500);
-
     return () => clearInterval(interval);
   }, []);
 
-  // Prepare photo and navigate to checkin
+  // Prepare photo and navigate to analyzing
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
@@ -81,26 +76,24 @@ export default function ProcessingScreen() {
         return;
       }
 
-      // Generate fallback scanner indices
+      trackEvent('scan_photo_captured');
       const scannerData = generateDefaultIndices();
 
-      // Pre-encode photo for later analysis in checkin
       if (params.photoUri) {
         try {
           const base64 = await imageToBase64(params.photoUri);
           setPendingPhotoBase64(base64);
         } catch {
-          // Encoding failed — analysis will re-encode in checkin
+          // Encoding failed — analysis will re-encode
         }
       }
 
-      // Ensure minimum hold time
       const elapsed = Date.now() - startTime;
       const remaining = Math.max(0, MIN_HOLD - elapsed);
 
       setTimeout(() => {
         router.replace({
-          pathname: '/scan/checkin',
+          pathname: '/scan/analyzing',
           params: {
             inflammation: String(scannerData.inflammation_index),
             pigmentation: String(scannerData.pigmentation_index),
@@ -112,29 +105,27 @@ export default function ProcessingScreen() {
     })();
   }, []);
 
-  const orbAnimStyle = useAnimatedStyle(() => ({
-    opacity: orbOpacity.value,
-    transform: [{ scale: orbScale.value }],
+  const logoAnimStyle = useAnimatedStyle(() => ({
+    opacity: logoOpacity.value,
+    transform: [{ scale: logoScale.value }],
   }));
 
   const glowAnimStyle = useAnimatedStyle(() => ({
     opacity: glowPulse.value,
   }));
 
-  const progressStyle = useAnimatedStyle(() => ({
-    width: `${progressWidth.value * 100}%` as any,
-  }));
-
   return (
     <View style={styles.container}>
+      {/* Same seamless gradient as analyzing screen */}
       <LinearGradient
-        colors={[Colors.backgroundDeep, Colors.gradientMid, Colors.gradientEnd]}
+        colors={['#3D5A6E', '#4A6B80', Colors.gradientMid, '#2A4A5E', Colors.gradientEnd]}
+        locations={[0, 0.25, 0.45, 0.7, 1]}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Background glow */}
+      {/* Subtle center glow */}
       <Animated.View style={[styles.bgGlow, glowAnimStyle]}>
         <LinearGradient
           colors={[Colors.glowPrimary, 'transparent']}
@@ -145,16 +136,14 @@ export default function ProcessingScreen() {
       </Animated.View>
 
       <View style={styles.content}>
-        {/* Logo */}
-        <Animated.View style={orbAnimStyle}>
-          <Image
-            source={require('../../assets/icon.png')}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
+        {/* Breathing logo placeholder — same size as analyzing ring */}
+        <Animated.View style={[styles.logoCircle, logoAnimStyle]}>
+          <View style={styles.logoInner}>
+            <Text style={styles.logoLetter}>G</Text>
+          </View>
         </Animated.View>
 
-        {/* Status message */}
+        {/* Rotating message */}
         <View style={styles.messageContainer}>
           <Animated.Text
             key={messageIndex}
@@ -165,24 +154,6 @@ export default function ProcessingScreen() {
             {STATUS_MESSAGES[messageIndex]}
           </Animated.Text>
         </View>
-
-        <Text style={styles.subtitle}>
-          This may take a moment
-        </Text>
-      </View>
-
-      {/* Progress bar */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressTrack}>
-          <Animated.View style={[styles.progressFill, progressStyle]}>
-            <LinearGradient
-              colors={[Colors.primaryDark, Colors.primary]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
-            />
-          </Animated.View>
-        </View>
       </View>
     </View>
   );
@@ -191,15 +162,15 @@ export default function ProcessingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#3D5A6E',
   },
   bgGlow: {
     position: 'absolute',
-    top: '20%',
+    top: '25%',
     left: -50,
     right: -50,
     height: 300,
-    borderRadius: BorderRadius.full,
+    borderRadius: 150,
   },
   content: {
     flex: 1,
@@ -208,41 +179,40 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
     paddingHorizontal: Spacing.xl,
   },
-  logoImage: {
+  logoCircle: {
     width: 100,
     height: 100,
-    borderRadius: 24,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: 'rgba(125, 231, 225, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  logoInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoLetter: {
+    fontSize: 42,
+    fontWeight: '700',
+    color: 'rgba(125, 231, 225, 0.5)',
   },
   messageContainer: {
     height: 30,
     justifyContent: 'center',
   },
   statusMessage: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansSemiBold,
+    color: Colors.textOnDark,
+    fontFamily: FontFamily.sans,
     fontSize: FontSize.lg,
     textAlign: 'center',
-  },
-  subtitle: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.sm,
-  },
-  progressContainer: {
-    position: 'absolute',
-    bottom: 60,
-    left: Spacing.xl,
-    right: Spacing.xl,
-  },
-  progressTrack: {
-    height: 3,
-    backgroundColor: Colors.surfaceHighlight,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-    overflow: 'hidden',
+    letterSpacing: 0.3,
   },
 });

@@ -13,20 +13,20 @@ cornell-hackathon/
       home.tsx
       skin-metrics.tsx
       auth/           # Auth screens (sign-in, sign-up, forgot-password)
-      onboarding/     # Onboarding flow (13 screens, progressive disclosure)
+      onboarding/     # Onboarding flow (15 screens, progressive disclosure + scan-reminder + paywall)
       scan/           # Scanning flow (camera → processing → checkin → results)
       report/         # Report screens (premium-gated)
       product/        # Product detail screens
       paywall.tsx     # RevenueCat native paywall (inline component)
       signal/         # Signal detail screens
-      (tabs)/         # Tab navigation (today, trend)
+      (tabs)/         # Tab navigation (today, products, camera, reports, profile)
       skin-metric/    # Skin metric detail
     src/
       components/     # Reusable UI components (20+ files, includes meshData.ts)
       constants/      # Theme (colors, typography)
       config/         # Environment config, Clerk token cache
       hooks/          # Custom hooks (useFaceTracking)
-      services/       # Business logic (16 services + 14 test suites)
+      services/       # Business logic (17 services + 14 test suites)
       store/          # Zustand state (useStore.ts)
       types/          # TypeScript type definitions
       utils/          # Animation utilities
@@ -53,7 +53,8 @@ cornell-hackathon/
 - **Navigation:** Expo Router (file-based)
 - **State:** Zustand + AsyncStorage
 - **Auth:** Clerk (@clerk/clerk-expo v2)
-- **Subscriptions:** RevenueCat (react-native-purchases + react-native-purchases-ui v9.12.0, entitlement: "Glow Pro", 3 free scans)
+- **Subscriptions:** RevenueCat (react-native-purchases + react-native-purchases-ui v9.12.0, entitlement: "Glow Pro", 7-day free trial)
+- **Notifications:** expo-notifications (daily scan reminders, configurable time picker)
 - **Analytics:** PostHog (posthog-react-native, 20 events across auth/onboarding/scan/paywall/engagement)
 - **Vision:** 3-layer parallel pipeline — deterministic image processing + ONNX CV models + fine-tuned GPT-4o (`ft:gpt-4o-2024-08-06:personal:radianceiq-skin:DHBaOo20`)
 - **Image Processing:** `sharp` for CIELAB/ITA/GLCM/LBP feature extraction, `onnxruntime-node` (optional) for custom CV models
@@ -145,19 +146,25 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 - On-device lesion detection: `src/services/onDeviceLesionDetection.ts` — runs on camera frames during alignment
 - Real-time bounding boxes: `LesionOverlay.tsx` — neon sci-fi corner brackets with scanning line animation
 - RAG pipeline queries Pinecone for AAD/ACOG guideline context
-- 329 tests (21 suites), 0 TS errors
+- 328 tests (21 suites), 0 TS errors
 - Authentication via Clerk is mandatory when CLERK_PUBLISHABLE_KEY is set
 - Backend authorization: all user-data endpoints verify `req.auth.userId` matches requested resource
 - Backend security: CORS restricted via `CORS_ORIGINS` env var, rate limiting on public endpoints, `safeErrorMessage()` hides PG details in production
 - Face tracking thresholds (faceTracking.ts) and photo quality thresholds (photoQuality.ts) both use 20% min fill
 - Gamification system: XP, 6 levels, 15 badges, weekly challenges, personal bests
-- Premium users' `free_scans_used` counter does not increment — freezes during subscription
+- Subscription model: 7-day free trial (started on onboarding skip), then paywall. No free scan counter.
+- Trial state: `trial_start_date`, `trial_end_date` in SubscriptionState; `isTrialActive()`, `trialDaysRemaining()`, `canScan()` in subscription service
+- RevenueCat Error 23 (CONFIGURATION_ERROR) silenced in `initRevenueCat()` — SDK already configured
+- Onboarding paywall: `app/onboarding/paywall.tsx` — inline RevenueCatUI.Paywall, skip starts trial
 - `useFaceTracking` cleans up temp frame photos to prevent storage leaks; exposes `lastFrameUri` for lesion detection
 - RevenueCat functions guard on `env.REVENUECAT_API_KEY` — all are safe to call without a key
 - PostHog analytics guard on `env.POSTHOG_API_KEY` — all no-op when key is empty
-- Subscription state persisted in Zustand: tier, is_active, expires_at, product_id, free_scans_used
-- Scan gating: camera tab, camera screen, home scan buttons, skin-metrics → paywall if free scans exhausted
+- Subscription state persisted in Zustand: tier, is_active, expires_at, product_id, free_scans_used, trial_start_date, trial_end_date
+- Scan gating: camera tab, camera screen, home scan buttons, skin-metrics → paywall if trial expired and not subscribed
 - Report gating: reports require active subscription
-- Profile screen: subscription card with upgrade/manage, Customer Center for active subscribers
+- Profile screen: subscription card with trial days remaining or upgrade/manage, notification settings, Customer Center for active subscribers
+- Daily scan notifications: `src/services/notifications.ts` — `scheduleDailyReminder(h, m)`, `cancelDailyReminder()`, configurable in onboarding + profile
+- Products tab: `app/(tabs)/products.tsx` — full product management with routine score ring, ProductCard list, AddProductSheet (search/barcode/manual), FAB
+- Components: `ProductCard.tsx` (effectiveness ring, usage badge), `AddProductSheet.tsx` (modal bottom sheet with 3 add modes)
 - Model download: `backend/scripts/download-models.sh` fetches ONNX files from HuggingFace
 - Lesion export: `ml/export_lesion_onnx.py` converts YOLOv8 .pt → .onnx

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -21,6 +22,7 @@ import {
 const CALM_EASING = Easing.out(Easing.cubic);
 
 export default function Index() {
+  const router = useRouter();
   const orbScale = useSharedValue(0.3);
   const orbOpacity = useSharedValue(0);
   const glowOpacity = useSharedValue(0.2);
@@ -108,6 +110,16 @@ export default function Index() {
             Glowlytics measures skin metrics and trends over time. It does not diagnose conditions.
           </Text>
         </Animated.View>
+
+        <Animated.View style={safetyAnimStyle}>
+          <TouchableOpacity
+            onPress={() => router.push('/privacy-policy')}
+            activeOpacity={0.7}
+            style={styles.termsLink}
+          >
+            <Text style={styles.termsLinkText}>Terms of Service & Privacy Policy</Text>
+          </TouchableOpacity>
+        </Animated.View>
       </View>
     </View>
   );
@@ -143,9 +155,9 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   logoImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 28,
+    width: 80,
+    height: 80,
+    borderRadius: 20,
   },
   brand: {
     color: Colors.text,
@@ -175,5 +187,16 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
     lineHeight: 23,
+  },
+  termsLink: {
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  termsLinkText: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    textDecorationLine: 'underline',
+    textAlign: 'center',
   },
 });
