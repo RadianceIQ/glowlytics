@@ -70,7 +70,6 @@
         }
       ],
       ["expo-asset", { "assets": ["./assets/models"] }],
-      "./plugins/withOnnxModels",
       "expo-font",
       "expo-notifications",
       "expo-web-browser",
