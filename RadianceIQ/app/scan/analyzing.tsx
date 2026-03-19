@@ -266,7 +266,8 @@ export default function AnalyzingScreen() {
   const persistAndNavigate = async () => {
     const analysis = apiResult.current;
     if (!analysis) {
-      router.replace('/scan/results');
+      // No results — don't navigate to an empty results screen
+      setError('We couldn\u2019t complete your analysis. Please try again.');
       return;
     }
 
@@ -429,13 +430,12 @@ export default function AnalyzingScreen() {
     }, 15000);
     timers.current.push(tSlow);
 
-    // Hard timeout at 45s -- force navigate to results with whatever we have
+    // Hard timeout at 45s -- show error instead of navigating with no data
     const tHardTimeout = setTimeout(() => {
       if (!apiDone.current) {
         console.error('[Glowlytics] Analysis hard timeout at 45s');
         trackEvent('scan_analysis_timeout', { analysis_time_ms: 45000 });
-        apiDone.current = true;
-        runPostApiStages();
+        setError('Analysis is taking too long. Please check your connection and try again.');
       }
     }, 45000);
     timers.current.push(tHardTimeout);
@@ -496,28 +496,12 @@ export default function AnalyzingScreen() {
           has_lesions: Array.isArray(result.lesions) && result.lesions.length > 0,
         });
 
-        // --- Primary path: timer track is already holding at API stage ---
+        // If timer has reached the API hold stage, proceed immediately.
+        // Otherwise, wait — the timer will call runPostApiStages when it
+        // reaches stage 6 and sees apiDone.current === true.
         if (holdingOnApiStage.current) {
           runPostApiStages();
         }
-
-        // --- Safety net: timer track already passed the API stage ---
-        // If holdingOnApiStage is false, the timer moved on but the API just
-        // finished. Kick post-API stages directly so results are not lost.
-        if (!holdingOnApiStage.current) {
-          runPostApiStages();
-        }
-
-        // --- Failsafe: 3-second backstop ---
-        // In case neither code path above triggered postApiStages (e.g. a
-        // timing race), force it after 3 seconds.
-        const tFailsafe = setTimeout(() => {
-          if (!postApiStarted.current) {
-            console.warn('[Glowlytics] Failsafe: forcing post-API stages after 3s');
-            runPostApiStages();
-          }
-        }, 3000);
-        timers.current.push(tFailsafe);
       })
       .catch((err) => {
         console.error('[Glowlytics] Analysis failed:', err?.message || err, err?.stack);
