@@ -86,7 +86,7 @@ export default function HandWashing() {
     <OnboardingTransition
       illustration={<HandWashingIllustration />}
       heading="How often do you wash your hands?"
-      subtext="Hands are the primary vector for bacteria reaching your face. This frequency helps contextualize breakout patterns."
+      subtext="Your hands are the number one way bacteria reaches your face. This helps us put breakout patterns in context."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       primaryDisabled={!selected}

@@ -139,16 +139,16 @@ export default function LocationScreen() {
   return (
     <OnboardingTransition
       illustration={<LocationIllustration />}
-      heading="Where are you located?"
-      subtext="UV index and humidity levels vary dramatically by region -- and both affect your skin daily."
+      heading="Where do you live?"
+      subtext="UV and humidity vary a lot by region, and both show up in your skin. We only store your general area."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       primaryDisabled={!confirmed}
       secondaryLabel="Skip location"
       secondaryOnPress={handleSkip}
-      showProgress={true}
-      totalSteps={5}
-      currentStep={2}
+      showProgress
+      totalSteps={onboardingFlow.length}
+      currentStep={onboardingFlowIndex}
       showBack={true}
       onBack={handleBack}
     >

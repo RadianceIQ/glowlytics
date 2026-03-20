@@ -83,8 +83,8 @@ export default function ScanReminder() {
   return (
     <OnboardingTransition
       illustration={<ReminderIllustration />}
-      heading="When is your daily skin routine?"
-      subtext="We'll send a gentle reminder so you never miss a scan."
+      heading="When should we remind you to scan?"
+      subtext="Pick a time that works with your routine. We'll send a quick nudge so you don't forget."
       primaryLabel="Set reminder"
       primaryOnPress={handleSetReminder}
       secondaryLabel="Skip"

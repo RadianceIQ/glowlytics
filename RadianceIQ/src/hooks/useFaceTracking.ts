@@ -10,13 +10,14 @@ export function useFaceTracking(
   enabled: boolean,
   frameWidth: number = 720,
   frameHeight: number = 1280,
-): { trackingState: FaceTrackingState; lastFrame: string | null; lastFrameUri: string | null } {
+): { trackingState: FaceTrackingState; lastFrame: string | null; lastFrameUri: string | null; lastFrameWidth: number; lastFrameHeight: number } {
   const [trackingState, setTrackingState] = useState<FaceTrackingState>({
     status: 'no_face',
     issues: [],
     lightingOk: false,
   });
   const [lastFrame, setLastFrame] = useState<string | null>(null);
+  const frameDimsRef = useRef({ w: 720, h: 1280 });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isProcessing = useRef(false);
   const prevUriRef = useRef<string | null>(null);
@@ -37,7 +38,6 @@ export function useFaceTracking(
       try {
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.1,
-          skipProcessing: true,
         });
 
         if (photo?.uri) {
@@ -46,6 +46,9 @@ export function useFaceTracking(
           const oldUri = prevUriRef.current;
           prevUriRef.current = photo.uri;
           setLastFrame(photo.uri);
+          if (photo.width && photo.height) {
+            frameDimsRef.current = { w: photo.width, h: photo.height };
+          }
           if (oldUri) {
             FileSystemLegacy.deleteAsync(oldUri, { idempotent: true }).catch((e) => console.debug('Frame cleanup:', e));
           }
@@ -71,5 +74,5 @@ export function useFaceTracking(
     };
   }, [enabled, cameraRef, frameWidth, frameHeight]);
 
-  return { trackingState, lastFrame, lastFrameUri: lastFrame };
+  return { trackingState, lastFrame, lastFrameUri: lastFrame, lastFrameWidth: frameDimsRef.current.w, lastFrameHeight: frameDimsRef.current.h };
 }

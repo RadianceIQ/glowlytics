@@ -27,11 +27,17 @@ interface Props {
   lesions: DetectedLesion[];
   width: number;
   height: number;
+  /** Width of the source camera frame in pixels — used to correct for CameraView center-crop. */
+  sourceWidth?: number;
+  /** Height of the source camera frame in pixels. */
+  sourceHeight?: number;
+  /** Normalized face bounding box (0-1) — lesions outside this region are hidden. */
+  faceRect?: { x: number; y: number; width: number; height: number };
   mirrored?: boolean;
 }
 
 /** Animated lesion bounding box overlay — teal sci-fi theme with pulsing corners and sweep line. */
-export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, mirrored }) => {
+export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceWidth, sourceHeight, faceRect, mirrored }) => {
   const fadeIn = useSharedValue(0);
   const scanLineY = useSharedValue(0);
   const cornerPulse = useSharedValue(0);
@@ -90,6 +96,16 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, mirrore
 
   if (lesions.length === 0) return null;
 
+  // CameraView fills the screen using "cover" mode — compute the crop transform
+  // so bounding boxes align with the visible (cropped) preview, not the full sensor frame.
+  const srcW = sourceWidth || width;
+  const srcH = sourceHeight || height;
+  const coverScale = Math.max(width / srcW, height / srcH);
+  const displayedW = srcW * coverScale;
+  const displayedH = srcH * coverScale;
+  const cropOffsetX = (width - displayedW) / 2;
+  const cropOffsetY = (height - displayedH) / 2;
+
   return (
     <View style={[styles.container, { width, height }]} pointerEvents="none">
       {/* Full-screen flash on new detection */}
@@ -110,12 +126,31 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, mirrore
 
           {lesions.map((lesion, i) => {
             const [bx, by, bw, bh] = lesion.bbox;
-            let x = bx * width;
-            const y = by * height;
-            const w = bw * width;
-            const h = bh * height;
+
+            // Only show lesions whose center falls within the detected face (+ 15% margin)
+            if (faceRect) {
+              const cx = bx + bw / 2;
+              const cy = by + bh / 2;
+              const padW = faceRect.width * 0.15;
+              const padH = faceRect.height * 0.15;
+              if (
+                cx < faceRect.x - padW ||
+                cx > faceRect.x + faceRect.width + padW ||
+                cy < faceRect.y - padH ||
+                cy > faceRect.y + faceRect.height + padH
+              ) return null;
+            }
+
+            // Map normalized frame coords → screen pixels with crop correction
+            const w = bw * displayedW;
+            const h = bh * displayedH;
+            let x = bx * displayedW + cropOffsetX;
+            const y = by * displayedH + cropOffsetY;
 
             if (mirrored) x = width - x - w;
+
+            // Skip boxes fully outside the visible crop
+            if (x + w < 0 || x > width || y + h < 0 || y > height) return null;
 
             const conf = Math.round(lesion.confidence * 100);
             const label = `${lesion.class.toUpperCase()} ${conf}%`;

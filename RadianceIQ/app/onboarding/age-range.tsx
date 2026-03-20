@@ -80,16 +80,16 @@ export default function AgeRange() {
   return (
     <OnboardingTransition
       illustration={<AgeIllustration />}
-      heading="How old are you?"
-      subtext="Skin changes significantly across decades. This helps us read your scores in the right context."
+      heading="First up — how old are you?"
+      subtext="Your skin changes a lot decade to decade. This helps us set the right baseline for you."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       primaryDisabled={!selected}
       secondaryLabel="Skip"
       secondaryOnPress={handleSkip}
-      showProgress={true}
-      totalSteps={5}
-      currentStep={0}
+      showProgress
+      totalSteps={onboardingFlow.length}
+      currentStep={onboardingFlowIndex}
       showBack={true}
       onBack={handleBack}
     >

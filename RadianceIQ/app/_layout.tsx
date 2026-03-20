@@ -57,18 +57,10 @@ function ClerkGatedApp() {
     if (!loaded.current) {
       loaded.current = true;
       setAuthTokenProvider(() => getToken());
+      setTimeout(() => loadPersistedData(), 0);
 
-      // Initialize store + analytics + RevenueCat — gate app on completion
+      // Initialize analytics + RevenueCat after auth — gate app on completion
       (async () => {
-        // Hydrate persisted data FIRST so AuthRedirector sees onboarding_complete
-        try {
-          console.log('[App] Loading persisted data...');
-          await loadPersistedData();
-          console.log('[App] Persisted data loaded');
-        } catch (e: any) {
-          console.warn('[App] Failed to load persisted data:', e?.message || e);
-        }
-
         try {
           console.log('[App] Initializing analytics...');
           await initAnalytics();
@@ -89,7 +81,7 @@ function ClerkGatedApp() {
           console.warn('[App] Analytics init failed:', e?.message || e);
         }
 
-        // App is ready — always fires even if init steps above fail
+        // App is ready — RevenueCat init (including offerings fetch) is complete
         console.log('[App] Init complete — rendering app');
         identifyAnalyticsUser(userId || 'anonymous');
         trackEvent('app_init_complete', {
@@ -101,11 +93,7 @@ function ClerkGatedApp() {
 
         // Pre-download lesion detection model in background (lazy — skips in Expo Go)
         initLesionDetection().catch(() => {});
-      })().catch((e) => {
-        // Last resort — ensure app renders even if everything above fails
-        console.error('[App] Critical init error:', e);
-        setAppReady(true);
-      });
+      })();
     }
 
     return () => {

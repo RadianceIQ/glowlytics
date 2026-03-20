@@ -102,8 +102,8 @@ export default function CameraPermission() {
   return (
     <OnboardingTransition
       illustration={<CameraIllustration />}
-      heading="Glowlytics needs your camera to track your skin."
-      subtext="Photos are processed on-device and in your private cloud. They are never shared with third parties or used for training."
+      heading="One last thing — we need your camera."
+      subtext="Your photos are processed privately and never shared. We don't access your camera in the background."
       primaryLabel="Enable camera access"
       primaryOnPress={handleEnable}
       secondaryLabel="Set up later"

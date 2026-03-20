@@ -147,11 +147,24 @@ export default function SkinGoal() {
     setProtocol,
   } = useStore();
 
-  const [selected, setSelected] = useState<PrimaryGoal | null>(null);
+  const [selected, setSelected] = useState<Set<PrimaryGoal>>(new Set());
+
+  const toggleGoal = (goal: PrimaryGoal) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(goal)) {
+        next.delete(goal);
+      } else {
+        next.add(goal);
+      }
+      return next;
+    });
+  };
 
   const handleContinue = () => {
-    if (!selected) return;
-    const option = GOAL_OPTIONS.find((o) => o.value === selected);
+    if (selected.size === 0) return;
+    const primary = [...selected][0];
+    const option = GOAL_OPTIONS.find((o) => o.value === primary);
     if (!option) return;
     setProtocol(option.value, option.defaultRegion);
     const nextIndex = onboardingFlowIndex + 1;
@@ -160,7 +173,7 @@ export default function SkinGoal() {
   };
 
   const handleTrackAll = () => {
-    // Default to acne goal with whole_face when tracking everything
+    setSelected(new Set(GOAL_OPTIONS.map((o) => o.value)));
     setProtocol('acne', 'whole_face');
     const nextIndex = onboardingFlowIndex + 1;
     setOnboardingFlowIndex(nextIndex);
@@ -173,22 +186,23 @@ export default function SkinGoal() {
     router.back();
   };
 
-  const illustration = selected ? ILLUSTRATIONS[selected] : <DefaultGoalIllustration />;
+  const firstSelected = selected.size > 0 ? [...selected][0] : null;
+  const illustration = firstSelected ? ILLUSTRATIONS[firstSelected] : <DefaultGoalIllustration />;
 
   return (
     <OnboardingTransition
       illustration={illustration}
-      heading="What's your biggest skin concern?"
-      subtext="We'll orient your first scan and your weekly insights around this."
-      primaryLabel="This is my focus"
+      heading="What do you want to focus on?"
+      subtext="We'll tailor your scans and weekly check-ins to whatever matters most to you."
+      primaryLabel="Continue"
       primaryOnPress={handleContinue}
-      primaryDisabled={!selected}
+      primaryDisabled={selected.size === 0}
       secondaryLabel="I want to track everything"
       secondaryOnPress={handleTrackAll}
-      showProgress={true}
-      totalSteps={5}
-      currentStep={3}
-      showBack={true}
+      showProgress
+      totalSteps={onboardingFlow.length}
+      currentStep={onboardingFlowIndex}
+      showBack
       onBack={handleBack}
     >
       <View style={styles.options}>
@@ -197,8 +211,9 @@ export default function SkinGoal() {
             key={opt.value}
             label={opt.label}
             description={opt.description}
-            selected={selected === opt.value}
-            onPress={() => setSelected(opt.value)}
+            selected={selected.has(opt.value)}
+            onPress={() => toggleGoal(opt.value)}
+            multiSelect
           />
         ))}
       </View>

@@ -7,6 +7,7 @@ interface OnboardingOptionCardProps {
   description?: string;
   selected: boolean;
   onPress: () => void;
+  multiSelect?: boolean;
 }
 
 export const OnboardingOptionCard: React.FC<OnboardingOptionCardProps> = ({
@@ -14,6 +15,7 @@ export const OnboardingOptionCard: React.FC<OnboardingOptionCardProps> = ({
   description,
   selected,
   onPress,
+  multiSelect,
 }) => {
   return (
     <TouchableOpacity
@@ -27,9 +29,15 @@ export const OnboardingOptionCard: React.FC<OnboardingOptionCardProps> = ({
           <Text style={styles.description}>{description}</Text>
         )}
       </View>
-      <View style={[styles.radio, selected && styles.radioSelected]}>
-        {selected && <View style={styles.radioInner} />}
-      </View>
+      {multiSelect ? (
+        <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+          {selected && <Text style={styles.checkmark}>&#10003;</Text>}
+        </View>
+      ) : (
+        <View style={[styles.radio, selected && styles.radioSelected]}>
+          {selected && <View style={styles.radioInner} />}
+        </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -130,6 +138,25 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: Colors.primary,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: Colors.textDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
+  },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 16,
   },
 
   // Chip (multi-select)

@@ -14,6 +14,7 @@ describe('onboardingFlow', () => {
       expect(flow).toContain('sex');
       expect(flow).toContain('location');
       expect(flow).toContain('skin-goal');
+      expect(flow).toContain('products');
       expect(flow).toContain('supplements');
       expect(flow).toContain('exercise');
       expect(flow).toContain('shower-frequency');
@@ -26,11 +27,18 @@ describe('onboardingFlow', () => {
       expect(flow).not.toContain('cycle-details');
     });
 
+    it('places products right after skin-goal', () => {
+      const flow = buildOnboardingFlow();
+      const goalIndex = flow.indexOf('skin-goal');
+      const productsIndex = flow.indexOf('products');
+      expect(productsIndex).toBe(goalIndex + 1);
+    });
+
     it('builds male flow without menstrual screens', () => {
       const flow = buildOnboardingFlow('male');
       expect(flow).not.toContain('menstrual');
       expect(flow).not.toContain('cycle-details');
-      expect(flow.length).toBe(13); // +2 for scan-reminder and paywall
+      expect(flow.length).toBe(14); // +products +scan-reminder +paywall
     });
 
     it('inserts menstrual screen for female users', () => {
@@ -88,12 +96,12 @@ describe('onboardingFlow', () => {
     });
 
     it('has correct length for each path', () => {
-      expect(buildOnboardingFlow().length).toBe(13);       // base + scan-reminder + paywall
-      expect(buildOnboardingFlow('male').length).toBe(13);
-      expect(buildOnboardingFlow('female').length).toBe(14);
-      expect(buildOnboardingFlow('female', 'regular').length).toBe(15);
-      expect(buildOnboardingFlow('female', 'irregular').length).toBe(15);
-      expect(buildOnboardingFlow('female', 'no').length).toBe(14);
+      expect(buildOnboardingFlow().length).toBe(14);       // base + products + scan-reminder + paywall
+      expect(buildOnboardingFlow('male').length).toBe(14);
+      expect(buildOnboardingFlow('female').length).toBe(15);
+      expect(buildOnboardingFlow('female', 'regular').length).toBe(16);
+      expect(buildOnboardingFlow('female', 'irregular').length).toBe(16);
+      expect(buildOnboardingFlow('female', 'no').length).toBe(15);
     });
   });
 

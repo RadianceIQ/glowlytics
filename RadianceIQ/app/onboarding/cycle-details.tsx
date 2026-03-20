@@ -119,15 +119,15 @@ export default function CycleDetails() {
   return (
     <OnboardingTransition
       illustration={<CycleIllustration />}
-      heading="A bit more about your cycle."
-      subtext="Rough numbers are fine. We use these to estimate where you are in your cycle, not to log it precisely."
+      heading="A couple more details about your cycle."
+      subtext="Rough numbers are totally fine. We use this to estimate cycle timing, not to log it precisely."
       primaryLabel="Got it"
       primaryOnPress={handleContinue}
       secondaryLabel="Skip details"
       secondaryOnPress={handleSkip}
-      showProgress={true}
-      totalSteps={5}
-      currentStep={4}
+      showProgress
+      totalSteps={onboardingFlow.length}
+      currentStep={onboardingFlowIndex}
       showBack={true}
       onBack={handleBack}
     >

@@ -41,13 +41,6 @@ yarn-error.*
 backend/models/*.onnx
 backend/models/*.pt
 
-# Build artifacts
-*.ipa
-build-*.ipa
-
-# Claude Code local settings
-.claude/
-
 # generated native folders
 /ios
 /android

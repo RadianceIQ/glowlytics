@@ -110,15 +110,15 @@ export default function Sex() {
     <OnboardingTransition
       illustration={<SexIllustration />}
       heading="What's your biological sex?"
-      subtext="Hormones affect skin in measurable ways. This helps us interpret inflammation and hydration trends accurately."
+      subtext="Hormones play a huge role in how your skin behaves. This helps us read your scores more accurately."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       primaryDisabled={!selected}
       secondaryLabel="Prefer not to say"
       secondaryOnPress={handlePreferNot}
-      showProgress={true}
-      totalSteps={5}
-      currentStep={1}
+      showProgress
+      totalSteps={onboardingFlow.length}
+      currentStep={onboardingFlowIndex}
       showBack={true}
       onBack={handleBack}
     >

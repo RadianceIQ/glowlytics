@@ -23,7 +23,6 @@ import {
 import { scheduleDailyReminder, cancelDailyReminder } from '../../src/services/notifications';
 import { trackEvent, resetAnalytics } from '../../src/services/analytics';
 import { createDemoSeed } from '../../src/services/demoData';
-import { computeProductEffectiveness } from '../../src/services/ingredientDB';
 import {
   buildOverallSkinInsight,
   getLatestDailyForOutput,
@@ -49,25 +48,10 @@ const InfoRow: React.FC<{ label: string; value: string }> = ({ label, value }) =
   </View>
 );
 
-const EffectivenessBadge: React.FC<{ score: number }> = ({ score }) => {
-  const color =
-    score >= 75 ? Colors.success :
-    score >= 55 ? Colors.primary :
-    score >= 35 ? Colors.warning :
-    Colors.error;
-
-  return (
-    <View style={[styles.effectivenessBadge, { backgroundColor: color + '20', borderColor: color + '40' }]}>
-      <Text style={[styles.effectivenessText, { color }]}>{score}%</Text>
-    </View>
-  );
-};
-
 export default function ProfileTab() {
   const router = useRouter();
   const user = useStore((s) => s.user);
   const protocol = useStore((s) => s.protocol);
-  const products = useStore((s) => s.products);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const modelOutputs = useStore((s) => s.modelOutputs);
   const gamification = useStore((s) => s.gamification);
@@ -105,17 +89,6 @@ export default function ProfileTab() {
       serverLesions: latestOutput?.lesions,
     });
   }, [modelOutputs, dailyRecords]);
-
-  // Compute product effectiveness scores
-  const productScores = useMemo(() => {
-    if (!protocol?.primary_goal) return new Map<string, number>();
-    const scores = new Map<string, number>();
-    for (const p of products) {
-      const result = computeProductEffectiveness(p, protocol.primary_goal, overallInsight?.signals);
-      scores.set(p.user_product_id, result.score);
-    }
-    return scores;
-  }, [products, protocol, overallInsight]);
 
   const handleSignOut = async () => {
     if (clerk) {
@@ -428,49 +401,6 @@ export default function ProfileTab() {
         </View>
       </View>
 
-      {/* Products */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Products</Text>
-          <Text style={styles.productCount}>{products.length}</Text>
-        </View>
-
-        {products.length > 0 ? (
-          products.map((p) => {
-            const score = productScores.get(p.user_product_id);
-            return (
-              <TouchableOpacity
-                key={p.user_product_id}
-                style={styles.productRow}
-                activeOpacity={0.7}
-                onPress={() => router.push({ pathname: '/product/[id]', params: { id: p.user_product_id } })}
-              >
-                <View style={styles.productInfo}>
-                  <View style={styles.productNameRow}>
-                    <Text style={styles.productName} numberOfLines={1}>{p.product_name}</Text>
-                    {score !== undefined && <EffectivenessBadge score={score} />}
-                  </View>
-                  <Text style={styles.productMeta}>{p.usage_schedule} · {p.ingredients_list.length} ingredients</Text>
-                </View>
-                <Feather name="chevron-right" size={16} color={Colors.textMuted} />
-              </TouchableOpacity>
-            );
-          })
-        ) : (
-          <Text style={styles.emptyText}>No products added yet.</Text>
-        )}
-
-        <View style={styles.productActions}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push('/onboarding/products')}
-          >
-            <Feather name="plus" size={16} color={Colors.primaryLight} />
-            <Text style={styles.addButtonText}>Add a Product</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <View style={styles.footerSpacer} />
     </AtmosphereScreen>
   );
@@ -502,20 +432,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   cardTitle: {
     color: Colors.text,
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.md,
-  },
-  productCount: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
   },
   infoRow: {
     flexDirection: 'row',
@@ -539,75 +459,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: 'right',
   },
-  productRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
-  },
-  productInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  productNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  productName: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
-    flexShrink: 1,
-  },
-  productMeta: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  effectivenessBadge: {
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-  },
-  effectivenessText: {
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.xs,
-  },
-  emptyText: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.sm,
-    paddingVertical: Spacing.sm,
-  },
-  productActions: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginTop: Spacing.xs,
-  },
-  addButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.glassStrong,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  addButtonText: {
-    color: Colors.primaryLight,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
-  },
-
   modeButton: {
     flexDirection: 'row',
     alignItems: 'center',

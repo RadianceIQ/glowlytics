@@ -84,11 +84,21 @@ export default function CameraScreen() {
   const lastFrameUriRef = useRef<string | null>(null);
   const alignedStartRef = useRef<number | null>(null);
 
-  const { trackingState, lastFrameUri } = useFaceTracking(cameraRef, cameraReady && !capturing && !paywallVisible);
+  const { trackingState, lastFrameUri, lastFrameWidth, lastFrameHeight } = useFaceTracking(cameraRef, cameraReady && !capturing && !paywallVisible);
 
   // Keep ref in sync so detection loop reads latest URI without causing effect re-runs
   useEffect(() => { lastFrameUriRef.current = lastFrameUri; }, [lastFrameUri]);
   const directions = getDirections(trackingState.issues);
+
+  // Normalize face rect to 0-1 so LesionOverlay can filter out non-face detections
+  const normalizedFaceRect = trackingState.faceRect && lastFrameWidth > 0 && lastFrameHeight > 0
+    ? {
+        x: trackingState.faceRect.x / lastFrameWidth,
+        y: trackingState.faceRect.y / lastFrameHeight,
+        width: trackingState.faceRect.width / lastFrameWidth,
+        height: trackingState.faceRect.height / lastFrameHeight,
+      }
+    : undefined;
 
   // Animations
   const flashOpacity = useSharedValue(0);
@@ -330,6 +340,9 @@ export default function CameraScreen() {
           lesions={detectedLesions}
           width={SCREEN_W}
           height={SCREEN_H}
+          sourceWidth={lastFrameWidth}
+          sourceHeight={lastFrameHeight}
+          faceRect={normalizedFaceRect}
           mirrored
         />
       )}

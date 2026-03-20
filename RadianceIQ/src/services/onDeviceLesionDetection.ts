@@ -18,7 +18,7 @@ const MODEL_PATH = `${MODELS_DIR}lesion_detector.onnx`;
 
 const INPUT_SIZE = 640;
 const NUM_CLASSES = 6;
-const CONF_THRESHOLD = 0.02;
+const CONF_THRESHOLD = 0.1;
 const IOU_THRESHOLD = 0.45;
 
 const LESION_CLASSES = ['comedone', 'papule', 'pustule', 'nodule', 'macule', 'patch'];
@@ -35,38 +35,21 @@ let loadingPromise: Promise<boolean> | null = null;
  * Lazy-imports expo-asset so this module doesn't crash in Expo Go.
  */
 async function resolveModelPath(): Promise<string | null> {
-  // 1. Try native bundle path (added by withOnnxModels config plugin)
-  try {
-    const { Platform } = await import('react-native');
-    if (Platform.OS === 'ios') {
-      const RNBridge = require('react-native').NativeModules?.RNOnnxBridge;
-      // Direct bundle path — the config plugin copies the file into the app bundle root
-      const bundlePath = `${FileSystem.bundleDirectory ?? ''}lesion_detector.onnx`;
-      const info = await FileSystem.getInfoAsync(bundlePath);
-      if (info.exists && !info.isDirectory) {
-        console.log(TAG, 'Using bundle-root model at:', bundlePath);
-        return bundlePath;
-      }
-    }
-  } catch (err) {
-    console.warn(TAG, 'Bundle path check failed:', err);
-  }
-
-  // 2. Try expo-asset bundled path (native builds only — crashes in Expo Go)
+  // 1. Try bundled asset (native builds only — expo-asset crashes in Expo Go)
   try {
     const { Asset } = await import('expo-asset');
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const asset = Asset.fromModule(require('../../assets/models/lesion_detector.onnx'));
     await asset.downloadAsync(); // Copies from bundle to readable path (instant, no network)
     if (asset.localUri) {
-      console.log(TAG, 'Using expo-asset model at:', asset.localUri);
+      console.log(TAG, 'Using bundled model at:', asset.localUri);
       return asset.localUri;
     }
   } catch (err) {
     console.warn(TAG, 'Bundled asset not available (expected in Expo Go):', err);
   }
 
-  // 3. Check if model was previously downloaded to document directory
+  // 2. Check if model was previously downloaded to document directory
   try {
     const info = await FileSystem.getInfoAsync(MODEL_PATH);
     if (info.exists && !info.isDirectory) {

@@ -127,8 +127,8 @@ export default function ShowerFrequencyScreen() {
   return (
     <OnboardingTransition
       illustration={<ShowerIllustration />}
-      heading="How often do you shower or wash your face?"
-      subtext="Over-cleansing and under-cleansing both leave measurable traces. This baseline helps us spot deviations."
+      heading="How often do you wash your face?"
+      subtext="Too much or too little cleansing both leave traces we can measure. This gives us your normal baseline."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       primaryDisabled={!selected}

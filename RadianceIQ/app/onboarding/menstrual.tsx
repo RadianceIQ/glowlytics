@@ -117,13 +117,13 @@ export default function Menstrual() {
     <OnboardingTransition
       illustration={<MenstrualIllustration />}
       heading="Do you have a menstrual cycle?"
-      subtext="Hormonal fluctuations cause measurable skin changes throughout the month. Knowing your cycle helps Glowlytics explain those patterns -- not track your period."
+      subtext="Hormonal shifts show up in your skin throughout the month. This helps us explain patterns — we're not tracking your period."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       primaryDisabled={!selected}
-      showProgress={true}
-      totalSteps={5}
-      currentStep={4}
+      showProgress
+      totalSteps={onboardingFlow.length}
+      currentStep={onboardingFlowIndex}
       showBack={true}
       onBack={handleBack}
     >

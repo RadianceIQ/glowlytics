@@ -139,8 +139,8 @@ export default function Supplements() {
   return (
     <OnboardingTransition
       illustration={<SupplementsIllustration />}
-      heading="Are you taking anything that affects your skin?"
-      subtext="Vitamins, supplements, and hormonal therapy all show up in your skin over time. This context makes your trends more readable."
+      heading="Taking any supplements or hormones?"
+      subtext="Things like retinol, omega-3, or HRT all show up in your skin over time. Knowing what you take makes your trends way more readable."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       primaryDisabled={selected.length === 0}

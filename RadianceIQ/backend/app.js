@@ -309,21 +309,6 @@ Regions: forehead, left_cheek, right_cheek, nose, chin, jaw, under_eye, temple
 
 Also provide: personalized_feedback (2-3 actionable sentences about the user's skin)
 
-Generate personalized recommendations based on what you observe in the photo:
-
-signal_recommendations: For each of the 5 skin signals, provide 2-3 specific, actionable recommendations referencing what you actually see (specific ingredient concentrations, not generic advice):
-- structure: collagen, texture, pore quality
-- hydration: barrier function, moisture levels, TEWL signs
-- inflammation: redness, irritation, inflammatory lesions
-- sun_damage: pigmentation irregularities, UV damage markers
-- elasticity: firmness, fine lines, elasticity loss
-
-metric_recommendations: For each of the 3 metrics (acne, sun_damage, skin_age), provide:
-- report: 1-2 sentence assessment of what you see
-- stop_using: what the user should stop or avoid (specific ingredients/behaviors)
-- consider_using: what to add (specific ingredients with concentrations)
-- continue_using: what to maintain
-
 Context: User's primary goal is "${context.primary_goal || 'general tracking'}", scanning "${context.scan_region || 'full face'}" region.
 Sunscreen used today: ${context.sunscreen_used ?? false}. Sleep: ${context.sleep_quality || 'unknown'}. Stress: ${context.stress_level || 'unknown'}.
 Number of previous scans: ${context.scan_count ?? 0}.
@@ -337,9 +322,7 @@ Return ONLY valid JSON matching this schema:
   "primary_driver": string,
   "recommended_action": string,
   "conditions": [{"name": string, "severity": "mild"|"moderate"|"severe", "zones": [{"region": string, "severity": "mild"|"moderate"|"severe"}], "description": string}],
-  "personalized_feedback": string,
-  "signal_recommendations": {"structure": [string], "hydration": [string], "inflammation": [string], "sun_damage": [string], "elasticity": [string]},
-  "metric_recommendations": {"acne": {"report": string, "stop_using": string, "consider_using": string, "continue_using": string}, "sun_damage": {"report": string, "stop_using": string, "consider_using": string, "continue_using": string}, "skin_age": {"report": string, "stop_using": string, "consider_using": string, "continue_using": string}}
+  "personalized_feedback": string
 }`;
 
     // ==================== 3-LAYER PARALLEL PIPELINE ====================
@@ -379,7 +362,7 @@ Return ONLY valid JSON matching this schema:
             ],
           },
         ],
-        max_tokens: 2500,
+        max_tokens: 1000,
         temperature: 0.2,
       }),
     ]);
@@ -410,37 +393,6 @@ Return ONLY valid JSON matching this schema:
           return true;
         })
       : [];
-
-    // ==================== VALIDATE LLM RECOMMENDATIONS ====================
-    const SIGNAL_KEYS = ['structure', 'hydration', 'inflammation', 'sun_damage', 'elasticity'];
-    const METRIC_KEYS = ['acne', 'sun_damage', 'skin_age'];
-
-    let signalRecommendations = null;
-    if (parsed.signal_recommendations && typeof parsed.signal_recommendations === 'object') {
-      signalRecommendations = {};
-      for (const key of SIGNAL_KEYS) {
-        const recs = parsed.signal_recommendations[key];
-        signalRecommendations[key] = Array.isArray(recs)
-          ? recs.filter((r) => typeof r === 'string').slice(0, 4)
-          : [];
-      }
-    }
-
-    let metricRecommendations = null;
-    if (parsed.metric_recommendations && typeof parsed.metric_recommendations === 'object') {
-      metricRecommendations = {};
-      for (const key of METRIC_KEYS) {
-        const rec = parsed.metric_recommendations[key];
-        if (rec && typeof rec === 'object') {
-          metricRecommendations[key] = {
-            report: typeof rec.report === 'string' ? rec.report : '',
-            stop_using: typeof rec.stop_using === 'string' ? rec.stop_using : '',
-            consider_using: typeof rec.consider_using === 'string' ? rec.consider_using : '',
-            continue_using: typeof rec.continue_using === 'string' ? rec.continue_using : '',
-          };
-        }
-      }
-    }
 
     // ==================== MERGE SIGNAL SCORES ====================
     // Derive Layer 3 signal scores from GPT-4o's 3 proxy scores
@@ -511,9 +463,6 @@ Return ONLY valid JSON matching this schema:
       signal_features: signalFeatures,
       lesions,
       signal_confidence: signalConfidence,
-      // LLM-generated personalized recommendations
-      signal_recommendations: signalRecommendations,
-      metric_recommendations: metricRecommendations,
     };
 
     res.json(result);

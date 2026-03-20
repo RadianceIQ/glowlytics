@@ -14,6 +14,7 @@ export function buildOnboardingFlow(
     'sex',
     'location',
     'skin-goal',
+    'products',
   ];
 
   if (sex === 'female') {

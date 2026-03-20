@@ -106,8 +106,8 @@ export default function Exercise() {
   return (
     <OnboardingTransition
       illustration={<ExerciseIllustration />}
-      heading="How active are you?"
-      subtext="Exercise increases blood flow to the skin and can affect oil production. It helps us interpret your inflammation scores."
+      heading="How often do you work out?"
+      subtext="Exercise boosts blood flow and can change oil production. This helps us make sense of your readings."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       primaryDisabled={!selected}

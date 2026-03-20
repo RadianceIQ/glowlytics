@@ -105,8 +105,8 @@ export default function Ready() {
   return (
     <OnboardingTransition
       illustration={<ReadyIllustration />}
-      heading="You're ready to start tracking."
-      subtext="Your first scan sets your baseline. Everything that follows is measured against it -- that's where the real insight begins."
+      heading="You're all set."
+      subtext="Your first scan creates your baseline. Everything after that gets measured against it — that's where the real insights start."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       showProgress

@@ -21,7 +21,7 @@ export type BirthControlType = 'pill' | 'iud' | 'patch' | 'ring' | 'injection' |
 
 export type OnboardingScreenName =
   | 'welcome' | 'age-range' | 'sex' | 'location' | 'skin-goal'
-  | 'menstrual' | 'cycle-details' | 'supplements' | 'exercise'
+  | 'products' | 'menstrual' | 'cycle-details' | 'supplements' | 'exercise'
   | 'shower-frequency' | 'hand-washing' | 'scan-reminder'
   | 'camera-permission' | 'ready' | 'paywall';
 
@@ -105,13 +105,6 @@ export interface DailyRecord {
   drinks_yesterday?: string;
 }
 
-export interface MetricRecommendation {
-  report: string;
-  stop_using: string;
-  consider_using: string;
-  continue_using: string;
-}
-
 export interface ModelOutput {
   output_id: string;
   daily_id: string;
@@ -129,8 +122,6 @@ export interface ModelOutput {
   signal_features?: SignalFeatures;
   lesions?: DetectedLesion[];
   signal_confidence?: SignalConfidence;
-  signal_recommendations?: Record<string, string[]>;
-  metric_recommendations?: Record<string, MetricRecommendation>;
 }
 
 export interface ScanResult {
