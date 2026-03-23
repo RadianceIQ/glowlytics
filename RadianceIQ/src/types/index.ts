@@ -250,6 +250,7 @@ export interface DetectedLesion {
   bbox: [number, number, number, number]; // [x, y, width, height] normalized 0-1
   zone: FacialRegion;
   tier?: LesionTier;
+  trackId?: string;
 }
 
 export type SignalConfidenceLevel = 'low' | 'med' | 'high';

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -24,6 +24,7 @@ import { useStore } from '../../src/store/useStore';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
 import { trackEvent } from '../../src/services/analytics';
 import { env } from '../../src/config/env';
+import { LesionTracker } from '../../src/services/lesionTracker';
 import type { DetectedLesion } from '../../src/types';
 
 // Lazy import — onnxruntime-react-native crashes in Expo Go.
@@ -79,31 +80,35 @@ export default function CameraScreen() {
   const [autoCountdown, setAutoCountdown] = useState(0);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [detectedLesions, setDetectedLesions] = useState<DetectedLesion[]>([]);
+  const detectedLesionsRef = useRef<DetectedLesion[]>([]);
   const detectingRef = useRef(false);
   const detectionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastFrameUriRef = useRef<string | null>(null);
   const alignedStartRef = useRef<number | null>(null);
+  const lesionTrackerRef = useRef(new LesionTracker());
 
   const { trackingState, lastFrameUri, lastFrameWidth, lastFrameHeight } = useFaceTracking(cameraRef, cameraReady && !capturing && !paywallVisible);
 
-  // Keep ref in sync so detection loop reads latest URI without causing effect re-runs
+  // Keep refs in sync so callbacks read latest values without causing effect re-runs
   useEffect(() => { lastFrameUriRef.current = lastFrameUri; }, [lastFrameUri]);
+  useEffect(() => { detectedLesionsRef.current = detectedLesions; }, [detectedLesions]);
   const directions = getDirections(trackingState.issues);
 
-  // Normalize face rect to 0-1 so LesionOverlay can filter out non-face detections
-  const normalizedFaceRect = trackingState.faceRect && lastFrameWidth > 0 && lastFrameHeight > 0
-    ? {
-        x: trackingState.faceRect.x / lastFrameWidth,
-        y: trackingState.faceRect.y / lastFrameHeight,
-        width: trackingState.faceRect.width / lastFrameWidth,
-        height: trackingState.faceRect.height / lastFrameHeight,
-      }
-    : undefined;
+  const fr = trackingState.faceRect;
+  const normalizedFaceRect = useMemo(() => {
+    if (!fr || lastFrameWidth <= 0 || lastFrameHeight <= 0) return undefined;
+    return {
+      x: fr.x / lastFrameWidth,
+      y: fr.y / lastFrameHeight,
+      width: fr.width / lastFrameWidth,
+      height: fr.height / lastFrameHeight,
+    };
+  }, [fr?.x, fr?.y, fr?.width, fr?.height, lastFrameWidth, lastFrameHeight]);
 
   // Animations
   const flashOpacity = useSharedValue(0);
   const buttonScale = useSharedValue(1);
-  // ringColor removed — was assigned but never read in any animated style
+
 
   // Auto-capture: track continuous alignment
   useEffect(() => {
@@ -143,26 +148,23 @@ export default function CameraScreen() {
   }, []);
 
   // Lesion detection when face is aligned — on-device first, server fallback
+  // Uses dedicated frame capture (quality 0.4), 600ms interval, temporal smoothing
   useEffect(() => {
     if (trackingState.status !== 'aligned' || capturing) {
       if (detectionTimerRef.current) {
         clearInterval(detectionTimerRef.current);
         detectionTimerRef.current = null;
       }
-      if (detectedLesions.length > 0) setDetectedLesions([]);
+      if (detectedLesionsRef.current.length > 0) setDetectedLesions([]);
+      lesionTrackerRef.current.reset();
       return;
     }
 
-    const detectOnDevice = async (base64: string): Promise<DetectedLesion[]> => {
+    const detectOnDevice = async (frameUri: string): Promise<DetectedLesion[]> => {
       const m = await loadLesionModule();
-      if (!m || !m.isReady()) {
-        return [];
-      }
-      const results = await m.detectLesions(base64);
-      if (results.length > 0) {
-        console.log('[Camera] On-device detection:', results.length, 'lesions found');
-      }
-      return results;
+      if (!m || !m.isReady()) return [];
+      // Pass URI directly — uses native preprocessing pipeline (letterbox + ImageNet norm)
+      return m.detectLesions(frameUri);
     };
 
     const detectViaServer = async (base64: string): Promise<DetectedLesion[]> => {
@@ -188,29 +190,44 @@ export default function CameraScreen() {
     };
 
     const detect = async () => {
-      const uri = lastFrameUriRef.current;
-      if (detectingRef.current || !uri) return;
+      if (detectingRef.current || !cameraRef.current) return;
       detectingRef.current = true;
 
       try {
-        const base64 = await FileSystemLegacy.readAsStringAsync(uri, {
-          encoding: FileSystemLegacy.EncodingType.Base64,
-        });
+        // Capture a dedicated frame at higher quality for lesion detection
+        // (separate from face tracking's quality 0.1 frames)
+        const photo = await cameraRef.current.takePictureAsync({ quality: 0.4 });
+        if (!photo?.uri) return;
 
-        // Try on-device first, fall back to server
-        let lesions = await detectOnDevice(base64);
-        const source = lesions.length > 0 ? 'on_device' : 'none';
+        // Try on-device first (pass URI for native preprocessing)
+        let lesions = await detectOnDevice(photo.uri);
+        let source: 'on_device' | 'server' | 'none' = lesions.length > 0 ? 'on_device' : 'none';
 
-        if (lesions.length === 0) {
-          lesions = await detectViaServer(base64);
+        // Fall back to server if on-device returned nothing
+        if (lesions.length === 0 && env.API_BASE_URL) {
+          try {
+            const base64 = await FileSystemLegacy.readAsStringAsync(photo.uri, {
+              encoding: FileSystemLegacy.EncodingType.Base64,
+            });
+            lesions = await detectViaServer(base64);
+            if (lesions.length > 0) source = 'server';
+          } catch {
+            // base64 read failed — non-fatal
+          }
         }
 
-        setDetectedLesions(lesions);
+        // Clean up the detection frame
+        FileSystemLegacy.deleteAsync(photo.uri, { idempotent: true }).catch(() => {});
 
-        if (lesions.length > 0) {
+        // Apply temporal smoothing — only show stable detections
+        const stable = lesionTrackerRef.current.update(lesions);
+        setDetectedLesions(stable);
+
+        if (stable.length > 0) {
           trackEvent('realtime_lesions_detected', {
-            count: lesions.length,
-            source: source === 'on_device' ? 'on_device' : 'server',
+            count: stable.length,
+            source,
+            raw_count: lesions.length,
           });
         }
       } catch {
@@ -220,9 +237,9 @@ export default function CameraScreen() {
       }
     };
 
-    // Run immediately, then every 1.2s
+    // Run immediately, then every 600ms (2× faster than before, with temporal smoothing)
     detect();
-    detectionTimerRef.current = setInterval(detect, 1200);
+    detectionTimerRef.current = setInterval(detect, 600);
 
     return () => {
       if (detectionTimerRef.current) {
@@ -277,9 +294,10 @@ export default function CameraScreen() {
       // Quality check — use photo's native dimensions, not screen dimensions
       const quality = await checkPhotoQuality(photo.uri, photo.width, photo.height);
       if (quality.overallPass || quality.issues.length === 0) {
-        // Persist camera-detected lesions for results screen
-        if (detectedLesions.length > 0) {
-          useStore.getState().setPendingLesions(detectedLesions);
+        // Persist camera-detected lesions for results screen (use ref to avoid stale closure)
+        const currentLesions = detectedLesionsRef.current;
+        if (currentLesions.length > 0) {
+          useStore.getState().setPendingLesions(currentLesions);
         }
         // Navigate directly to analyzing (skip processing screen)
         router.push({
@@ -334,8 +352,8 @@ export default function CameraScreen() {
         height={SCREEN_H}
       />
 
-      {/* Real-time lesion bounding boxes */}
-      {detectedLesions.length > 0 && (
+      {/* Real-time lesion bounding boxes — only render once we have valid frame dimensions */}
+      {detectedLesions.length > 0 && lastFrameWidth > 0 && lastFrameHeight > 0 && (
         <LesionOverlay
           lesions={detectedLesions}
           width={SCREEN_W}

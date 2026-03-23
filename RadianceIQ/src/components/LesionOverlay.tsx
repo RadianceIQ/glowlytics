@@ -137,6 +137,7 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceW
           </Defs>
 
           {lesions.map((lesion, i) => {
+            const stableKey = lesion.trackId || `lesion-${i}`;
             const [bx, by, bw, bh] = lesion.bbox;
 
             // Only show lesions whose center falls within the detected face (+ 15% margin)
@@ -185,7 +186,7 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceW
             const centerY = y + h / 2;
 
             return (
-              <G key={`lesion-${i}`} opacity={tierOpacity}>
+              <G key={stableKey} opacity={tierOpacity}>
                 {/* Subtle fill */}
                 <Rect
                   x={x} y={y} width={w} height={h}
