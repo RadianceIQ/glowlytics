@@ -24,8 +24,10 @@ import {
   buildOverallSkinInsight,
   getLatestDailyForOutput,
 } from '../../src/services/skinInsights';
+import { groupLesionsByType, LESION_INFO } from '../../src/constants/lesions';
 import { useStore } from '../../src/store/useStore';
 import { trackEvent } from '../../src/services/analytics';
+import type { LesionClass } from '../../src/types';
 
 export default function Results({ hideBottomAction: hideBottomActionProp }: { hideBottomAction?: boolean }) {
   const router = useRouter();
@@ -75,14 +77,24 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
     );
   }
 
-  const latestDailyRecord = dailyRecords.length > 0 ? dailyRecords[dailyRecords.length - 1] : null;
+  const latestDailyRecord = latestDaily;
+  const generatedInsights = latestOutput.generated_insights;
   const templateExplanation = getExplanation(latestOutput, {
     sunscreen: latestDailyRecord?.sunscreen_used ?? true,
     cycleWindow: latestOutput.primary_driver === 'cycle window',
     newProduct: latestDailyRecord?.new_product_added ?? false,
     sleepQuality: latestDailyRecord?.sleep_quality,
   });
-  const explanation = latestOutput.personalized_feedback || templateExplanation;
+  const explanation = generatedInsights?.overall_summary
+    || latestOutput.personalized_feedback
+    || templateExplanation;
+
+  const lesionGroups = useMemo(
+    () => latestOutput.lesions && latestOutput.lesions.length > 0
+      ? groupLesionsByType(latestOutput.lesions as Array<{ class: LesionClass; zone: string; confidence: number; tier?: string }>)
+      : [],
+    [latestOutput.lesions],
+  );
 
   const handleDone = () => {
     router.replace('/(tabs)/today');
@@ -129,8 +141,8 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
                     <View style={[styles.signalDot, { backgroundColor: SIGNAL_COLORS[key] }]} />
                     <Text style={styles.signalLabel}>{SIGNAL_LABELS[key]}</Text>
                     {confidence && (
-                      <View style={[styles.confidenceBadge, { backgroundColor: confidenceBadgeColor(confidence) + '30' }]}>
-                        <Text style={[styles.confidenceText, { color: confidenceBadgeColor(confidence) }]}>
+                      <View style={[styles.confidenceBadge, { backgroundColor: (confidenceBadgeColor(confidence) || Colors.textMuted) + '30' }]}>
+                        <Text style={[styles.confidenceText, { color: confidenceBadgeColor(confidence) || Colors.textMuted }]}>
                           {confidence}
                         </Text>
                       </View>
@@ -144,18 +156,25 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
               );
             })}
           </View>
-          {latestOutput.lesions && latestOutput.lesions.length > 0 && (() => {
-            const lesionCount = latestOutput.lesions!.length;
-            const zoneCount = new Set(latestOutput.lesions!.map(l => l.zone)).size;
-            return (
-              <View style={styles.lesionSummary}>
-                <Text style={styles.lesionSummaryText}>
-                  {lesionCount} lesion{lesionCount !== 1 ? 's' : ''} detected across{' '}
-                  {zoneCount} zone{zoneCount !== 1 ? 's' : ''}
-                </Text>
-              </View>
-            );
-          })()}
+          {lesionGroups.length > 0 && (
+            <View style={styles.lesionCards}>
+              {lesionGroups.map((group) => (
+                <View key={group.class} style={[styles.lesionCard, { borderLeftColor: group.info.color }]}>
+                  <View style={styles.lesionCardHeader}>
+                    <View style={[styles.lesionDot, { backgroundColor: group.info.color }]} />
+                    <Text style={styles.lesionCardTitle}>
+                      {group.count} {group.info.label}{group.count !== 1 ? 's' : ''}
+                    </Text>
+                    <Text style={styles.lesionCardZones}>
+                      {group.zones.join(', ')}
+                    </Text>
+                  </View>
+                  <Text style={styles.lesionCardDesc}>{group.info.description}</Text>
+                  <Text style={styles.lesionCardImpact}>{group.info.signalImpact}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </Animated.View>
       )}
 
@@ -185,6 +204,19 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
         </Animated.View>
       )}
 
+      {/* Action plan from generated insights */}
+      {generatedInsights?.action_plan && generatedInsights.action_plan.length > 0 && (
+        <Animated.View entering={FadeInDown.duration(500).delay(550)} style={styles.actionPlanSection}>
+          <Text style={styles.ragTitle}>Your action plan</Text>
+          {generatedInsights.action_plan.map((action, i) => (
+            <View key={i} style={styles.actionPlanItem}>
+              <Text style={styles.actionPlanNumber}>{i + 1}</Text>
+              <Text style={styles.actionPlanText}>{action}</Text>
+            </View>
+          ))}
+        </Animated.View>
+      )}
+
       {/* Overall score card */}
       {overallInsight && (
         <Animated.View entering={FadeInDown.duration(500).delay(600)} style={styles.overallCard}>
@@ -192,7 +224,9 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
           <Text style={styles.overallScore}>
             {overallInsight.score} <Text style={styles.overallStatus}>{overallInsight.statusLabel}</Text>
           </Text>
-          <Text style={styles.overallAction}>{overallInsight.actionStatement}</Text>
+          <Text style={styles.overallAction}>
+            {generatedInsights?.overall_score_context || overallInsight.actionStatement}
+          </Text>
           <View style={styles.signalChipRow}>
             <Text style={styles.signalChip}>Structure {overallInsight.signals.structure}</Text>
             <Text style={styles.signalChip}>Hydration {overallInsight.signals.hydration}</Text>
@@ -431,16 +465,78 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  lesionSummary: {
+  lesionCards: {
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  lesionCard: {
     backgroundColor: Colors.surfaceOverlay,
     borderRadius: BorderRadius.md,
+    borderLeftWidth: 3,
     padding: Spacing.sm,
-    marginTop: Spacing.xs,
+    gap: 2,
   },
-  lesionSummaryText: {
+  lesionCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  lesionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  lesionCardTitle: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+  },
+  lesionCardZones: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.xs,
+    flex: 1,
+    textAlign: 'right',
+    textTransform: 'capitalize',
+  },
+  lesionCardDesc: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.xs,
+    marginLeft: Spacing.xs + 6,
+  },
+  lesionCardImpact: {
     color: Colors.textMuted,
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.xs,
+    marginLeft: Spacing.xs + 6,
+  },
+  actionPlanSection: {
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.glassStrong,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  actionPlanItem: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    alignItems: 'flex-start',
+  },
+  actionPlanNumber: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.sm,
+    width: 20,
+  },
+  actionPlanText: {
+    flex: 1,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
   },
   overallCard: {
     backgroundColor: Colors.glassStrong,

@@ -4,10 +4,12 @@ import type {
   Confidence,
   DetectedCondition,
   DetectedLesion,
+  GeneratedInsights,
   RagRecommendation,
   SignalConfidence,
   SignalFeatures,
   SignalScores,
+  ZoneSeverity,
 } from '../types';
 
 export interface VisionAnalysisResult {
@@ -24,6 +26,7 @@ export interface VisionAnalysisResult {
   signal_features?: SignalFeatures;
   lesions?: DetectedLesion[];
   signal_confidence?: SignalConfidence;
+  zone_severity?: ZoneSeverity;
 }
 
 export async function imageToBase64(uri: string): Promise<string> {
@@ -50,7 +53,7 @@ export async function analyzeWithVisionAPI(
   const base64Image = preEncodedBase64 || await imageToBase64(photoUri);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
+  const timeout = setTimeout(() => controller.abort(), 40_000);
 
   let response: Response;
   try {
@@ -98,5 +101,123 @@ export async function analyzeWithVisionAPI(
     signal_features: result.signal_features,
     lesions: result.lesions,
     signal_confidence: result.signal_confidence,
+    zone_severity: result.zone_severity,
   };
+}
+
+/**
+ * Stage 2: Stream personalized insights from the backend via SSE.
+ * Calls /api/vision/generate-insights with merged Stage 1 data.
+ *
+ * Uses XMLHttpRequest with onprogress for React Native compatibility
+ * (fetch ReadableStream is not supported on Hermes/React Native).
+ *
+ * @param params Stage 1 results + user context for insight generation
+ * @param onChunk Called with each streamed text chunk for live display
+ * @returns Parsed GeneratedInsights JSON once stream completes
+ */
+export async function streamInsights(
+  params: {
+    signal_scores: SignalScores;
+    signal_features?: SignalFeatures;
+    signal_confidence?: SignalConfidence;
+    lesions?: DetectedLesion[];
+    conditions?: DetectedCondition[];
+    zone_severity?: ZoneSeverity;
+    user_profile?: Record<string, unknown>;
+    user_goal?: string;
+    products?: Array<{ product_name: string; usage_schedule: string }>;
+    scan_count?: number;
+    rag_context?: RagRecommendation[];
+  },
+  onChunk: (text: string) => void,
+): Promise<GeneratedInsights | null> {
+  const authHeaders = await getAuthHeaders();
+
+  return new Promise((resolve) => {
+    let fullText = '';
+    let processedLength = 0;
+    const timeoutId = setTimeout(() => {
+      xhr.abort();
+      resolve(parseInsightsFromText(fullText));
+    }, 15_000); // 15s max for streaming (not 30 — avoid blocking UX)
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${env.API_BASE_URL}/api/vision/generate-insights`);
+
+    // Set headers from auth
+    for (const [key, value] of Object.entries(authHeaders)) {
+      if (typeof value === 'string') {
+        xhr.setRequestHeader(key, value);
+      }
+    }
+
+    xhr.onprogress = () => {
+      // Process new data since last onprogress
+      const newData = xhr.responseText.slice(processedLength);
+      processedLength = xhr.responseText.length;
+
+      const lines = newData.split('\n');
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.text) {
+            fullText += parsed.text;
+            onChunk(parsed.text);
+          }
+        } catch {
+          // Skip malformed SSE chunks
+        }
+      }
+    };
+
+    xhr.onload = () => {
+      clearTimeout(timeoutId);
+      resolve(parseInsightsFromText(fullText));
+    };
+
+    xhr.onerror = () => {
+      clearTimeout(timeoutId);
+      console.warn('[Glowlytics] Insight stream XHR error');
+      resolve(null);
+    };
+
+    xhr.onabort = () => {
+      clearTimeout(timeoutId);
+      resolve(parseInsightsFromText(fullText));
+    };
+
+    xhr.send(JSON.stringify(params));
+  });
+}
+
+/** Extract and parse the GeneratedInsights JSON from accumulated GPT text. */
+function parseInsightsFromText(text: string): GeneratedInsights | null {
+  if (!text) return null;
+
+  try {
+    // Find balanced JSON object — match first { to its closing }
+    let depth = 0;
+    let start = -1;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '{') {
+        if (depth === 0) start = i;
+        depth++;
+      } else if (text[i] === '}') {
+        depth--;
+        if (depth === 0 && start >= 0) {
+          const jsonStr = text.slice(start, i + 1);
+          return JSON.parse(jsonStr) as GeneratedInsights;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Glowlytics] Failed to parse insights JSON:', err);
+  }
+
+  return null;
 }

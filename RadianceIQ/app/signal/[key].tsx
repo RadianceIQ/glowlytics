@@ -491,15 +491,35 @@ export default function SignalDetailScreen() {
           )}
         </Animated.View>
 
-        {/* ---- Recommendations ---- */}
+        {/* ---- Recommendations (generated or fallback) ---- */}
         <Animated.View style={[styles.card, recsAnim]}>
           <Text style={styles.cardTitle}>Recommendations</Text>
-          {recommendations.map((rec, i) => (
-            <View key={i} style={styles.recRow}>
-              <View style={[styles.recDot, { backgroundColor: color }]} />
-              <Text style={styles.recText}>{rec}</Text>
-            </View>
-          ))}
+          {/* Prefer generated insight for this signal */}
+          {latestOutput?.generated_insights?.signal_insights?.[signalProperty(signalKey)] ? (
+            <>
+              <View style={styles.recRow}>
+                <View style={[styles.recDot, { backgroundColor: color }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.recText, { fontFamily: FontFamily.sansSemiBold, marginBottom: 4 }]}>
+                    {latestOutput.generated_insights.signal_insights[signalProperty(signalKey)].status}
+                  </Text>
+                  <Text style={[styles.recText, { fontSize: FontSize.sm, color: Colors.textMuted, marginBottom: 4 }]}>
+                    Driver: {latestOutput.generated_insights.signal_insights[signalProperty(signalKey)].driver}
+                  </Text>
+                  <Text style={styles.recText}>
+                    {latestOutput.generated_insights.signal_insights[signalProperty(signalKey)].action}
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            recommendations.map((rec, i) => (
+              <View key={i} style={styles.recRow}>
+                <View style={[styles.recDot, { backgroundColor: color }]} />
+                <Text style={styles.recText}>{rec}</Text>
+              </View>
+            ))
+          )}
           <Text style={styles.disclaimer}>
             For informational purposes only. Not medical advice. Consult a dermatologist for diagnosis and treatment.
           </Text>

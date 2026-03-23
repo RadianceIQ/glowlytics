@@ -6,7 +6,7 @@ const { randomUUID: uuidv4 } = require('crypto');
 const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-rsa');
 const OpenAI = require('openai');
-const { seedGuidelines, queryGuidelines } = require('./rag');
+const { seedGuidelines, queryGuidelines, queryGuidelinesMulti } = require('./rag');
 const imageProcessing = require('./image-processing');
 const signalModels = require('./signal-models');
 
@@ -106,6 +106,9 @@ const authMiddleware = (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   if (!client) {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ error: 'Auth service not configured' });
+    }
     // No JWKS configured -- dev mode passthrough with a synthetic user
     req.auth = { userId: 'dev-user' };
     return next();
@@ -200,6 +203,76 @@ app.post('/api/vision/detect-lesions', detectRateLimit, async (req, res) => {
   }
 });
 
+// ==================== BARCODE PRODUCT LOOKUP (waterfall) ====================
+
+async function lookupOpenBeautyFacts(barcode) {
+  const res = await fetch(
+    `https://world.openbeautyfacts.org/api/v0/product/${barcode}.json`
+  );
+  const data = await res.json();
+  if (data.status !== 1 || !data.product?.product_name) return null;
+  const p = data.product;
+  return {
+    name: p.product_name || '',
+    brands: p.brands || '',
+    ingredients: p.ingredients_text || '',
+    image_url: p.image_url || null,
+    source: 'Open Beauty Facts',
+  };
+}
+
+async function lookupOpenFoodFacts(barcode) {
+  const res = await fetch(
+    `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
+  );
+  const data = await res.json();
+  if (data.status !== 1 || !data.product?.product_name) return null;
+  const p = data.product;
+  return {
+    name: p.product_name || '',
+    brands: p.brands || '',
+    ingredients: p.ingredients_text || '',
+    image_url: p.image_url || null,
+    source: 'Open Food Facts',
+  };
+}
+
+async function lookupUPCitemdb(barcode) {
+  const res = await fetch(
+    `https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.items || data.items.length === 0) return null;
+  const item = data.items[0];
+  return {
+    name: item.title || '',
+    brands: item.brand || '',
+    ingredients: '',
+    image_url: (item.images && item.images[0]) || null,
+    source: 'UPCitemdb',
+  };
+}
+
+async function lookupNIHDailyMed(barcode) {
+  const res = await fetch(
+    `https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json?ndc=${barcode}`
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.data || data.data.length === 0) return null;
+  const spl = data.data[0];
+  return {
+    name: spl.title || spl.spl_name || '',
+    brands: '',
+    ingredients: spl.active_ingredients
+      ? spl.active_ingredients.map((i) => i.name).join(', ')
+      : '',
+    image_url: null,
+    source: 'NIH DailyMed',
+  };
+}
+
 // Barcode product lookup (public -- called before the user has an account)
 app.get('/api/products/lookup/:barcode', async (req, res) => {
   const barcode = req.params.barcode;
@@ -286,28 +359,39 @@ app.post('/api/vision/analyze', async (req, res) => {
 
     const modelId = process.env.VISION_MODEL_ID || 'gpt-4o';
 
+    // ==================== RESTRUCTURED GPT-4o PROMPT ====================
+    // Now requests 5 signal scores directly + zone_severity to eliminate
+    // the lossy 3-proxy → 5-signal linear conversion.
     const systemPrompt = `You are a dermatology analysis assistant. Analyze the provided facial skin photo and return structured scores.
 
-Score each dimension 0-100 where 0 = no concern and 100 = severe concern:
-- acne_score: inflammation, breakouts, comedones, papules, pustules
-- sun_damage_score: hyperpigmentation, sunspots, melasma, UV damage signs
-- skin_age_score: fine lines, wrinkles, texture roughness, elasticity loss
+Score each of the 5 skin health signals 0-100 where 100 = optimal health and 0 = severe concern:
+- structure: skin texture quality, pore visibility, surface smoothness, collagen integrity
+- hydration: moisture levels, barrier function, dewy vs matte appearance, fine dehydration lines
+- inflammation: redness, irritation, active breakouts, pustules, papules, erythema
+- sunDamage: hyperpigmentation, sunspots, melasma, UV damage signs, uneven pigmentation
+- elasticity: firmness, fine lines, wrinkles, skin laxity, bounce-back quality
 
-Also provide:
-- confidence: "low", "med", or "high" based on image quality and clarity
-- primary_driver: the main factor driving the scores (e.g., "acne", "sun_damage", "routine adherence")
-- recommended_action: one actionable sentence for the user
+Also provide legacy scores for backward compatibility (0-100 where 100 = severe concern):
+- acne_score: inflammation + breakout severity
+- sun_damage_score: UV damage severity
+- skin_age_score: aging markers severity
 
-Also identify skin conditions with facial zones:
+Provide per-zone severity assessment:
+zone_severity: for each facial zone, rate the dominant concern and severity (0-100).
+Zones: forehead, left_cheek, right_cheek, nose, chin, jaw
+
+Identify skin conditions with facial zones:
 conditions: [{name, severity ("mild"|"moderate"|"severe"),
   zones: [{region, severity}], description}]
 
 Conditions to check: acne, hyperpigmentation, fine_lines, rosacea,
 dehydration, sun_spots, texture_irregularity, dark_circles, enlarged_pores
 
-Regions: forehead, left_cheek, right_cheek, nose, chin, jaw, under_eye, temple
-
-Also provide: personalized_feedback (2-3 actionable sentences about the user's skin)
+Also provide:
+- confidence: "low", "med", or "high" based on image quality and clarity
+- primary_driver: the main factor driving the scores
+- recommended_action: one actionable sentence
+- personalized_feedback: 2-3 actionable sentences about the user's skin
 
 Context: User's primary goal is "${context.primary_goal || 'general tracking'}", scanning "${context.scan_region || 'full face'}" region.
 Sunscreen used today: ${context.sunscreen_used ?? false}. Sleep: ${context.sleep_quality || 'unknown'}. Stress: ${context.stress_level || 'unknown'}.
@@ -315,20 +399,18 @@ Number of previous scans: ${context.scan_count ?? 0}.
 
 Return ONLY valid JSON matching this schema:
 {
-  "acne_score": number,
-  "sun_damage_score": number,
-  "skin_age_score": number,
+  "signal_scores": {"structure": number, "hydration": number, "inflammation": number, "sunDamage": number, "elasticity": number},
+  "acne_score": number, "sun_damage_score": number, "skin_age_score": number,
   "confidence": "low" | "med" | "high",
-  "primary_driver": string,
-  "recommended_action": string,
+  "zone_severity": {"forehead": {"dominant_signal": string, "severity": number}, "left_cheek": {...}, "right_cheek": {...}, "nose": {...}, "chin": {...}, "jaw": {...}},
   "conditions": [{"name": string, "severity": "mild"|"moderate"|"severe", "zones": [{"region": string, "severity": "mild"|"moderate"|"severe"}], "description": string}],
-  "personalized_feedback": string
+  "primary_driver": string, "recommended_action": string, "personalized_feedback": string
 }`;
 
     // ==================== 3-LAYER PARALLEL PIPELINE ====================
     // Layer 1: Deterministic image processing (~100ms)
     // Layer 2: Custom CV models via ONNX Runtime (~200ms)
-    // Layer 3: Fine-tuned GPT-4o (existing, ~3-5s)
+    // Layer 3: Fine-tuned GPT-4o (~3-5s)
     // All 3 layers run in PARALLEL → results merged → single response
 
     const [layer1Result, layer3Result] = await Promise.all([
@@ -343,7 +425,7 @@ Return ONLY valid JSON matching this schema:
         return null;
       }),
 
-      // Layer 3: GPT-4o (existing pipeline)
+      // Layer 3: GPT-4o
       openai.chat.completions.create({
         model: modelId,
         messages: [
@@ -362,7 +444,7 @@ Return ONLY valid JSON matching this schema:
             ],
           },
         ],
-        max_tokens: 1000,
+        max_tokens: 1200,
         temperature: 0.2,
       }),
     ]);
@@ -378,7 +460,12 @@ Return ONLY valid JSON matching this schema:
       return res.status(502).json({ error: 'Could not parse JSON from Vision model response', raw: content });
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      return res.status(502).json({ error: 'Vision model returned malformed JSON' });
+    }
 
     const clamp = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
     const validConfidence = ['low', 'med', 'high'].includes(parsed.confidence) ? parsed.confidence : 'low';
@@ -394,20 +481,41 @@ Return ONLY valid JSON matching this schema:
         })
       : [];
 
-    // ==================== MERGE SIGNAL SCORES ====================
-    // Derive Layer 3 signal scores from GPT-4o's 3 proxy scores
-    const layer3SignalScores = {
-      structure: clamp(100 - (parsed.skin_age_score * 0.55 + parsed.acne_score * 0.15)),
-      hydration: clamp(100 - (parsed.skin_age_score * 0.5 + parsed.acne_score * 0.2)),
-      inflammation: clamp(100 - (parsed.acne_score * 0.8 + parsed.sun_damage_score * 0.1)),
-      sunDamage: clamp(100 - (parsed.sun_damage_score * 0.82 + parsed.acne_score * 0.08)),
-      elasticity: clamp(100 - (parsed.skin_age_score * 0.62 + parsed.acne_score * 0.1)),
-    };
+    // ==================== EXTRACT LAYER 3 SIGNAL SCORES ====================
+    // GPT-4o now outputs signal_scores directly — no more lossy linear conversion
+    let layer3SignalScores;
+    if (parsed.signal_scores && typeof parsed.signal_scores.structure === 'number') {
+      layer3SignalScores = {
+        structure: clamp(parsed.signal_scores.structure),
+        hydration: clamp(parsed.signal_scores.hydration),
+        inflammation: clamp(parsed.signal_scores.inflammation),
+        sunDamage: clamp(parsed.signal_scores.sunDamage),
+        elasticity: clamp(parsed.signal_scores.elasticity),
+      };
+    } else {
+      // Fallback: derive from legacy 3-score format (backward compat with older model)
+      const legacyAcne = Number(parsed.acne_score) || 0;
+      const legacySun = Number(parsed.sun_damage_score) || 0;
+      const legacyAge = Number(parsed.skin_age_score) || 0;
+      layer3SignalScores = {
+        structure: clamp(100 - (legacyAge * 0.55 + legacyAcne * 0.15)),
+        hydration: clamp(100 - (legacyAge * 0.5 + legacyAcne * 0.2)),
+        inflammation: clamp(100 - (legacyAcne * 0.8 + legacySun * 0.1)),
+        sunDamage: clamp(100 - (legacySun * 0.82 + legacyAcne * 0.08)),
+        elasticity: clamp(100 - (legacyAge * 0.62 + legacyAcne * 0.1)),
+      };
+    }
 
+    // Validate zone_severity from GPT-4o
+    const zoneSeverity = parsed.zone_severity && typeof parsed.zone_severity === 'object'
+      ? parsed.zone_severity
+      : {};
+
+    // ==================== MERGE SIGNAL SCORES ====================
     let signalScores, signalFeatures, lesions, signalConfidence;
 
     if (layer1Result) {
-      // Full 3-layer merge
+      // Full 3-layer uncertainty-weighted merge
       signalScores = signalModels.mergeSignalScores(
         layer1Result.layer1Scores,
         layer1Result.layer2Results,
@@ -416,6 +524,9 @@ Return ONLY valid JSON matching this schema:
       signalFeatures = layer1Result.summaryFeatures;
       lesions = layer1Result.layer2Results.lesions || [];
       signalConfidence = layer1Result.layer2Results.signalConfidence;
+
+      // Apply lesion → signal score feedback loop
+      signalScores = signalModels.applyLesionFeedback(signalScores, lesions);
     } else {
       // Layer 3 only fallback
       signalScores = layer3SignalScores;
@@ -430,16 +541,29 @@ Return ONLY valid JSON matching this schema:
       };
     }
 
-    // ==================== RAG RECOMMENDATIONS ====================
+    // ==================== MULTI-QUERY RAG ====================
     const primaryCondition = parsed.conditions?.[0]?.name || parsed.primary_driver || 'general skin health';
     let ragRecommendations = [];
+
+    // Find weakest signals for targeted RAG queries
+    const signalEntries = Object.entries(signalScores).sort((a, b) => a[1] - b[1]);
+    const weakestSignal = signalEntries[0]?.[0] || 'structure';
+    const secondWeakest = signalEntries[1]?.[0] || 'hydration';
+
     try {
       if (process.env.PINECONE_API_KEY) {
-        const ragResults = await queryGuidelines(`${primaryCondition} treatment recommendation`, 3);
+        const ragResults = await queryGuidelinesMulti({
+          primaryCondition,
+          userGoal: context.primary_goal || 'general tracking',
+          weakestSignal,
+          secondWeakestSignal: secondWeakest,
+        });
         ragRecommendations = ragResults.map(r => ({
           text: r.text,
           category: r.category,
           relevance: r.score,
+          signal: r.signal || 'general',
+          evidence_level: r.evidence_level || 'C',
         }));
       }
     } catch (err) {
@@ -448,7 +572,7 @@ Return ONLY valid JSON matching this schema:
 
     // ==================== BUILD RESPONSE ====================
     const result = {
-      // Existing fields (backward compatible)
+      // Legacy fields (backward compatible)
       acne_score: clamp(parsed.acne_score),
       sun_damage_score: clamp(parsed.sun_damage_score),
       skin_age_score: clamp(parsed.skin_age_score),
@@ -458,11 +582,12 @@ Return ONLY valid JSON matching this schema:
       conditions: validatedConditions,
       rag_recommendations: ragRecommendations,
       personalized_feedback: parsed.personalized_feedback || '',
-      // New signal-specific fields (additive)
+      // Signal-specific fields
       signal_scores: signalScores,
       signal_features: signalFeatures,
       lesions,
       signal_confidence: signalConfidence,
+      zone_severity: zoneSeverity,
     };
 
     res.json(result);
@@ -474,7 +599,129 @@ Return ONLY valid JSON matching this schema:
     if (err.status === 429) {
       return res.status(429).json({ error: 'Vision API rate limit exceeded. Try again shortly.' });
     }
-    res.status(500).json({ error: `Vision analysis failed: ${err.message}` });
+    res.status(500).json({ error: safeErrorMessage(err) });
+  }
+});
+
+// ==================== STAGE 2: STREAMING INSIGHT GENERATION ====================
+
+/**
+ * Build the system prompt for Stage 2 insight generation.
+ * Receives all merged data from Stage 1 + RAG context + user profile.
+ */
+function buildInsightPrompt({ signal_scores, lesions, conditions, zone_severity, user_profile, user_goal, products, rag_context, scan_count }) {
+  const lesionSummary = lesions && lesions.length > 0
+    ? lesions.reduce((acc, l) => {
+        acc[l.class] = (acc[l.class] || 0) + 1;
+        return acc;
+      }, {})
+    : {};
+  const lesionText = Object.keys(lesionSummary).length > 0
+    ? Object.entries(lesionSummary).map(([cls, count]) => `${count} ${cls}(s)`).join(', ')
+    : 'No lesions detected';
+
+  const ragText = (rag_context || []).map((r, i) => `[${i + 1}] ${r.text}`).join('\n');
+  const productText = (products || []).map(p => `- ${p.product_name} (${p.usage_schedule})`).join('\n') || 'No products logged';
+
+  const system = `You are Glowlytics AI, a personalized skin health advisor. Generate detailed, personalized insights based on the user's scan results and clinical guidelines.
+
+IMPORTANT: Every insight MUST be personalized to THIS user's specific scores, detected conditions, and context. Never use generic advice. Ground recommendations in the clinical guidelines provided.
+
+User context:
+- Primary goal: ${user_goal || 'general tracking'}
+- Age range: ${user_profile?.age_range || 'unknown'}
+- Scan count: ${scan_count || 0}
+- Menstrual cycle day: ${user_profile?.cycle_day || 'not tracked'}
+- Products in routine:
+${productText}
+
+Scan results:
+- Structure: ${signal_scores?.structure ?? 'N/A'}/100
+- Hydration: ${signal_scores?.hydration ?? 'N/A'}/100
+- Inflammation: ${signal_scores?.inflammation ?? 'N/A'}/100
+- Sun Damage: ${signal_scores?.sunDamage ?? 'N/A'}/100
+- Elasticity: ${signal_scores?.elasticity ?? 'N/A'}/100
+- Lesions detected: ${lesionText}
+- Conditions: ${(conditions || []).map(c => `${c.name} (${c.severity})`).join(', ') || 'none identified'}
+
+Clinical guidelines for reference (use these to ground your recommendations):
+${ragText || 'No guidelines available'}
+
+Return ONLY valid JSON matching this schema:
+{
+  "overall_summary": "2-3 sentences summarizing this user's skin status right now, referencing their specific scores and detected issues",
+  "overall_score_context": "1-2 sentences explaining what their overall score means for their specific situation and goal",
+  "signal_insights": {
+    "structure": {"status": "1 sentence about their texture/pore status", "driver": "what is driving this score", "action": "specific recommendation grounded in guidelines"},
+    "hydration": {"status": "...", "driver": "...", "action": "..."},
+    "inflammation": {"status": "...", "driver": "...", "action": "..."},
+    "sunDamage": {"status": "...", "driver": "...", "action": "..."},
+    "elasticity": {"status": "...", "driver": "...", "action": "..."}
+  },
+  "zone_findings": [{"zone": "chin|forehead|left_cheek|right_cheek|nose|jaw", "finding": "what was observed in this zone", "recommendation": "zone-specific action"}],
+  "product_guidance": {"stop": "product-specific stop rec or general guidance", "consider": "product-specific add rec", "continue": "what to maintain"},
+  "action_plan": ["Priority 1: ...", "Priority 2: ...", "Priority 3: ..."]
+}`;
+
+  return { system, user: 'Generate personalized insights based on the scan results above.' };
+}
+
+app.post('/api/vision/generate-insights', async (req, res) => {
+  try {
+    const {
+      signal_scores, signal_features, signal_confidence,
+      lesions, conditions, zone_severity,
+      user_profile, user_goal, products, scan_count,
+      rag_context,
+    } = req.body;
+
+    if (!signal_scores) {
+      return res.status(400).json({ error: 'signal_scores is required' });
+    }
+
+    const modelId = process.env.VISION_MODEL_ID || 'gpt-4o';
+
+    // SSE streaming response
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const insightPrompt = buildInsightPrompt({
+      signal_scores, lesions, conditions, zone_severity,
+      user_profile, user_goal, products, rag_context, scan_count,
+    });
+
+    const stream = await openai.chat.completions.create({
+      model: modelId,
+      messages: [
+        { role: 'system', content: insightPrompt.system },
+        { role: 'user', content: insightPrompt.user },
+      ],
+      max_tokens: 1500,
+      temperature: 0.3,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices?.[0]?.delta?.content;
+      if (content) {
+        res.write(`data: ${JSON.stringify({ text: content })}\n\n`);
+      }
+    }
+
+    res.write('data: [DONE]\n\n');
+    res.end();
+  } catch (err) {
+    console.error('[generate-insights] Error:', err.message);
+    // If headers already sent (streaming started), just end
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } else {
+      res.status(500).json({ error: safeErrorMessage(err) });
+    }
   }
 });
 
@@ -704,15 +951,30 @@ app.post('/api/model-outputs', async (req, res) => {
     const {
       daily_id, acne_score, sun_damage_score, skin_age_score,
       confidence, primary_driver, recommended_action, escalation_flag,
+      signal_scores, signal_features, lesions, signal_confidence,
+      conditions, rag_recommendations, personalized_feedback,
+      zone_severity, generated_insights,
     } = req.body;
 
     const result = await pool.query(
       `INSERT INTO model_outputs
        (daily_id, acne_score, sun_damage_score, skin_age_score,
-        confidence, primary_driver, recommended_action, escalation_flag)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        confidence, primary_driver, recommended_action, escalation_flag,
+        signal_scores, signal_features, lesions, signal_confidence,
+        conditions, rag_recommendations, personalized_feedback,
+        zone_severity, generated_insights)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`,
       [daily_id, acne_score, sun_damage_score, skin_age_score,
-       confidence, primary_driver, recommended_action, escalation_flag || false]
+       confidence, primary_driver, recommended_action, escalation_flag || false,
+       signal_scores ? JSON.stringify(signal_scores) : null,
+       signal_features ? JSON.stringify(signal_features) : null,
+       lesions ? JSON.stringify(lesions) : null,
+       signal_confidence ? JSON.stringify(signal_confidence) : null,
+       conditions ? JSON.stringify(conditions) : null,
+       rag_recommendations ? JSON.stringify(rag_recommendations) : null,
+       personalized_feedback || null,
+       zone_severity ? JSON.stringify(zone_severity) : null,
+       generated_insights ? JSON.stringify(generated_insights) : null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -788,7 +1050,7 @@ app.post('/api/rag/seed', async (req, res) => {
     });
   } catch (err) {
     console.error('RAG seed error:', err.message);
-    res.status(500).json({ error: `Failed to seed guidelines: ${err.message}` });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
 
@@ -814,78 +1076,8 @@ app.post('/api/rag/query', async (req, res) => {
     });
   } catch (err) {
     console.error('RAG query error:', err.message);
-    res.status(500).json({ error: `Failed to query guidelines: ${err.message}` });
+    res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
-
-// ==================== BARCODE PRODUCT LOOKUP (waterfall) ====================
-
-async function lookupOpenBeautyFacts(barcode) {
-  const res = await fetch(
-    `https://world.openbeautyfacts.org/api/v0/product/${barcode}.json`
-  );
-  const data = await res.json();
-  if (data.status !== 1 || !data.product?.product_name) return null;
-  const p = data.product;
-  return {
-    name: p.product_name || '',
-    brands: p.brands || '',
-    ingredients: p.ingredients_text || '',
-    image_url: p.image_url || null,
-    source: 'Open Beauty Facts',
-  };
-}
-
-async function lookupOpenFoodFacts(barcode) {
-  const res = await fetch(
-    `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
-  );
-  const data = await res.json();
-  if (data.status !== 1 || !data.product?.product_name) return null;
-  const p = data.product;
-  return {
-    name: p.product_name || '',
-    brands: p.brands || '',
-    ingredients: p.ingredients_text || '',
-    image_url: p.image_url || null,
-    source: 'Open Food Facts',
-  };
-}
-
-async function lookupUPCitemdb(barcode) {
-  const res = await fetch(
-    `https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (!data.items || data.items.length === 0) return null;
-  const item = data.items[0];
-  return {
-    name: item.title || '',
-    brands: item.brand || '',
-    ingredients: '',
-    image_url: (item.images && item.images[0]) || null,
-    source: 'UPCitemdb',
-  };
-}
-
-async function lookupNIHDailyMed(barcode) {
-  const res = await fetch(
-    `https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json?ndc=${barcode}`
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (!data.data || data.data.length === 0) return null;
-  const spl = data.data[0];
-  return {
-    name: spl.title || spl.spl_name || '',
-    brands: '',
-    ingredients: spl.active_ingredients
-      ? spl.active_ingredients.map((i) => i.name).join(', ')
-      : '',
-    image_url: null,
-    source: 'NIH DailyMed',
-  };
-}
 
 module.exports = app;

@@ -122,6 +122,8 @@ export interface ModelOutput {
   signal_features?: SignalFeatures;
   lesions?: DetectedLesion[];
   signal_confidence?: SignalConfidence;
+  zone_severity?: ZoneSeverity;
+  generated_insights?: GeneratedInsights;
 }
 
 export interface ScanResult {
@@ -153,6 +155,8 @@ export interface RagRecommendation {
   text: string;
   category: string;
   relevance: number;
+  signal?: string;
+  evidence_level?: 'A' | 'B' | 'C';
 }
 
 // Subscription
@@ -238,11 +242,14 @@ export interface SignalFeatures {
 
 export type LesionClass = 'comedone' | 'papule' | 'pustule' | 'nodule' | 'macule' | 'patch';
 
+export type LesionTier = 'confirmed' | 'possible';
+
 export interface DetectedLesion {
   class: LesionClass;
   confidence: number;
   bbox: [number, number, number, number]; // [x, y, width, height] normalized 0-1
   zone: FacialRegion;
+  tier?: LesionTier;
 }
 
 export type SignalConfidenceLevel = 'low' | 'med' | 'high';
@@ -253,4 +260,40 @@ export interface SignalConfidence {
   inflammation: SignalConfidenceLevel;
   sunDamage: SignalConfidenceLevel;
   elasticity: SignalConfidenceLevel;
+}
+
+// Zone severity from GPT-4o analysis
+export interface ZoneSeverityEntry {
+  dominant_signal: string;
+  severity: number;
+}
+
+export type ZoneSeverity = Record<string, ZoneSeverityEntry>;
+
+// Generated insights from Stage 2 streaming
+export interface SignalInsight {
+  status: string;
+  driver: string;
+  action: string;
+}
+
+export interface ZoneFinding {
+  zone: string;
+  finding: string;
+  recommendation: string;
+}
+
+export interface ProductGuidance {
+  stop: string;
+  consider: string;
+  continue: string;
+}
+
+export interface GeneratedInsights {
+  overall_summary: string;
+  overall_score_context: string;
+  signal_insights: Record<string, SignalInsight>;
+  zone_findings: ZoneFinding[];
+  product_guidance: ProductGuidance;
+  action_plan: string[];
 }

@@ -405,7 +405,9 @@ async function runLesionDetector(base64Image) {
   const data = raw.data;
   const numClasses = 6;
   const numDetections = 8400;
-  const confThreshold = 0.25;
+  // Two-tier confidence: 0.15 for display (dimmed), 0.30 for scoring impact
+  const confThresholdDisplay = 0.15;
+  const confThresholdScoring = 0.30;
   const iouThreshold = 0.45;
 
   const candidateBoxes = [];
@@ -430,7 +432,7 @@ async function runLesionDetector(base64Image) {
       }
     }
 
-    if (maxScore < confThreshold) continue;
+    if (maxScore < confThresholdDisplay) continue;
 
     // Convert center format to [x, y, w, h] normalized
     const bx = (cx - w / 2) / 640;
@@ -445,11 +447,28 @@ async function runLesionDetector(base64Image) {
 
   if (candidateBoxes.length === 0) return [];
 
-  // Apply NMS
-  const keptIndices = nms(candidateBoxes, candidateScores, iouThreshold);
+  // Per-class NMS: run NMS within each class, then merge
+  // This prevents different lesion types at the same location from suppressing each other
+  const candidatesByClass = {};
+  for (let i = 0; i < candidateBoxes.length; i++) {
+    const cls = candidateClassIds[i];
+    if (!candidatesByClass[cls]) candidatesByClass[cls] = { boxes: [], scores: [], indices: [] };
+    candidatesByClass[cls].boxes.push(candidateBoxes[i]);
+    candidatesByClass[cls].scores.push(candidateScores[i]);
+    candidatesByClass[cls].indices.push(i);
+  }
 
-  // Map to DetectedLesion objects, limit to top 20
-  const lesions = keptIndices.slice(0, 20).map((i) => {
+  const allKeptIndices = [];
+  for (const cls of Object.keys(candidatesByClass)) {
+    const { boxes, scores, indices } = candidatesByClass[cls];
+    const keptLocal = nms(boxes, scores, iouThreshold);
+    allKeptIndices.push(...keptLocal.map((localIdx) => indices[localIdx]));
+  }
+
+  // Sort by confidence descending, limit to top 20
+  allKeptIndices.sort((a, b) => candidateScores[b] - candidateScores[a]);
+
+  const lesions = allKeptIndices.slice(0, 20).map((i) => {
     const [bx, by, bw, bh] = candidateBoxes[i];
     const cx = bx + bw / 2;
     const cy = by + bh / 2;
@@ -458,6 +477,8 @@ async function runLesionDetector(base64Image) {
       confidence: Math.round(candidateScores[i] * 100) / 100,
       bbox: [bx, by, bw, bh],
       zone: bboxToZone(cx, cy),
+      // Two-tier: high confidence lesions get scoring impact
+      tier: candidateScores[i] >= confThresholdScoring ? 'confirmed' : 'possible',
     };
   });
 
@@ -465,44 +486,135 @@ async function runLesionDetector(base64Image) {
 }
 
 /**
- * Merge scores from all three layers.
- * Priority: Layer 2 (custom CV) > Layer 1 (deterministic) > Layer 3 (GPT-4o derived)
+ * Reliability coefficients for uncertainty-weighted score fusion.
+ *
+ * Per-layer, per-signal beta values (0-1) reflecting each layer's
+ * expected reliability for that signal. Inspired by Dempster-Shafer
+ * discounting: lower beta = less influence on final score.
+ *
+ * Layer 1 (deterministic): strong for inflammation (a*) and sunDamage (ITA),
+ *   moderate for structure/hydration/elasticity (texture proxies).
+ * Layer 2 (ONNX models): highest reliability when loaded, 0 otherwise.
+ * Layer 3 (GPT-4o): moderate — excellent semantic understanding but
+ *   coarse numerical precision from a vision-language model.
+ */
+const BETA_L1 = {
+  structure: 0.5,
+  hydration: 0.5,
+  inflammation: 0.8,
+  sunDamage: 0.8,
+  elasticity: 0.5,
+};
+
+const BETA_L2_LOADED = {
+  structure: 0.9,
+  hydration: 0.9,
+  inflammation: 0.0, // no Layer 2 model for inflammation
+  sunDamage: 0.0,    // no Layer 2 model for sun damage
+  elasticity: 0.9,
+};
+
+const BETA_L3 = {
+  structure: 0.6,
+  hydration: 0.6,
+  inflammation: 0.6,
+  sunDamage: 0.6,
+  elasticity: 0.6,
+};
+
+/**
+ * Merge scores from all three layers using uncertainty-weighted fusion.
+ *
+ * merged_signal = (beta_L1 * L1 + beta_L2 * L2 + beta_L3 * L3) / (beta_L1 + beta_L2 + beta_L3)
+ *
+ * When Layer 2 is unavailable (beta=0), formula naturally falls back to L1+L3 blend.
+ * When all 3 are present, Layer 2 dominates (beta=0.9) but L1 and L3 still contribute corrections.
  *
  * @param {object} layer1Scores - Signal scores from deterministic features
  * @param {object} layer2Results - Results from custom CV models
- * @param {object} layer3Scores - Signal scores derived from GPT-4o (existing pipeline)
+ * @param {object} layer3Scores - Signal scores from GPT-4o (now direct, not derived)
  * @returns {object} Merged signal scores
  */
 function mergeSignalScores(layer1Scores, layer2Results, layer3Scores) {
   const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
   const overrides = layer2Results.signalOverrides;
+  const signals = ['structure', 'hydration', 'inflammation', 'sunDamage', 'elasticity'];
+  const merged = {};
 
-  // Structure: Layer 2 > Layer 1 weighted average with Layer 3
-  const structure = overrides.structure != null
-    ? overrides.structure
-    : clamp(layer1Scores.structure * 0.6 + (layer3Scores?.structure ?? layer1Scores.structure) * 0.4);
+  for (const signal of signals) {
+    const l1 = layer1Scores[signal] ?? 50;
+    const l2 = overrides[signal];
+    const l3 = layer3Scores?.[signal] ?? l1;
 
-  // Hydration: Layer 2 > Layer 1 weighted average with Layer 3
-  const hydration = overrides.hydration != null
-    ? overrides.hydration
-    : clamp(layer1Scores.hydration * 0.6 + (layer3Scores?.hydration ?? layer1Scores.hydration) * 0.4);
+    const betaL1 = BETA_L1[signal];
+    const betaL2 = l2 != null ? BETA_L2_LOADED[signal] : 0;
+    const betaL3 = BETA_L3[signal];
 
-  // Inflammation: Deterministic-primary (Layer 1 is gold standard for a* measurement)
-  const inflammation = clamp(
-    layer1Scores.inflammation * 0.7 + (layer3Scores?.inflammation ?? layer1Scores.inflammation) * 0.3
-  );
+    const totalBeta = betaL1 + betaL2 + betaL3;
+    if (totalBeta === 0) {
+      merged[signal] = clamp(l1);
+      continue;
+    }
 
-  // Sun damage: Deterministic-primary (ITA is gold standard)
-  const sunDamage = clamp(
-    layer1Scores.sunDamage * 0.7 + (layer3Scores?.sunDamage ?? layer1Scores.sunDamage) * 0.3
-  );
+    const weightedSum = betaL1 * l1 + betaL2 * (l2 ?? 0) + betaL3 * l3;
+    merged[signal] = clamp(weightedSum / totalBeta);
+  }
 
-  // Elasticity: Layer 2 > Layer 1 weighted average with Layer 3
-  const elasticity = overrides.elasticity != null
-    ? overrides.elasticity
-    : clamp(layer1Scores.elasticity * 0.6 + (layer3Scores?.elasticity ?? layer1Scores.elasticity) * 0.4);
+  return merged;
+}
 
-  return { structure, hydration, inflammation, sunDamage, elasticity };
+/**
+ * Apply lesion detection feedback to signal scores.
+ * Detected lesions create score penalties for relevant signals,
+ * closing the loop between visual detection and quantitative scoring.
+ *
+ * Only "confirmed" tier lesions (confidence >= 0.30) affect scores.
+ * Penalties are capped to prevent lesion count from dominating signals.
+ *
+ * @param {object} signalScores - Merged signal scores
+ * @param {Array} lesions - Detected lesions from Layer 2
+ * @returns {object} Adjusted signal scores
+ */
+function applyLesionFeedback(signalScores, lesions) {
+  if (!lesions || lesions.length === 0) return { ...signalScores };
+
+  let inflammationPenalty = 0;
+  let structurePenalty = 0;
+  let sunDamagePenalty = 0;
+
+  for (const lesion of lesions) {
+    // Only confirmed-tier lesions affect scores (require explicit confirmation)
+    if (lesion.tier !== 'confirmed') continue;
+    const conf = lesion.confidence;
+
+    switch (lesion.class) {
+      case 'papule':
+      case 'pustule':
+        inflammationPenalty += conf * 4;
+        structurePenalty += conf * 1.5;
+        break;
+      case 'nodule':
+        inflammationPenalty += conf * 8;
+        structurePenalty += conf * 3;
+        break;
+      case 'comedone':
+        structurePenalty += conf * 3;
+        break;
+      case 'macule':
+      case 'patch':
+        sunDamagePenalty += conf * 3;
+        structurePenalty += conf * 1;
+        break;
+    }
+  }
+
+  return {
+    structure: Math.max(0, Math.round(signalScores.structure - Math.min(25, structurePenalty))),
+    hydration: signalScores.hydration,
+    inflammation: Math.max(0, Math.round(signalScores.inflammation - Math.min(25, inflammationPenalty))),
+    sunDamage: Math.max(0, Math.round(signalScores.sunDamage - Math.min(15, sunDamagePenalty))),
+    elasticity: signalScores.elasticity,
+  };
 }
 
 module.exports = {
@@ -510,6 +622,7 @@ module.exports = {
   runAllModels,
   runLesionDetector,
   mergeSignalScores,
+  applyLesionFeedback,
   bboxToZone,
   LESION_CLASSES,
   // Exported for testing

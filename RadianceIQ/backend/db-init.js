@@ -94,6 +94,12 @@ CREATE TABLE IF NOT EXISTS model_outputs (
   signal_scores JSONB DEFAULT '{}',
   signal_features JSONB DEFAULT '{}',
   lesions JSONB DEFAULT '[]',
+  signal_confidence JSONB DEFAULT '{}',
+  conditions JSONB DEFAULT '[]',
+  rag_recommendations JSONB DEFAULT '[]',
+  personalized_feedback TEXT,
+  zone_severity JSONB DEFAULT '{}',
+  generated_insights JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -123,15 +129,42 @@ CREATE INDEX IF NOT EXISTS idx_products_user ON product_catalog(user_id);
 CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist(email);
 `;
 
-async function init() {
+// Migration: add new columns to existing model_outputs tables
+const migration = `
+ALTER TABLE model_outputs ADD COLUMN IF NOT EXISTS signal_confidence JSONB DEFAULT '{}';
+ALTER TABLE model_outputs ADD COLUMN IF NOT EXISTS conditions JSONB DEFAULT '[]';
+ALTER TABLE model_outputs ADD COLUMN IF NOT EXISTS rag_recommendations JSONB DEFAULT '[]';
+ALTER TABLE model_outputs ADD COLUMN IF NOT EXISTS personalized_feedback TEXT;
+ALTER TABLE model_outputs ADD COLUMN IF NOT EXISTS zone_severity JSONB DEFAULT '{}';
+ALTER TABLE model_outputs ADD COLUMN IF NOT EXISTS generated_insights JSONB DEFAULT '{}';
+`;
+
+/**
+ * Initialize schema using a provided pool (does NOT close it).
+ * Runs CREATE TABLE IF NOT EXISTS + ALTER TABLE for migrations.
+ */
+async function initSchema(externalPool) {
+  await externalPool.query(schema);
   try {
-    await pool.query(schema);
-    console.log('Database schema initialized successfully.');
+    await externalPool.query(migration);
   } catch (err) {
-    console.error('Error initializing database:', err.message);
-  } finally {
-    await pool.end();
+    // ALTER TABLE IF NOT EXISTS may not be supported on older PG — ignore errors
+    console.warn('[db-init] Migration warning (may be harmless):', err.message);
   }
 }
 
-init();
+// Standalone execution: `node db-init.js`
+if (require.main === module) {
+  (async () => {
+    try {
+      await initSchema(pool);
+      console.log('Database schema initialized successfully.');
+    } catch (err) {
+      console.error('Error initializing database:', err.message);
+    } finally {
+      await pool.end();
+    }
+  })();
+}
+
+module.exports = { schema, initSchema };

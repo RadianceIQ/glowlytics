@@ -10,7 +10,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { G, Line, Rect, Text as SvgText, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Colors } from '../constants/theme';
-import type { DetectedLesion } from '../types';
+import { LESION_INFO } from '../constants/lesions';
+import type { DetectedLesion, LesionClass } from '../types';
 
 // Use app's primary teal palette instead of Matrix green
 const PRIMARY = Colors.primary; // #7DE7E1
@@ -18,6 +19,17 @@ const PRIMARY_DIM = 'rgba(125, 231, 225, 0.30)';
 const PRIMARY_GLOW = 'rgba(125, 231, 225, 0.08)';
 const PRIMARY_BRIGHT = 'rgba(125, 231, 225, 0.95)';
 const BG_DARK = 'rgba(6, 11, 18, 0.65)';
+
+/** Get color for lesion type — inflammatory=red, non-inflammatory=teal, pigmented=amber */
+function lesionColor(cls: LesionClass): string {
+  return LESION_INFO[cls]?.color || PRIMARY;
+}
+
+/** Determine display tier from confidence or tier field */
+function getLesionOpacity(lesion: DetectedLesion): number {
+  if (lesion.tier === 'possible' || lesion.confidence < 0.30) return 0.4;
+  return 1.0;
+}
 
 const CORNER_FRAC = 0.22;
 const STROKE_W = 1.5;
@@ -128,7 +140,8 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceW
             const [bx, by, bw, bh] = lesion.bbox;
 
             // Only show lesions whose center falls within the detected face (+ 15% margin)
-            if (faceRect) {
+            // Skip filter if face rect is implausibly small (bad detection or wrong coordinate space)
+            if (faceRect && faceRect.width > 0.05 && faceRect.height > 0.05) {
               const cx = bx + bw / 2;
               const cy = by + bh / 2;
               const padW = faceRect.width * 0.15;
@@ -153,6 +166,11 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceW
             if (x + w < 0 || x > width || y + h < 0 || y > height) return null;
 
             const conf = Math.round(lesion.confidence * 100);
+            const tierOpacity = getLesionOpacity(lesion);
+            const isConfirmed = tierOpacity >= 1.0;
+            const typeColor = lesionColor(lesion.class);
+            const typeColorBright = typeColor + (isConfirmed ? '' : '66'); // dim for possible
+            const typeColorDim = typeColor + '4D'; // 30% opacity
             const label = `${lesion.class.toUpperCase()} ${conf}%`;
 
             // Corner bracket lengths
@@ -167,7 +185,7 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceW
             const centerY = y + h / 2;
 
             return (
-              <G key={`lesion-${i}`}>
+              <G key={`lesion-${i}`} opacity={tierOpacity}>
                 {/* Subtle fill */}
                 <Rect
                   x={x} y={y} width={w} height={h}
@@ -175,52 +193,56 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceW
                   rx={4}
                 />
 
-                {/* Corner brackets — rounded, thicker */}
+                {/* Corner brackets — type-colored */}
                 {/* Top-left */}
-                <Line x1={x1} y1={y1 + 4} x2={x1} y2={y1 + cy} stroke={PRIMARY_BRIGHT} strokeWidth={STROKE_W} strokeLinecap="round" />
-                <Line x1={x1 + 4} y1={y1} x2={x1 + cx} y2={y1} stroke={PRIMARY_BRIGHT} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x1} y1={y1 + 4} x2={x1} y2={y1 + cy} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x1 + 4} y1={y1} x2={x1 + cx} y2={y1} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
 
                 {/* Top-right */}
-                <Line x1={x2 - cx} y1={y1} x2={x2 - 4} y2={y1} stroke={PRIMARY_BRIGHT} strokeWidth={STROKE_W} strokeLinecap="round" />
-                <Line x1={x2} y1={y1 + 4} x2={x2} y2={y1 + cy} stroke={PRIMARY_BRIGHT} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x2 - cx} y1={y1} x2={x2 - 4} y2={y1} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x2} y1={y1 + 4} x2={x2} y2={y1 + cy} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
 
                 {/* Bottom-left */}
-                <Line x1={x1} y1={y2 - cy} x2={x1} y2={y2 - 4} stroke={PRIMARY_BRIGHT} strokeWidth={STROKE_W} strokeLinecap="round" />
-                <Line x1={x1 + 4} y1={y2} x2={x1 + cx} y2={y2} stroke={PRIMARY_BRIGHT} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x1} y1={y2 - cy} x2={x1} y2={y2 - 4} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x1 + 4} y1={y2} x2={x1 + cx} y2={y2} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
 
                 {/* Bottom-right */}
-                <Line x1={x2 - cx} y1={y2} x2={x2 - 4} y2={y2} stroke={PRIMARY_BRIGHT} strokeWidth={STROKE_W} strokeLinecap="round" />
-                <Line x1={x2} y1={y2 - cy} x2={x2} y2={y2 - 4} stroke={PRIMARY_BRIGHT} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x2 - cx} y1={y2} x2={x2 - 4} y2={y2} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x2} y1={y2 - cy} x2={x2} y2={y2 - 4} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
 
-                {/* Thin edge connectors — dashed, subtle */}
-                <Line x1={x1 + cx} y1={y1} x2={x2 - cx} y2={y1} stroke={PRIMARY_DIM} strokeWidth={0.5} strokeDasharray="2 6" />
-                <Line x1={x1 + cx} y1={y2} x2={x2 - cx} y2={y2} stroke={PRIMARY_DIM} strokeWidth={0.5} strokeDasharray="2 6" />
-                <Line x1={x1} y1={y1 + cy} x2={x1} y2={y2 - cy} stroke={PRIMARY_DIM} strokeWidth={0.5} strokeDasharray="2 6" />
-                <Line x1={x2} y1={y1 + cy} x2={x2} y2={y2 - cy} stroke={PRIMARY_DIM} strokeWidth={0.5} strokeDasharray="2 6" />
+                {/* Thin edge connectors — dashed */}
+                <Line x1={x1 + cx} y1={y1} x2={x2 - cx} y2={y1} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 6" />
+                <Line x1={x1 + cx} y1={y2} x2={x2 - cx} y2={y2} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 6" />
+                <Line x1={x1} y1={y1 + cy} x2={x1} y2={y2 - cy} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 6" />
+                <Line x1={x2} y1={y1 + cy} x2={x2} y2={y2 - cy} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 6" />
 
-                {/* Center crosshair dot */}
-                <Circle cx={centerX} cy={centerY} r={2} fill={PRIMARY} fillOpacity={0.6} />
-                <Circle cx={centerX} cy={centerY} r={6} fill="none" stroke={PRIMARY_DIM} strokeWidth={0.5} />
+                {/* Center crosshair dot — type-colored */}
+                <Circle cx={centerX} cy={centerY} r={2} fill={typeColor} fillOpacity={0.6} />
+                <Circle cx={centerX} cy={centerY} r={6} fill="none" stroke={typeColorDim} strokeWidth={0.5} />
 
-                {/* Label pill */}
-                <Rect
-                  x={x}
-                  y={Math.max(0, y - LABEL_H - 4)}
-                  width={Math.max(w, 72)}
-                  height={LABEL_H}
-                  fill={BG_DARK}
-                  rx={9}
-                />
-                <SvgText
-                  x={x + 8}
-                  y={Math.max(LABEL_H - 5, y - 8)}
-                  fill={PRIMARY}
-                  fontSize={9}
-                  fontWeight="600"
-                  letterSpacing={0.8}
-                >
-                  {label}
-                </SvgText>
+                {/* Label pill — only for confirmed detections */}
+                {isConfirmed && (
+                  <>
+                    <Rect
+                      x={x}
+                      y={Math.max(0, y - LABEL_H - 4)}
+                      width={Math.max(w, 72)}
+                      height={LABEL_H}
+                      fill={BG_DARK}
+                      rx={9}
+                    />
+                    <SvgText
+                      x={x + 8}
+                      y={Math.max(LABEL_H - 5, y - 8)}
+                      fill={typeColor}
+                      fontSize={9}
+                      fontWeight="600"
+                      letterSpacing={0.8}
+                    >
+                      {label}
+                    </SvgText>
+                  </>
+                )}
               </G>
             );
           })}

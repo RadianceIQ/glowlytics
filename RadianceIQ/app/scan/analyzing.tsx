@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { BackHandler, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
@@ -20,8 +20,10 @@ import Animated, {
 import { Colors, FontFamily, FontSize, BorderRadius, Spacing } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import { analyzeWithFallback } from '../../src/services/skinAnalysis';
+import { streamInsights } from '../../src/services/visionAPI';
 import { getEstimatedCycleDay } from '../../src/utils/cycleDay';
 import { trackEvent } from '../../src/services/analytics';
+import { env } from '../../src/config/env';
 
 // ---------------------------------------------------------------------------
 // Animated SVG circle for Reanimated
@@ -187,6 +189,9 @@ export default function AnalyzingScreen() {
   const [slowWarning, setSlowWarning] = useState(false);
   const [xpFeedback, setXpFeedback] = useState<{ xp: number; badge?: string } | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [streamedText, setStreamedText] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const insightsRef = useRef<any>(null);
 
   const apiDone = useRef(false);
   const apiResult = useRef<any>(null);
@@ -196,6 +201,7 @@ export default function AnalyzingScreen() {
   const hasStarted = useRef(false);
   const scannerDataRef = useRef({ inflammation_index: 0, pigmentation_index: 0, texture_index: 0 });
   const cycleDayRef = useRef<number | undefined>(undefined);
+  const lastRecordRef = useRef<any>(null);
   const analysisStartTime = useRef(0);
 
   // ---------------------------------------------------------------------------
@@ -239,6 +245,23 @@ export default function AnalyzingScreen() {
     }
   };
 
+  // Clean up old scan photos (keep last 90 days max)
+  const cleanupOldPhotos = async () => {
+    try {
+      const photosDir = `${FileSystemLegacy.documentDirectory}scan_photos/`;
+      const files = await FileSystemLegacy.readDirectoryAsync(photosDir);
+      const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      for (const file of files) {
+        const match = file.match(/^scan_(\d+)\.jpg$/);
+        if (match && parseInt(match[1], 10) < cutoff) {
+          await FileSystemLegacy.deleteAsync(`${photosDir}${file}`, { idempotent: true });
+        }
+      }
+    } catch {
+      // Cleanup is best-effort
+    }
+  };
+
   // ---------------------------------------------------------------------------
   // Post-API stage runner (unchanged guard logic)
   // ---------------------------------------------------------------------------
@@ -278,6 +301,8 @@ export default function AnalyzingScreen() {
       let savedPhotoUri: string | undefined;
       if (params.photoUri) {
         savedPhotoUri = await persistPhoto(params.photoUri);
+        // Best-effort cleanup of old photos in background
+        cleanupOldPhotos();
       }
 
       clearPendingPhotoBase64();
@@ -293,6 +318,7 @@ export default function AnalyzingScreen() {
       const xpBefore = state.gamification.xp;
       const badgesBefore = state.gamification.badges.length;
 
+      const prev = lastRecordRef.current;
       const dailyRecord = addDailyRecord({
         date: new Date().toISOString().split('T')[0],
         scanner_reading_id: `scan_${Date.now()}`,
@@ -301,10 +327,51 @@ export default function AnalyzingScreen() {
         scan_region: currentProtocol?.scan_region || 'whole_face',
         photo_uri: savedPhotoUri,
         photo_quality_flag: 'pass',
-        sunscreen_used: false,
+        sunscreen_used: prev?.sunscreen_used ?? false,
         new_product_added: false,
         cycle_day_estimated: cycleDayRef.current,
+        sleep_quality: prev?.sleep_quality,
+        stress_level: prev?.stress_level,
       });
+
+      // Stage 2: Stream personalized insights in background (non-blocking)
+      // We save the model output immediately with Stage 1 data, then update
+      // with generated insights when streaming completes.
+      if (env.API_BASE_URL && analysis.signal_scores) {
+        setIsStreaming(true);
+        setDisplayedMessage('Generating insights...');
+        // Fire and forget — don't block navigation
+        streamInsights(
+          {
+            signal_scores: analysis.signal_scores,
+            signal_features: analysis.signal_features,
+            signal_confidence: analysis.signal_confidence,
+            lesions: finalLesions,
+            conditions: analysis.conditions,
+            zone_severity: analysis.zone_severity,
+            user_goal: currentProtocol?.primary_goal,
+            scan_count: state.modelOutputs.length,
+            rag_context: analysis.rag_recommendations,
+          },
+          (chunk) => {
+            setStreamedText((prev) => prev + chunk);
+          },
+        ).then((insights) => {
+          setIsStreaming(false);
+          if (insights) {
+            insightsRef.current = insights;
+            // Update the latest model output with generated insights
+            const latestOutputs = useStore.getState().modelOutputs;
+            if (latestOutputs.length > 0) {
+              const latest = latestOutputs[latestOutputs.length - 1];
+              latest.generated_insights = insights;
+              useStore.getState().persistData();
+            }
+          }
+        }).catch(() => {
+          setIsStreaming(false);
+        });
+      }
 
       addModelOutput({
         daily_id: dailyRecord.daily_id,
@@ -322,6 +389,7 @@ export default function AnalyzingScreen() {
         signal_features: analysis.signal_features,
         lesions: finalLesions,
         signal_confidence: analysis.signal_confidence,
+        zone_severity: analysis.zone_severity,
       });
 
       const currentState = useStore.getState();
@@ -337,8 +405,10 @@ export default function AnalyzingScreen() {
         timers.current.push(t);
         return;
       }
-    } catch {
-      // Persistence failed -- still navigate to results
+    } catch (err: any) {
+      console.error('[Glowlytics] Persist failed:', err?.message || err);
+      setError('We couldn\u2019t save your results. Please try again.');
+      return;
     }
 
     router.replace('/scan/results');
@@ -381,12 +451,31 @@ export default function AnalyzingScreen() {
     if (hasStarted.current || user) return;
     const bail = setTimeout(() => {
       if (!hasStarted.current) {
-        router.replace('/(tabs)/today');
+        clearPendingPhotoBase64();
+        setError('Unable to load your profile. Please restart the app and try again.');
       }
     }, 5000);
     timers.current.push(bail);
     return () => clearTimeout(bail);
   }, [user]);
+
+  // ---------------------------------------------------------------------------
+  // Block Android back button during analysis to prevent broken state
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const handler = () => {
+      if (error) {
+        // Allow back when showing error screen
+        clearPendingPhotoBase64();
+        return false;
+      }
+      // Block back during active analysis
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', handler);
+    return () => sub.remove();
+  }, [error]);
 
   // ---------------------------------------------------------------------------
   // Main effect: timer track + API call (with reliability fix)
@@ -451,13 +540,19 @@ export default function AnalyzingScreen() {
     const estimatedCycleDay = getEstimatedCycleDay(user);
     cycleDayRef.current = estimatedCycleDay;
 
-    const { modelOutputs: prevOutputs, pendingPhotoBase64: existingBase64 } = useStore.getState();
+    // Clear any stale base64 from a previous scan before starting fresh
+    clearPendingPhotoBase64();
+
+    // Carry forward context from most recent daily record (no checkin screen)
+    const { modelOutputs: prevOutputs, dailyRecords } = useStore.getState();
+    const lastRecord = dailyRecords.length > 0 ? dailyRecords[dailyRecords.length - 1] : null;
+    lastRecordRef.current = lastRecord;
     analysisStartTime.current = Date.now();
 
-    // Pre-encode photo if not already done (camera now skips processing screen)
+    // Encode the current photo fresh each time
     const encodeAndAnalyze = async () => {
-      let base64 = existingBase64;
-      if (!base64 && params.photoUri) {
+      let base64: string | undefined;
+      if (params.photoUri) {
         try {
           const { imageToBase64 } = await import('../../src/services/visionAPI');
           base64 = await imageToBase64(params.photoUri);
@@ -473,9 +568,11 @@ export default function AnalyzingScreen() {
         protocol,
         previousOutputs: prevOutputs,
         dailyContext: {
-          sunscreen_used: false,
+          sunscreen_used: lastRecord?.sunscreen_used ?? false,
           new_product_added: false,
           cycle_day_estimated: estimatedCycleDay,
+          sleep_quality: lastRecord?.sleep_quality,
+          stress_level: lastRecord?.stress_level,
         },
         preEncodedBase64: base64 || undefined,
         skipDelay: true,
@@ -509,6 +606,7 @@ export default function AnalyzingScreen() {
           error: String(err?.message || err),
           analysis_time_ms: Date.now() - analysisStartTime.current,
         });
+        clearPendingPhotoBase64();
         setError(err?.message || 'Something went wrong. Please try again.');
       });
 
@@ -540,6 +638,10 @@ export default function AnalyzingScreen() {
     setCurrentStage(0);
     setDisplayedMessage(CALM_MESSAGES[0]);
     setXpFeedback(null);
+    setStreamedText('');
+    setIsStreaming(false);
+    insightsRef.current = null;
+    clearPendingPhotoBase64();
     apiDone.current = false;
     apiResult.current = null;
     holdingOnApiStage.current = false;
@@ -711,8 +813,20 @@ export default function AnalyzingScreen() {
             </Animated.Text>
           </View>
 
+          {/* Streamed insight text (Stage 2) */}
+          {isStreaming && streamedText.length > 0 && (
+            <Animated.View
+              entering={FadeIn.duration(400)}
+              style={styles.streamContainer}
+            >
+              <Text style={styles.streamText} numberOfLines={4}>
+                {streamedText.slice(-200)}
+              </Text>
+            </Animated.View>
+          )}
+
           {/* Slow warning */}
-          {slowWarning && (
+          {slowWarning && !isStreaming && (
             <Animated.Text
               entering={FadeIn.duration(300)}
               style={styles.slowWarning}
@@ -782,6 +896,19 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
     textAlign: 'center',
     letterSpacing: 0.3,
+  },
+  streamContainer: {
+    paddingHorizontal: Spacing.xl,
+    maxWidth: 320,
+    alignItems: 'center',
+  },
+  streamText: {
+    color: Colors.textOnDarkDim,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    textAlign: 'center',
+    opacity: 0.7,
   },
   slowWarning: {
     color: Colors.warning,

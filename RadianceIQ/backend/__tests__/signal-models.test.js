@@ -682,7 +682,7 @@ describe('signal-models.js', () => {
       elasticity: 40,
     };
 
-    test('Layer 2 overrides take precedence over weighted merge', () => {
+    test('Layer 2 overrides have highest weight in uncertainty-weighted merge', () => {
       const layer2WithOverrides = {
         signalOverrides: { structure: 85, hydration: null, elasticity: 92 },
         lesions: [],
@@ -694,27 +694,30 @@ describe('signal-models.js', () => {
 
       const merged = mergeSignalScores(layer1Scores, layer2WithOverrides, layer3Scores);
 
-      // Structure and elasticity come directly from Layer 2 overrides
-      expect(merged.structure).toBe(85);
-      expect(merged.elasticity).toBe(92);
-      // Hydration has no override, so it should be a weighted merge
-      expect(merged.hydration).not.toBe(85);
-      expect(merged.hydration).not.toBe(92);
+      // With L2 override: merged = (0.5*L1 + 0.9*L2 + 0.6*L3) / (0.5+0.9+0.6)
+      // Structure: (0.5*70 + 0.9*85 + 0.6*50) / 2.0 = (35+76.5+30)/2.0 = 71 (rounded)
+      expect(merged.structure).toBe(71);
+      // Elasticity: (0.5*60 + 0.9*92 + 0.6*40) / 2.0 = (30+82.8+24)/2.0 = 68 (rounded)
+      expect(merged.elasticity).toBe(68);
+      // Hydration has no override (beta_L2=0), so only L1+L3
+      // (0.5*65 + 0.6*55) / 1.1 = (32.5+33)/1.1 = 60 (rounded)
+      expect(merged.hydration).toBe(60);
     });
 
-    test('without overrides, uses weighted merge of Layer 1 and Layer 3', () => {
+    test('without overrides, uses L1+L3 uncertainty-weighted merge', () => {
       const merged = mergeSignalScores(layer1Scores, layer2NoOverrides, layer3Scores);
 
-      // Structure: L1*0.6 + L3*0.4 = 70*0.6 + 50*0.4 = 42+20 = 62
-      expect(merged.structure).toBe(62);
-      // Hydration: L1*0.6 + L3*0.4 = 65*0.6 + 55*0.4 = 39+22 = 61
-      expect(merged.hydration).toBe(61);
-      // Inflammation: L1*0.7 + L3*0.3 = 80*0.7 + 60*0.3 = 56+18 = 74
-      expect(merged.inflammation).toBe(74);
-      // SunDamage: L1*0.7 + L3*0.3 = 75*0.7 + 65*0.3 = 52.5+19.5 = 72
-      expect(merged.sunDamage).toBe(72);
-      // Elasticity: L1*0.6 + L3*0.4 = 60*0.6 + 40*0.4 = 36+16 = 52
-      expect(merged.elasticity).toBe(52);
+      // No L2 overrides → beta_L2=0 for all
+      // Structure: (0.5*70 + 0.6*50) / (0.5+0.6) = (35+30)/1.1 = 59 (rounded)
+      expect(merged.structure).toBe(59);
+      // Hydration: (0.5*65 + 0.6*55) / 1.1 = (32.5+33)/1.1 = 60 (rounded)
+      expect(merged.hydration).toBe(60);
+      // Inflammation: (0.8*80 + 0.6*60) / 1.4 = (64+36)/1.4 = 71 (rounded)
+      expect(merged.inflammation).toBe(71);
+      // SunDamage: (0.8*75 + 0.6*65) / 1.4 = (60+39)/1.4 = 71 (rounded)
+      expect(merged.sunDamage).toBe(71);
+      // Elasticity: (0.5*60 + 0.6*40) / 1.1 = (30+24)/1.1 = 49 (rounded)
+      expect(merged.elasticity).toBe(49);
     });
 
     test('all merged scores are clamped to 0-100 integers', () => {
@@ -730,8 +733,8 @@ describe('signal-models.js', () => {
     test('null Layer 3 scores fall back to Layer 1 values', () => {
       const merged = mergeSignalScores(layer1Scores, layer2NoOverrides, null);
 
-      // When Layer 3 is null, Layer 1 scores are used for both weights
-      // Structure: L1*0.6 + L1*0.4 = L1 = 70
+      // When Layer 3 is null, L3 defaults to L1 value in the formula
+      // merged = (beta_L1 * L1 + beta_L3 * L1) / (beta_L1 + beta_L3) = L1
       expect(merged.structure).toBe(70);
       expect(merged.hydration).toBe(65);
       expect(merged.inflammation).toBe(80);
@@ -775,6 +778,7 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
   jest.mock('../rag', () => ({
     seedGuidelines: jest.fn(),
     queryGuidelines: jest.fn().mockResolvedValue([]),
+    queryGuidelinesMulti: jest.fn().mockResolvedValue([]),
   }));
 
   // Mock image-processing to return deterministic features
@@ -801,11 +805,14 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
 
   const mockRunLesionDetector = jest.fn();
 
+  const mockApplyLesionFeedback = jest.fn((scores) => scores);
+
   jest.mock('../signal-models', () => ({
     initModels: jest.fn().mockResolvedValue({ loaded: [] }),
     runAllModels: mockRunAllModels,
     runLesionDetector: mockRunLesionDetector,
     mergeSignalScores: mockMergeSignalScores,
+    applyLesionFeedback: mockApplyLesionFeedback,
     bboxToZone: jest.fn(),
     LESION_CLASSES: ['comedone', 'papule', 'pustule', 'nodule', 'macule', 'patch'],
     prepareImageTensor: jest.fn(),

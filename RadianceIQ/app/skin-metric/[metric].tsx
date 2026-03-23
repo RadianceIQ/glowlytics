@@ -177,15 +177,21 @@ export default function MetricAssessmentDetail() {
         <View style={styles.recommendationStack}>
           <View style={styles.recommendationRow}>
             <Text style={styles.recommendationLabel}>Stop using</Text>
-            <Text style={styles.recommendationText}>{detail.stopUsing}</Text>
+            <Text style={styles.recommendationText}>
+              {latestOutput?.generated_insights?.product_guidance?.stop || detail.stopUsing}
+            </Text>
           </View>
           <View style={styles.recommendationRow}>
             <Text style={styles.recommendationLabel}>Consider using</Text>
-            <Text style={styles.recommendationText}>{detail.considerUsing}</Text>
+            <Text style={styles.recommendationText}>
+              {latestOutput?.generated_insights?.product_guidance?.consider || detail.considerUsing}
+            </Text>
           </View>
           <View style={styles.recommendationRow}>
             <Text style={styles.recommendationLabel}>Continue</Text>
-            <Text style={styles.recommendationText}>{detail.continueUsing}</Text>
+            <Text style={styles.recommendationText}>
+              {latestOutput?.generated_insights?.product_guidance?.continue || detail.continueUsing}
+            </Text>
           </View>
         </View>
       </View>
