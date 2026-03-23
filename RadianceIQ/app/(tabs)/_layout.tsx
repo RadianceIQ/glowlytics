@@ -1,17 +1,14 @@
 import React from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import { CoachingTooltip } from '../../src/components/CoachingTooltip';
-import { DOCKED_TAB_SPACE, NotchedTabBar } from '../../src/components/navigation/NotchedTabBar';
+import { NotchedTabBar } from '../../src/components/navigation/NotchedTabBar';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
 import { trackEvent } from '../../src/services/analytics';
 
 export default function TabsLayout() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const dailyRecords = useStore((s) => s.dailyRecords);
   const isFirstScan = dailyRecords.length === 0;
 
@@ -45,10 +42,6 @@ export default function TabsLayout() {
         )}
         screenOptions={{
           headerShown: false,
-          sceneStyle: {
-            paddingBottom: DOCKED_TAB_SPACE + insets.bottom,
-            backgroundColor: Colors.background,
-          },
           tabBarShowLabel: false,
           tabBarHideOnKeyboard: true,
         }}
