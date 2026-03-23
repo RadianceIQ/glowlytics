@@ -39,7 +39,7 @@ export default function OnboardingPaywall() {
   const updateUser = useStore((s) => s.updateUser);
   const startTrial = useStore((s) => s.startTrial);
 
-  const [paywallCrashed, setPeywallCrashed] = React.useState(false);
+  const [paywallCrashed, setPaywallCrashed] = React.useState(false);
   const ready = isPaywallReady();
 
   console.log(TAG, 'Rendering — paywallReady:', ready, 'paywallCrashed:', paywallCrashed);
@@ -50,6 +50,17 @@ export default function OnboardingPaywall() {
     console.log(TAG, 'Dismissing onboarding stack, navigating to tabs');
     if (router.canDismiss()) router.dismissAll();
     router.replace('/(tabs)/today' as any);
+  };
+
+  const refreshSubscription = async () => {
+    try {
+      const currentSub = useStore.getState().subscription;
+      const sub = await checkSubscriptionStatus(currentSub);
+      setSubscription(sub);
+      console.log(TAG, 'Sub updated:', sub.tier, sub.is_active);
+    } catch (e: any) {
+      console.warn(TAG, 'Sub check failed:', e?.message);
+    }
   };
 
   const handleSkip = () => {
@@ -81,38 +92,20 @@ export default function OnboardingPaywall() {
     <View style={styles.container}>
       <PaywallErrorBoundary onError={(err) => {
         console.error(TAG, 'Paywall crashed:', err.message);
-        setPeywallCrashed(true);
+        setPaywallCrashed(true);
       }}>
         <RevenueCatUI.Paywall
           onPurchaseCompleted={async () => {
             console.log(TAG, 'Purchase completed');
             trackEvent('onboarding_paywall_purchased');
-            updateUser({ onboarding_complete: true });
-            try {
-              const currentSub = useStore.getState().subscription;
-              const sub = await checkSubscriptionStatus(currentSub);
-              setSubscription(sub);
-              console.log(TAG, 'Sub updated after purchase:', sub.tier, sub.is_active);
-            } catch (e: any) {
-              console.warn(TAG, 'Sub check failed:', e?.message);
-            }
-            if (router.canDismiss()) router.dismissAll();
-            router.replace('/(tabs)/today' as any);
+            await refreshSubscription();
+            completeOnboarding();
           }}
           onRestoreCompleted={async () => {
             console.log(TAG, 'Restore completed');
             trackEvent('onboarding_paywall_restored');
-            updateUser({ onboarding_complete: true });
-            try {
-              const currentSub = useStore.getState().subscription;
-              const sub = await checkSubscriptionStatus(currentSub);
-              setSubscription(sub);
-              console.log(TAG, 'Sub updated after restore:', sub.tier, sub.is_active);
-            } catch (e: any) {
-              console.warn(TAG, 'Sub check failed:', e?.message);
-            }
-            if (router.canDismiss()) router.dismissAll();
-            router.replace('/(tabs)/today' as any);
+            await refreshSubscription();
+            completeOnboarding();
           }}
           onPurchaseError={({ error }) => {
             console.error(TAG, 'Purchase error:', error.message, error.code);

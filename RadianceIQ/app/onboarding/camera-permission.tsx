@@ -1,11 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Camera } from 'expo-camera';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path, Ellipse, Line } from 'react-native-svg';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
 
 function CameraIllustration() {
@@ -71,8 +70,8 @@ function CameraIllustration() {
 }
 
 export default function CameraPermission() {
-  const router = useRouter();
-  const { onboardingFlow, onboardingFlowIndex, setOnboardingFlowIndex, updateUser } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const updateUser = useStore((s) => s.updateUser);
 
   const handleEnable = async () => {
     const result = await Camera.requestCameraPermissionsAsync();
@@ -80,23 +79,13 @@ export default function CameraPermission() {
       camera_permission_status: result.granted ? 'granted' : 'denied',
     });
 
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]) as any);
+    advance();
   };
 
   const handleSkip = () => {
     updateUser({ camera_permission_status: 'not_requested' });
 
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]) as any);
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    advance();
   };
 
   return (
@@ -112,7 +101,7 @@ export default function CameraPermission() {
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
       showBack
-      onBack={handleBack}
+      onBack={goBack}
     >
       <View style={styles.trustCard}>
         <View style={styles.trustIconRow}>

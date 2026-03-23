@@ -17,7 +17,7 @@ export function useFaceTracking(
     lightingOk: false,
   });
   const [lastFrame, setLastFrame] = useState<string | null>(null);
-  const frameDimsRef = useRef({ w: 720, h: 1280 });
+  const frameDimsRef = useRef({ w: 0, h: 0 });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isProcessing = useRef(false);
   const prevUriRef = useRef<string | null>(null);

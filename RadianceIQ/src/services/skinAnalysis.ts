@@ -383,23 +383,10 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
     } else {
       throw new Error('No photo was captured. Please try scanning again.');
     }
-  } catch (outerErr) {
-    // Emergency fallback — return safe zeroed result if even local heuristics fail
-    console.error('[Glowlytics] Unexpected error in analyzeWithFallback — using emergency fallback:', outerErr);
-    try {
-      return await analyzeSkiN(input);
-    } catch (innerErr) {
-      console.error('[Glowlytics] Local heuristics also failed — returning zeroed result:', innerErr);
-      return {
-        acne_score: 0,
-        sun_damage_score: 0,
-        skin_age_score: 0,
-        confidence: 'low' as Confidence,
-        primary_driver: 'analysis error',
-        recommended_action: 'We had trouble analyzing your scan. Please try again.',
-        escalation_flag: false,
-      };
-    }
+  } catch (outerErr: any) {
+    // Let the error propagate to the UI — showing fake scores is worse than showing an error
+    console.error('[Glowlytics] analyzeWithFallback failed:', outerErr?.message || outerErr);
+    throw outerErr;
   }
 };
 

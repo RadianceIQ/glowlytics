@@ -1,12 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path } from 'react-native-svg';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { OnboardingOptionCard } from '../../src/components/OnboardingOptionCard';
 import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
 
 type LocationMode = 'auto' | 'manual' | null;
@@ -49,13 +48,8 @@ function LocationIllustration() {
 }
 
 export default function LocationScreen() {
-  const router = useRouter();
-  const {
-    onboardingFlow,
-    onboardingFlowIndex,
-    setOnboardingFlowIndex,
-    updateUser,
-  } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const updateUser = useStore((s) => s.updateUser);
 
   const [mode, setMode] = useState<LocationMode>(null);
   const [locationValue, setLocationValue] = useState('');
@@ -119,21 +113,11 @@ export default function LocationScreen() {
   const handleContinue = () => {
     if (!confirmed || !locationValue.trim()) return;
     updateUser({ location_coarse: locationValue.trim() });
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]));
+    advance();
   };
 
   const handleSkip = () => {
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]));
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    advance();
   };
 
   return (
@@ -149,8 +133,8 @@ export default function LocationScreen() {
       showProgress
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
-      showBack={true}
-      onBack={handleBack}
+      showBack
+      onBack={goBack}
     >
       <View style={styles.options}>
         <OnboardingOptionCard
@@ -186,7 +170,7 @@ export default function LocationScreen() {
             value={locationValue}
             onChangeText={handleZipChange}
             placeholder="ZIP code or city"
-            placeholderTextColor={Colors.textDim}
+            placeholderTextColor={Colors.textMuted}
             autoFocus
             keyboardType="default"
             returnKeyType="done"

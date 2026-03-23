@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Alert, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle, Path, Ellipse } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { ProductCard } from '../../src/components/ProductCard';
 import { AddProductSheet } from '../../src/components/AddProductSheet';
 import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
 
 function ProductsIllustration() {
@@ -52,27 +51,14 @@ function ProductsIllustration() {
 }
 
 export default function Products() {
-  const router = useRouter();
-  const {
-    onboardingFlow,
-    onboardingFlowIndex,
-    setOnboardingFlowIndex,
-    products,
-    removeProduct,
-  } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const products = useStore((s) => s.products);
+  const removeProduct = useStore((s) => s.removeProduct);
 
   const [showSheet, setShowSheet] = useState(false);
 
   const handleContinue = () => {
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]));
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    advance();
   };
 
   return (
@@ -88,7 +74,7 @@ export default function Products() {
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
       showBack
-      onBack={handleBack}
+      onBack={goBack}
     >
       {products.length > 0 && (
         <View style={styles.productList}>
@@ -96,7 +82,14 @@ export default function Products() {
             <ProductCard
               key={p.user_product_id}
               product={p}
-              onPress={() => removeProduct(p.user_product_id)}
+              onPress={() => Alert.alert(
+                'Remove product?',
+                p.product_name,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Remove', style: 'destructive', onPress: () => removeProduct(p.user_product_id) },
+                ],
+              )}
             />
           ))}
         </View>

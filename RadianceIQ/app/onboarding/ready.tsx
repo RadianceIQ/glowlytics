@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
-import { useRouter } from 'expo-router';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse } from 'react-native-svg';
 import Animated, {
   useSharedValue,
@@ -10,8 +9,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
-import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import { trackEvent } from '../../src/services/analytics';
 
 const AnimatedView = Animated.View;
@@ -91,15 +89,11 @@ function ReadyIllustration() {
 }
 
 export default function Ready() {
-  const router = useRouter();
-  const { onboardingFlow, onboardingFlowIndex, setOnboardingFlowIndex } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
 
   const handleContinue = () => {
     trackEvent('onboarding_ready_continue');
-    // Navigate to paywall (next screen in flow)
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]) as any);
+    advance();
   };
 
   return (
@@ -112,6 +106,8 @@ export default function Ready() {
       showProgress
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
+      showBack
+      onBack={goBack}
     >
       <View />
     </OnboardingTransition>

@@ -9,12 +9,12 @@ cornell-hackathon/
   RadianceIQ/         # Main app (Expo + React Native)
     app/              # Expo Router screens (file-based routing)
       _layout.tsx
-      index.tsx       # Entry/splash
+      index.tsx       # Bridge screen (minimal, splash is in _layout.tsx)
       home.tsx
       skin-metrics.tsx
       auth/           # Auth screens (sign-in, sign-up, forgot-password)
-      onboarding/     # Onboarding flow (15 screens, progressive disclosure + scan-reminder + paywall)
-      scan/           # Scanning flow (camera → processing → checkin → results)
+      onboarding/     # Onboarding flow (16 screens, progressive disclosure + scan-reminder + paywall)
+      scan/           # Scanning flow (camera → analyzing → results)
       report/         # Report screens (premium-gated)
       product/        # Product detail screens
       paywall.tsx     # RevenueCat native paywall (inline component)
@@ -22,11 +22,11 @@ cornell-hackathon/
       (tabs)/         # Tab navigation (today, products, camera, reports, profile)
       skin-metric/    # Skin metric detail
     src/
-      components/     # Reusable UI components (20+ files, includes meshData.ts)
+      components/     # Reusable UI components (24 files, includes meshData.ts)
       constants/      # Theme (colors, typography)
       config/         # Environment config, Clerk token cache
       hooks/          # Custom hooks (useFaceTracking)
-      services/       # Business logic (17 services + 14 test suites)
+      services/       # Business logic (19 services)
       store/          # Zustand state (useStore.ts)
       types/          # TypeScript type definitions
       utils/          # Animation utilities
@@ -98,15 +98,13 @@ cd backend && npm test
 
 ## Scan Flow Architecture
 
-Camera → Processing → Checkin → Analyzing → Results
+Camera → Analyzing → Results
 
-1. **Camera** (`app/scan/camera.tsx`): Face tracking, quality checks, auto-capture after 2s aligned, **real-time on-device lesion detection** (YOLOv8 via `onDeviceLesionDetection` service, neon bounding box overlay every 1.2s while aligned)
-2. **Processing** (`app/scan/processing.tsx`): Pre-encodes photo to base64, stores in `pendingPhotoBase64`, shows animation
-3. **Checkin** (`app/scan/checkin.tsx`): Collects daily context (sunscreen, new product, sleep, stress)
-4. **Analyzing** (`app/scan/analyzing.tsx`): Runs `analyzeWithFallback` with real user answers, 9-stage progress animation, stores results + awards XP
-5. **Results** (`app/scan/results.tsx`): Displays scores, face mesh, signal breakdown, lesion overlay, RAG recommendations
+1. **Camera** (`app/scan/camera.tsx`): Face tracking, quality checks, auto-capture after 2s aligned, **real-time on-device lesion detection** (YOLOv8 via `onDeviceLesionDetection` service, teal bounding box overlay every 1.2s while aligned, filtered to face region only)
+2. **Analyzing** (`app/scan/analyzing.tsx`): Pre-encodes photo to base64 if needed, runs `analyzeWithFallback`, 9-stage progress animation, stores results + awards XP
+3. **Results** (`app/scan/results.tsx`): Displays scores, face mesh, signal breakdown, lesion overlay, RAG recommendations
 
-Analysis runs **after** checkin — never with hardcoded context. The `pendingPhotoBase64` store field avoids re-encoding the photo.
+**Known limitation:** Analyzing hardcodes `sunscreen_used: false` and `new_product_added: false` in dailyContext since the checkin screen was removed. These context fields should be collected before analysis in a future iteration.
 
 ## 3-Layer Signal Analysis Pipeline
 
@@ -135,18 +133,25 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 
 ## Design System
 
-- Dark theme: background `#060B12`, primary accent `#7DE7E1`
+- Light theme: background `#FAFAF7` (warm cream), primary accent `#3A9E8F` (teal)
+- Dark gradient backgrounds on scan/analyzing screens: `#060B12` → `#6B8799` → `#081522`
 - Animations via `react-native-reanimated`
 - Onboarding: fade transitions with staggered fade-with-rise entrance (Headspace-inspired)
+- Tab bar: floating pill with SVG notch cutout, glass fill `rgba(255,255,255,0.93)`, camera button absolutely positioned above with teal glow
+- Splash screen: animated G logo glow reveal (scale+fade → teal bloom → wordmark rise), 1.5s minimum display
 
 ## Important Context
 
 - Vision API runs 3-layer parallel pipeline: deterministic features + ONNX models + GPT-4o (API key server-side only, 30s timeout)
 - Fast lesion detection endpoint: `POST /api/vision/detect-lesions` (public, rate-limited, runs only YOLOv8)
-- On-device lesion detection: `src/services/onDeviceLesionDetection.ts` — runs on camera frames during alignment
-- Real-time bounding boxes: `LesionOverlay.tsx` — neon sci-fi corner brackets with scanning line animation
+- On-device lesion detection: `src/services/onDeviceLesionDetection.ts` — runs on camera frames during alignment (confidence threshold 0.1, NMS IoU 0.45)
+- Real-time bounding boxes: `LesionOverlay.tsx` — teal sci-fi corner brackets with scanning line animation, crop-aware coordinate transform (accounts for CameraView center-crop), face-rect filtering (only shows lesions within detected face + 15% margin)
 - RAG pipeline queries Pinecone for AAD/ACOG guideline context
-- 328 tests (21 suites), 0 TS errors
+- Splash screen: `SplashScreen` component in `_layout.tsx` — animated G logo + teal glow bloom + wordmark, 1.5s min via `Promise.all` with init, masks loading time
+- `app/index.tsx` is now a minimal bridge screen (cream background) — the old landing page with safety card was removed
+- Tab bar: `NotchedTabBar.tsx` — SVG notch path (10px depth, 74px width), camera absolutely positioned via `cameraAnchor`, tabs layout has no sceneStyle (tab bar floats over content)
+- Lesion constants: `src/constants/lesions.ts` — 6 lesion classes with descriptions, colors, zone definitions
+- 329 frontend tests (21 suites) + 101 backend tests (4 suites), 0 TS errors
 - Authentication via Clerk is mandatory when CLERK_PUBLISHABLE_KEY is set
 - Backend authorization: all user-data endpoints verify `req.auth.userId` matches requested resource
 - Backend security: CORS restricted via `CORS_ORIGINS` env var, rate limiting on public endpoints, `safeErrorMessage()` hides PG details in production
@@ -156,7 +161,7 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 - Trial state: `trial_start_date`, `trial_end_date` in SubscriptionState; `isTrialActive()`, `trialDaysRemaining()`, `canScan()` in subscription service
 - RevenueCat Error 23 (CONFIGURATION_ERROR) silenced in `initRevenueCat()` — SDK already configured
 - Onboarding paywall: `app/onboarding/paywall.tsx` — inline RevenueCatUI.Paywall, skip starts trial
-- `useFaceTracking` cleans up temp frame photos to prevent storage leaks; exposes `lastFrameUri` for lesion detection
+- `useFaceTracking` cleans up temp frame photos to prevent storage leaks; exposes `lastFrameUri`, `lastFrameWidth`, `lastFrameHeight` for crop-aware lesion overlay coordinate mapping
 - RevenueCat functions guard on `env.REVENUECAT_API_KEY` — all are safe to call without a key
 - PostHog analytics guard on `env.POSTHOG_API_KEY` — all no-op when key is empty
 - Subscription state persisted in Zustand: tier, is_active, expires_at, product_id, free_scans_used, trial_start_date, trial_end_date

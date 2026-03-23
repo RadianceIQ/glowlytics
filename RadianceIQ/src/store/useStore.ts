@@ -10,6 +10,7 @@ import type {
 } from '../types';
 import { defaultSubscription, canScan as canScanPure, startTrial as computeTrial } from '../services/subscription';
 import * as api from '../services/api';
+import { buildOnboardingFlow } from '../services/onboardingFlow';
 import {
   getLevelForXP,
   getXPForScan,
@@ -151,6 +152,16 @@ const syncToBackend = (fn: () => Promise<unknown>) => {
   fn().catch((err) => console.warn('[Sync] Backend sync failed:', err.message));
 };
 
+/** Debounced persist — collapses rapid successive calls into one AsyncStorage write */
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+const debouncedPersist = (persistFn: () => Promise<void>) => {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistFn();
+  }, 50);
+};
+
 export const useStore = create<AppState>((set, get) => ({
   user: null,
   protocol: null,
@@ -158,7 +169,7 @@ export const useStore = create<AppState>((set, get) => ({
   dailyRecords: [],
   modelOutputs: [],
   onboardingStep: 0,
-  onboardingFlow: ['welcome', 'age-range', 'sex', 'location', 'skin-goal', 'supplements', 'exercise', 'shower-frequency', 'hand-washing', 'scan-reminder', 'camera-permission', 'ready', 'paywall'],
+  onboardingFlow: buildOnboardingFlow(),
   onboardingFlowIndex: 0,
   pendingScanResult: null,
   pendingPhotoBase64: null,
@@ -188,7 +199,7 @@ export const useStore = create<AppState>((set, get) => ({
       onboarding_complete: false,
     });
     set({ user });
-    get().persistData();
+    debouncedPersist(() => get().persistData());
     if (user) syncToBackend(() => api.createUser(user));
   },
 
@@ -204,7 +215,7 @@ export const useStore = create<AppState>((set, get) => ({
       },
     });
     set({ user: updated });
-    get().persistData();
+    debouncedPersist(() => get().persistData());
     syncToBackend(() => api.updateUser(current.user_id, data));
   },
 
@@ -232,7 +243,7 @@ export const useStore = create<AppState>((set, get) => ({
     });
 
     set({ user: updated });
-    get().persistData();
+    debouncedPersist(() => get().persistData());
   },
 
   setProtocol: (goal, region) => {
@@ -247,7 +258,7 @@ export const useStore = create<AppState>((set, get) => ({
       baseline_date: new Date().toISOString().split('T')[0],
     };
     set({ protocol });
-    get().persistData();
+    debouncedPersist(() => get().persistData());
     syncToBackend(() => api.createProtocol({
       user_id: user.user_id,
       primary_goal: goal,
@@ -265,13 +276,13 @@ export const useStore = create<AppState>((set, get) => ({
       user_id: user.user_id,
     };
     set((s) => ({ products: [...s.products, entry] }));
-    get().persistData();
+    debouncedPersist(() => get().persistData());
     syncToBackend(() => api.addProduct(entry));
   },
 
   removeProduct: (id) => {
     set((s) => ({ products: s.products.filter((p) => p.user_product_id !== id) }));
-    get().persistData();
+    debouncedPersist(() => get().persistData());
     syncToBackend(() => api.deleteProduct(id));
   },
 
@@ -284,7 +295,7 @@ export const useStore = create<AppState>((set, get) => ({
       user_id: user.user_id,
     };
     set((s) => ({ dailyRecords: [...s.dailyRecords, entry] }));
-    get().persistData();
+    debouncedPersist(() => get().persistData());
     syncToBackend(() => api.addDailyRecord(entry));
 
     // Calculate context items logged for XP bonus
@@ -306,7 +317,7 @@ export const useStore = create<AppState>((set, get) => ({
       output_id: generateId(),
     };
     set((s) => ({ modelOutputs: [...s.modelOutputs, entry] }));
-    get().persistData();
+    debouncedPersist(() => get().persistData());
     syncToBackend(() => api.addModelOutput(entry));
     get().updatePersonalBests();
   },
@@ -362,7 +373,7 @@ export const useStore = create<AppState>((set, get) => ({
         },
       };
     });
-    get().persistData();
+    debouncedPersist(() => get().persistData());
   },
 
   checkAndAwardBadges: () => {
@@ -402,7 +413,7 @@ export const useStore = create<AppState>((set, get) => ({
         },
       };
     });
-    get().persistData();
+    debouncedPersist(() => get().persistData());
   },
 
   updatePersonalBests: () => {
@@ -423,7 +434,7 @@ export const useStore = create<AppState>((set, get) => ({
         personal_bests: updatedBests,
       },
     }));
-    get().persistData();
+    debouncedPersist(() => get().persistData());
   },
 
   generateWeeklyChallenges: () => {
@@ -435,12 +446,12 @@ export const useStore = create<AppState>((set, get) => ({
         weekly_challenges: challenges,
       },
     }));
-    get().persistData();
+    debouncedPersist(() => get().persistData());
   },
 
   setSubscription: (sub) => {
     set({ subscription: sub });
-    get().persistData();
+    debouncedPersist(() => get().persistData());
   },
 
   incrementFreeScansUsed: () => {
@@ -455,6 +466,7 @@ export const useStore = create<AppState>((set, get) => ({
   canPerformScan: () => canScanPure(get().subscription),
 
   startTrial: () => {
+    if (get().subscription.trial_start_date) return; // already started
     const trialFields = computeTrial();
     set((s) => ({
       subscription: { ...s.subscription, ...trialFields },
@@ -467,19 +479,19 @@ export const useStore = create<AppState>((set, get) => ({
         trial_end_date: trialFields.trial_end_date,
       } as any));
     }
-    get().persistData();
+    debouncedPersist(() => get().persistData());
   },
 
   setNotificationTime: (time) => {
     set({ notificationSettings: { notifications_enabled: time !== null, notification_time: time } });
-    get().persistData();
+    debouncedPersist(() => get().persistData());
   },
 
   setNotificationsEnabled: (enabled) => {
     set((s) => ({
       notificationSettings: { ...s.notificationSettings, notifications_enabled: enabled },
     }));
-    get().persistData();
+    debouncedPersist(() => get().persistData());
   },
 
   loadPersistedData: async () => {
@@ -494,6 +506,13 @@ export const useStore = create<AppState>((set, get) => ({
       );
 
       if (hasPersistedSession) {
+        // Restore onboarding flow: use persisted flow, or rebuild from profile if stale/missing
+        let restoredFlow: OnboardingScreenName[] = parsed.onboardingFlow;
+        if (!Array.isArray(restoredFlow) || (parsed.user?.sex && !restoredFlow.includes('products'))) {
+          restoredFlow = buildOnboardingFlow(parsed.user?.sex, parsed.user?.menstrual_status);
+        }
+        const restoredIndex = typeof parsed.onboardingFlowIndex === 'number' ? parsed.onboardingFlowIndex : 0;
+
         set({
           user: normalizeUser(parsed.user),
           protocol: parsed.protocol || null,
@@ -508,6 +527,8 @@ export const useStore = create<AppState>((set, get) => ({
             trial_end_date: parsed.subscription?.trial_end_date ?? null,
           },
           notificationSettings: parsed.notificationSettings || { notifications_enabled: false, notification_time: null },
+          onboardingFlow: restoredFlow,
+          onboardingFlowIndex: restoredIndex,
         });
         return;
       }
@@ -520,9 +541,9 @@ export const useStore = create<AppState>((set, get) => ({
 
   persistData: async () => {
     try {
-      const { user, protocol, products, dailyRecords, modelOutputs, gamification, subscription, notificationSettings } = get();
+      const { user, protocol, products, dailyRecords, modelOutputs, gamification, subscription, notificationSettings, onboardingFlow, onboardingFlowIndex } = get();
       await AsyncStorage.setItem('glowlytics_data', JSON.stringify({
-        user, protocol, products, dailyRecords, modelOutputs, gamification, subscription, notificationSettings,
+        user, protocol, products, dailyRecords, modelOutputs, gamification, subscription, notificationSettings, onboardingFlow, onboardingFlowIndex,
       }));
     } catch (e) {
       console.log('Failed to persist data', e);
@@ -530,6 +551,8 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   resetAll: () => {
+    // Cancel any pending debounced persist so it doesn't re-write cleared data
+    if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
     set({
       user: null,
       protocol: null,
@@ -537,7 +560,7 @@ export const useStore = create<AppState>((set, get) => ({
       dailyRecords: [],
       modelOutputs: [],
       onboardingStep: 0,
-      onboardingFlow: [],
+      onboardingFlow: buildOnboardingFlow(),
       onboardingFlowIndex: 0,
       pendingScanResult: null,
       pendingPhotoBase64: null,

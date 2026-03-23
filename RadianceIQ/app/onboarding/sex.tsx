@@ -5,6 +5,7 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path } from 'react-na
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { OnboardingOptionCard } from '../../src/components/OnboardingOptionCard';
 import { useStore } from '../../src/store/useStore';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import { buildOnboardingFlow, screenToRoute } from '../../src/services/onboardingFlow';
 import { Colors, FontFamily, FontSize, Spacing } from '../../src/constants/theme';
 import type { BiologicalSex } from '../../src/types';
@@ -57,22 +58,16 @@ function SexIllustration() {
 
 export default function Sex() {
   const router = useRouter();
-  const {
-    onboardingFlow,
-    onboardingFlowIndex,
-    setOnboardingFlowIndex,
-    setOnboardingFlow,
-    updateUser,
-  } = useStore();
+  const { goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const setOnboardingFlowIndex = useStore((s) => s.setOnboardingFlowIndex);
+  const setOnboardingFlow = useStore((s) => s.setOnboardingFlow);
+  const updateUser = useStore((s) => s.updateUser);
 
   const [selected, setSelected] = useState<BiologicalSex | null>(null);
 
   const advanceWithSex = (sex: BiologicalSex) => {
-    updateUser({ sex });
-
-    // Set period_applicable based on sex
     const periodApplicable = sex === 'female' ? 'yes' : 'no';
-    updateUser({ period_applicable: periodApplicable });
+    updateUser({ sex, period_applicable: periodApplicable });
 
     // Rebuild the flow with the selected sex to conditionally include menstrual screens
     const newFlow = buildOnboardingFlow(sex);
@@ -82,7 +77,8 @@ export default function Sex() {
     const currentScreenIndex = newFlow.indexOf('sex');
     const nextIndex = currentScreenIndex + 1;
     setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(newFlow[nextIndex]));
+    // Use replace to prevent stale screens in the navigation stack after flow rebuild
+    router.replace(screenToRoute(newFlow[nextIndex]) as any);
   };
 
   const handleContinue = () => {
@@ -97,13 +93,7 @@ export default function Sex() {
     const currentScreenIndex = newFlow.indexOf('sex');
     const nextIndex = currentScreenIndex + 1;
     setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(newFlow[nextIndex]));
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    router.replace(screenToRoute(newFlow[nextIndex]) as any);
   };
 
   return (
@@ -119,8 +109,8 @@ export default function Sex() {
       showProgress
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
-      showBack={true}
-      onBack={handleBack}
+      showBack
+      onBack={goBack}
     >
       <View style={styles.options}>
         {SEX_OPTIONS.map((opt) => (

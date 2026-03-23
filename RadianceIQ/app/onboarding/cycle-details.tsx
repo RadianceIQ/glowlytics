@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Alert, View, Text, TextInput, StyleSheet, ScrollView } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { OnboardingGridOption, OnboardingChip, OnboardingOptionCard } from '../../src/components/OnboardingOptionCard';
 import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
 import type { BirthControlType } from '../../src/types';
 
@@ -68,13 +67,8 @@ function birthControlResponseToValue(resp: BirthControlResponse): 'yes' | 'no' |
 }
 
 export default function CycleDetails() {
-  const router = useRouter();
-  const {
-    onboardingFlow,
-    onboardingFlowIndex,
-    setOnboardingFlowIndex,
-    updateUser,
-  } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const updateUser = useStore((s) => s.updateUser);
 
   const [lastPeriodDate, setLastPeriodDate] = useState('');
   const [cycleLength, setCycleLength] = useState<CycleLengthOption | null>(null);
@@ -85,6 +79,10 @@ export default function CycleDetails() {
     const updates: Record<string, any> = {};
 
     if (lastPeriodDate.trim()) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(lastPeriodDate.trim())) {
+        Alert.alert('Invalid date', 'Please enter a date in YYYY-MM-DD format.');
+        return;
+      }
       updates.period_last_start_date = lastPeriodDate.trim();
     }
     if (cycleLength) {
@@ -99,21 +97,11 @@ export default function CycleDetails() {
 
     updateUser(updates);
 
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]));
+    advance();
   };
 
   const handleSkip = () => {
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]));
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    advance();
   };
 
   return (
@@ -128,8 +116,8 @@ export default function CycleDetails() {
       showProgress
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
-      showBack={true}
-      onBack={handleBack}
+      showBack
+      onBack={goBack}
     >
       <ScrollView
         style={styles.scroll}
@@ -145,7 +133,7 @@ export default function CycleDetails() {
             value={lastPeriodDate}
             onChangeText={setLastPeriodDate}
             placeholder="YYYY-MM-DD"
-            placeholderTextColor={Colors.textDim}
+            placeholderTextColor={Colors.textMuted}
             keyboardType="numbers-and-punctuation"
             returnKeyType="done"
             autoCorrect={false}

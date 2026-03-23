@@ -109,26 +109,8 @@ export default function Home() {
   const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
   const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
 
-  const streak = useMemo(() => {
-    const sorted = [...dailyRecords].sort((a, b) => b.date.localeCompare(a.date));
-    if (sorted.length === 0) return 0;
-
-    let value = 0;
-    const today = new Date();
-
-    for (let i = 0; i < sorted.length; i++) {
-      const expected = new Date(today);
-      expected.setDate(expected.getDate() - i);
-      const expectedStr = expected.toISOString().split('T')[0];
-      if (sorted.find((record) => record.date === expectedStr)) {
-        value += 1;
-      } else {
-        break;
-      }
-    }
-
-    return value;
-  }, [dailyRecords]);
+  const getStreak = useStore((s) => s.getStreak);
+  const streak = useMemo(() => getStreak(), [dailyRecords, getStreak]);
 
   const outputHistory = useMemo(() => {
     const cutoff = new Date();

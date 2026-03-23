@@ -5,6 +5,7 @@ import Svg, { Defs, RadialGradient, Stop, Circle, Path } from 'react-native-svg'
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { OnboardingOptionCard } from '../../src/components/OnboardingOptionCard';
 import { useStore } from '../../src/store/useStore';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import { buildOnboardingFlow, screenToRoute } from '../../src/services/onboardingFlow';
 import { Spacing } from '../../src/constants/theme';
 import type { MenstrualStatus } from '../../src/types';
@@ -75,14 +76,11 @@ function MenstrualIllustration() {
 
 export default function Menstrual() {
   const router = useRouter();
-  const {
-    onboardingFlow,
-    onboardingFlowIndex,
-    setOnboardingFlowIndex,
-    setOnboardingFlow,
-    updateUser,
-    user,
-  } = useStore();
+  const { goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const setOnboardingFlowIndex = useStore((s) => s.setOnboardingFlowIndex);
+  const setOnboardingFlow = useStore((s) => s.setOnboardingFlow);
+  const updateUser = useStore((s) => s.updateUser);
+  const user = useStore((s) => s.user);
 
   const [selected, setSelected] = useState<MenstrualStatus | null>(null);
 
@@ -104,13 +102,7 @@ export default function Menstrual() {
     const currentScreenIndex = newFlow.indexOf('menstrual');
     const nextIndex = currentScreenIndex + 1;
     setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(newFlow[nextIndex]));
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    router.replace(screenToRoute(newFlow[nextIndex]) as any);
   };
 
   return (
@@ -121,11 +113,20 @@ export default function Menstrual() {
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
       primaryDisabled={!selected}
+      secondaryLabel="Skip"
+      secondaryOnPress={() => {
+        const newFlow = buildOnboardingFlow(user?.sex, 'prefer_not');
+        setOnboardingFlow(newFlow);
+        const currentScreenIndex = newFlow.indexOf('menstrual');
+        const nextIndex = currentScreenIndex + 1;
+        setOnboardingFlowIndex(nextIndex);
+        router.replace(screenToRoute(newFlow[nextIndex]) as any);
+      }}
       showProgress
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
-      showBack={true}
-      onBack={handleBack}
+      showBack
+      onBack={goBack}
     >
       <View style={styles.options}>
         {MENSTRUAL_OPTIONS.map((opt) => (

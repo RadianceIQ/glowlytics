@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse } from 'react-native-svg';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
-import { scheduleDailyReminder } from '../../src/services/notifications';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
+import { scheduleDailyReminder, requestNotificationPermissions } from '../../src/services/notifications';
 import { trackEvent } from '../../src/services/analytics';
 import { Colors } from '../../src/constants/theme';
 
@@ -47,8 +46,7 @@ function ReminderIllustration() {
 }
 
 export default function ScanReminder() {
-  const router = useRouter();
-  const { onboardingFlow, onboardingFlowIndex, setOnboardingFlowIndex } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
   const setNotificationTime = useStore((s) => s.setNotificationTime);
 
   const [time, setTime] = useState(new Date(2000, 0, 1, 8, 0)); // default 8:00 AM
@@ -58,26 +56,21 @@ export default function ScanReminder() {
     const minute = time.getMinutes();
     const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
-    trackEvent('onboarding_scan_reminder_set', { time: timeStr });
-    await scheduleDailyReminder(hour, minute);
-    setNotificationTime(timeStr);
+    const granted = await requestNotificationPermissions();
+    if (granted) {
+      trackEvent('onboarding_scan_reminder_set', { time: timeStr });
+      await scheduleDailyReminder(hour, minute);
+      setNotificationTime(timeStr);
+    } else {
+      trackEvent('onboarding_scan_reminder_denied');
+    }
 
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]) as any);
+    advance();
   };
 
   const handleSkip = () => {
     trackEvent('onboarding_scan_reminder_skipped');
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]) as any);
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    advance();
   };
 
   return (
@@ -93,7 +86,7 @@ export default function ScanReminder() {
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
       showBack
-      onBack={handleBack}
+      onBack={goBack}
     >
       <View style={styles.pickerContainer}>
         <DateTimePicker

@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
 import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { OnboardingGridOption } from '../../src/components/OnboardingOptionCard';
 import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import { Spacing } from '../../src/constants/theme';
 
 const AGE_OPTIONS = [
@@ -47,34 +46,19 @@ function AgeIllustration() {
 }
 
 export default function AgeRange() {
-  const router = useRouter();
-  const {
-    onboardingFlow,
-    onboardingFlowIndex,
-    setOnboardingFlowIndex,
-    updateUser,
-  } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const updateUser = useStore((s) => s.updateUser);
 
   const [selected, setSelected] = useState<string | null>(null);
 
   const handleContinue = () => {
     if (!selected) return;
     updateUser({ age_range: selected });
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]));
+    advance();
   };
 
   const handleSkip = () => {
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]));
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    advance();
   };
 
   return (
@@ -90,8 +74,8 @@ export default function AgeRange() {
       showProgress
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
-      showBack={true}
-      onBack={handleBack}
+      showBack
+      onBack={goBack}
     >
       <View style={styles.grid}>
         {AGE_OPTIONS.map((age) => (

@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { useRouter } from 'expo-router';
 import Svg, { Defs, RadialGradient, Stop, Circle, Path, Ellipse } from 'react-native-svg';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { OnboardingOptionCard } from '../../src/components/OnboardingOptionCard';
 import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import type { ShowerFrequency } from '../../src/types';
 
 const SHOWER_OPTIONS: { label: string; value: ShowerFrequency }[] = [
@@ -98,8 +97,8 @@ function ShowerIllustration() {
 }
 
 export default function ShowerFrequencyScreen() {
-  const router = useRouter();
-  const { onboardingFlow, onboardingFlowIndex, setOnboardingFlowIndex, updateUser } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const updateUser = useStore((s) => s.updateUser);
 
   const [selected, setSelected] = useState<ShowerFrequency | null>(null);
 
@@ -107,21 +106,11 @@ export default function ShowerFrequencyScreen() {
     if (!selected) return;
     updateUser({ shower_frequency: selected });
 
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]) as any);
+    advance();
   };
 
   const handleSkip = () => {
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]) as any);
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    advance();
   };
 
   return (
@@ -138,7 +127,7 @@ export default function ShowerFrequencyScreen() {
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
       showBack
-      onBack={handleBack}
+      onBack={goBack}
     >
       {SHOWER_OPTIONS.map((option) => (
         <OnboardingOptionCard

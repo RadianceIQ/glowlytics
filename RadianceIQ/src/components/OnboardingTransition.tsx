@@ -7,13 +7,12 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withDelay,
-  Easing,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../constants/theme';
 import { ProgressDots } from './ProgressDots';
 
-const CALM_EASING = Easing.out(Easing.cubic);
+import { CALM_EASING } from '../utils/animations';
 
 interface OnboardingTransitionProps {
   children: React.ReactNode;
@@ -30,8 +29,7 @@ interface OnboardingTransitionProps {
   currentStep?: number;
   showBack?: boolean;
   onBack?: () => void;
-  privacyLink?: boolean;
-  onPrivacyPress?: () => void;
+
 }
 
 export const OnboardingTransition: React.FC<OnboardingTransitionProps> = ({
@@ -45,7 +43,7 @@ export const OnboardingTransition: React.FC<OnboardingTransitionProps> = ({
   secondaryLabel,
   secondaryOnPress,
   showProgress = true,
-  totalSteps = 11,
+  totalSteps = 14,
   currentStep = 0,
   showBack = false,
   onBack,
@@ -144,8 +142,8 @@ export const OnboardingTransition: React.FC<OnboardingTransitionProps> = ({
 
       {/* Back button */}
       {showBack && onBack && (
-        <Animated.View style={[styles.backButton, backStyle]}>
-          <TouchableOpacity onPress={onBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <Animated.View style={[styles.backButton, { top: insets.top + 8 }, backStyle]}>
+          <TouchableOpacity onPress={onBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityLabel="Go back" accessibilityRole="button">
             <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
               <Path
                 d="M15 18L9 12L15 6"
@@ -171,45 +169,42 @@ export const OnboardingTransition: React.FC<OnboardingTransitionProps> = ({
           keyboardShouldPersistTaps="handled"
           bounces={false}
         >
-          {/* Illustration area */}
           {illustration && (
             <Animated.View style={[styles.illustrationArea, illustrationStyle]}>
               {illustration}
             </Animated.View>
           )}
 
-          {/* Progress dots */}
+          {/* Progress dots — exclude welcome (index 0) and paywall (last) from display */}
           {showProgress && (
             <View style={styles.dotsContainer}>
-              <ProgressDots total={totalSteps} current={currentStep} />
+              <ProgressDots total={Math.max(totalSteps - 2, 1)} current={Math.max(currentStep - 1, 0)} />
             </View>
           )}
 
-          {/* Heading */}
           <Animated.Text style={[styles.heading, headingStyle]}>
             {heading}
           </Animated.Text>
 
-          {/* Subtext */}
           <Animated.Text style={[styles.subtext, subtextStyle]}>
             {subtext}
           </Animated.Text>
 
-          {/* Screen-specific content (options, inputs, etc.) */}
           <Animated.View style={[styles.contentArea, contentStyle]}>
             {children}
           </Animated.View>
 
-          {/* Spacer */}
           <View style={{ flex: 1, minHeight: Spacing.xl }} />
 
-          {/* Buttons */}
           <Animated.View style={[styles.buttonArea, buttonsStyle]}>
             <TouchableOpacity
               style={[styles.primaryButton, primaryDisabled && styles.primaryButtonDisabled]}
               onPress={primaryOnPress}
               disabled={primaryDisabled}
               activeOpacity={0.86}
+              accessibilityRole="button"
+              accessibilityLabel={primaryLabel}
+              accessibilityState={{ disabled: primaryDisabled }}
             >
               <LinearGradient
                 colors={primaryDisabled
@@ -231,6 +226,8 @@ export const OnboardingTransition: React.FC<OnboardingTransitionProps> = ({
                 style={styles.secondaryButton}
                 onPress={secondaryOnPress}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={secondaryLabel}
               >
                 <Text style={styles.secondaryText}>{secondaryLabel}</Text>
               </TouchableOpacity>
@@ -267,7 +264,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 56,
     left: Spacing.lg,
     zIndex: 10,
     width: 44,

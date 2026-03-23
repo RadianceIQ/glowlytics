@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path } from 'react-native-svg';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { OnboardingOptionCard } from '../../src/components/OnboardingOptionCard';
 import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import { Spacing } from '../../src/constants/theme';
 import type { PrimaryGoal, ScanRegion } from '../../src/types';
 
@@ -139,55 +138,25 @@ function DefaultGoalIllustration() {
 }
 
 export default function SkinGoal() {
-  const router = useRouter();
-  const {
-    onboardingFlow,
-    onboardingFlowIndex,
-    setOnboardingFlowIndex,
-    setProtocol,
-  } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const setProtocol = useStore((s) => s.setProtocol);
 
-  const [selected, setSelected] = useState<Set<PrimaryGoal>>(new Set());
-
-  const toggleGoal = (goal: PrimaryGoal) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(goal)) {
-        next.delete(goal);
-      } else {
-        next.add(goal);
-      }
-      return next;
-    });
-  };
+  const [selected, setSelected] = useState<PrimaryGoal | null>(null);
 
   const handleContinue = () => {
-    if (selected.size === 0) return;
-    const primary = [...selected][0];
-    const option = GOAL_OPTIONS.find((o) => o.value === primary);
+    if (!selected) return;
+    const option = GOAL_OPTIONS.find((o) => o.value === selected);
     if (!option) return;
     setProtocol(option.value, option.defaultRegion);
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]));
+    advance();
   };
 
   const handleTrackAll = () => {
-    setSelected(new Set(GOAL_OPTIONS.map((o) => o.value)));
     setProtocol('acne', 'whole_face');
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]));
+    advance();
   };
 
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
-  };
-
-  const firstSelected = selected.size > 0 ? [...selected][0] : null;
-  const illustration = firstSelected ? ILLUSTRATIONS[firstSelected] : <DefaultGoalIllustration />;
+  const illustration = selected ? ILLUSTRATIONS[selected] : <DefaultGoalIllustration />;
 
   return (
     <OnboardingTransition
@@ -196,14 +165,14 @@ export default function SkinGoal() {
       subtext="We'll tailor your scans and weekly check-ins to whatever matters most to you."
       primaryLabel="Continue"
       primaryOnPress={handleContinue}
-      primaryDisabled={selected.size === 0}
+      primaryDisabled={!selected}
       secondaryLabel="I want to track everything"
       secondaryOnPress={handleTrackAll}
       showProgress
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
       showBack
-      onBack={handleBack}
+      onBack={goBack}
     >
       <View style={styles.options}>
         {GOAL_OPTIONS.map((opt) => (
@@ -211,9 +180,8 @@ export default function SkinGoal() {
             key={opt.value}
             label={opt.label}
             description={opt.description}
-            selected={selected.has(opt.value)}
-            onPress={() => toggleGoal(opt.value)}
-            multiSelect
+            selected={selected === opt.value}
+            onPress={() => setSelected(opt.value)}
           />
         ))}
       </View>

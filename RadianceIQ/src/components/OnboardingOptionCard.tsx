@@ -22,6 +22,9 @@ export const OnboardingOptionCard: React.FC<OnboardingOptionCardProps> = ({
       style={[styles.card, selected && styles.cardSelected]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole={multiSelect ? 'checkbox' : 'radio'}
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
     >
       <View style={styles.content}>
         <Text style={[styles.label, selected && styles.labelSelected]}>{label}</Text>

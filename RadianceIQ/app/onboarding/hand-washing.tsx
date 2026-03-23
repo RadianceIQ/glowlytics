@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { useRouter } from 'expo-router';
 import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path } from 'react-native-svg';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
 import { OnboardingOptionCard } from '../../src/components/OnboardingOptionCard';
 import { useStore } from '../../src/store/useStore';
-import { screenToRoute } from '../../src/services/onboardingFlow';
+import { useOnboardingNavigation } from '../../src/hooks/useOnboardingNavigation';
 import type { HandWashingFrequency } from '../../src/types';
 
 const HAND_WASHING_OPTIONS: { label: string; value: HandWashingFrequency }[] = [
@@ -56,8 +55,8 @@ function HandWashingIllustration() {
 }
 
 export default function HandWashing() {
-  const router = useRouter();
-  const { onboardingFlow, onboardingFlowIndex, setOnboardingFlowIndex, updateUser } = useStore();
+  const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
+  const updateUser = useStore((s) => s.updateUser);
 
   const [selected, setSelected] = useState<HandWashingFrequency | null>(null);
 
@@ -65,21 +64,11 @@ export default function HandWashing() {
     if (!selected) return;
     updateUser({ hand_washing_frequency: selected });
 
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]) as any);
+    advance();
   };
 
   const handleSkip = () => {
-    const nextIndex = onboardingFlowIndex + 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(onboardingFlow[nextIndex]) as any);
-  };
-
-  const handleBack = () => {
-    const prevIndex = onboardingFlowIndex - 1;
-    setOnboardingFlowIndex(prevIndex);
-    router.back();
+    advance();
   };
 
   return (
@@ -96,7 +85,7 @@ export default function HandWashing() {
       totalSteps={onboardingFlow.length}
       currentStep={onboardingFlowIndex}
       showBack
-      onBack={handleBack}
+      onBack={goBack}
     >
       {HAND_WASHING_OPTIONS.map((option) => (
         <OnboardingOptionCard

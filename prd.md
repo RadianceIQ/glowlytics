@@ -143,35 +143,24 @@ Glowlytics is a skin health tracking app that enables users to gain insights int
 - "Scan the same region: [region name]"
 - Photo capture with face mesh overlay + live quality check
 - **Real-time on-device lesion detection** via YOLOv8 ONNX model (onnxruntime-react-native)
-  - Sci-fi corner bracket bounding boxes with neon green (#00FF41) aesthetic
+  - Sci-fi corner bracket bounding boxes with teal (#7DE7E1) aesthetic
   - Scanning line + glow pulse animations
-  - Runs every 1.2s when face aligned, no server dependency
+  - Runs every 1.2s when face aligned, filtered to detected face region only
   - 6 lesion classes: comedone, papule, pustule, nodule, macule, patch
+  - Crop-aware coordinate mapping (accounts for CameraView center-crop)
+  - On-device confidence threshold: 0.1, server threshold: 0.25
 - Auto-capture after 2s continuous face alignment
+- After capture, navigates directly to analysis (no checkin step)
 
-#### Step 2.5 - Analysis Progress (NEW)
-- Staged progress screen between checkin and results
+#### Step 2.5 - Analysis Progress
+- Staged progress screen between capture and results
 - 9 stages with timed advancement tied to 3-layer pipeline
 - Stages 0-5 advance on timers (~4.1s), stage 6 holds until API resolves
 - Dual-track timing: timer + API fire in parallel, handshake when both ready
 - XP/badge overlay before navigation to results
+- **Known limitation:** dailyContext (sunscreen, new product, sleep, stress) is hardcoded to defaults since checkin was removed. Needs future fix.
 
-#### Step 3 - Daily Quick Check-in (ultra minimal)
-Always ask:
-- Sunscreen today? Yes/No
-- Any new product since yesterday? Yes/No
-- Period status: auto-estimated ("Day 18") -> user taps **Accurate / Not accurate**
-
-Optional context (non-blocking):
-- If device connected: show sleep + stress proxy auto-filled with "edit" option
-- If not connected: expandable "Add context (optional)":
-  - Sleep: Poor/OK/Great
-  - Stress: Low/Med/High
-  - Drinks yesterday: 0 / 1-2 / 3+
-
-CTA: **See results**
-
-#### Step 4 - Results + 1 Best Next Step
+#### Step 3 - Results + 1 Best Next Step
 - 3 scores with: today value, delta vs baseline, 7-day sparkline
 - Confidence indicator (low/med/high)
 - One action card (never more than one):
@@ -443,7 +432,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 
 ---
 
-## Implementation Status (as of 2026-03-17)
+## Implementation Status (as of 2026-03-22)
 
 ### Completed (Ship-Ready)
 - All 3 user journeys fully implemented (onboarding, daily scan, report)
@@ -474,8 +463,8 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - **App Store metadata** — description, keywords, screenshot specs for iPhone 15 Pro Max
 - **Demo script** — 7-minute structured walkthrough with talking points
 - **Production build submitted** — v1.0.0 build #3 uploaded to App Store Connect
-- **328 unit tests** across 21 suites (scoring, insights, scanner, subscription, analytics, product lookup, ingredient DB, signal history, signal-models, image-processing)
-- 49 screen files, 21+ components, 17 services, 8 backend files, Zustand store
+- **329 frontend tests** (21 suites) + **101 backend tests** (4 suites)
+- 47 screen files, 24 components, 19 services, 6 backend modules, Zustand store
 - EAS dev client + production builds succeeding (build #18 on TestFlight)
 
 ### SDK Migration (SDK 55 → 54)
@@ -519,8 +508,9 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - **Model download script**: `backend/scripts/download-models.sh` fetches from HuggingFace (`mufasabrownie/glowlytics-skin-models`)
 - **Fast detection endpoint**: `POST /api/vision/detect-lesions` — public, rate-limited (10/10s), runs only YOLOv8
 - **On-device detection**: `onDeviceLesionDetection.ts` service runs YOLOv8 on camera frames during alignment
-- **Real-time overlay**: `LesionOverlay.tsx` — neon sci-fi corner brackets with scanning line, glow pulse, monospace labels
+- **Real-time overlay**: `LesionOverlay.tsx` — teal sci-fi corner brackets with scanning line, glow pulse, crop-aware coordinate mapping, face-rect filtering
 - **Camera integration**: Detection every 1.2s while face aligned, clears on un-align, Hermes-compatible AbortController
+- **Scan flow simplified**: Camera → Analyzing → Results (checkin screen removed)
 - **Security hardening**: Authorization checks on all user-data endpoints, CORS restriction, rate limiting, safe error messages, SQL field validation, production auth guard
 - **Codebase audit**: 4 critical + 8 high + 9 medium bugs identified; 11 critical/high fixed, 8 medium documented
 - **Build #18** submitted to TestFlight with all fixes
@@ -531,7 +521,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 
 ### Completed (2026-03-17): RevenueCat Fix + Trial + Notifications + Products Tab
 - **RevenueCat Error 23 fix**: `initRevenueCat()` catches CONFIGURATION_ERROR silently
-- **7-day free trial**: replaces 3-free-scan model; `startTrial()`, `isTrialActive()`, `trialDaysRemaining()`, `canScan()` rewritten
+- **7-day free trial**: `startTrial()`, `isTrialActive()`, `trialDaysRemaining()`, `canScan()` in subscription service
 - **Onboarding paywall**: `app/onboarding/paywall.tsx` — inline RevenueCatUI, skip starts trial, purchase completes onboarding
 - **Daily scan notifications**: `src/services/notifications.ts` + `app/onboarding/scan-reminder.tsx` — time picker, schedule/cancel daily reminders
 - **Products tab**: replaced Trend tab with full product management — routine score ring, ProductCard with effectiveness rings, AddProductSheet (search/barcode/manual), FAB
@@ -540,7 +530,19 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - **Dependencies added**: `expo-notifications`, `@react-native-community/datetimepicker`
 - **Build #24** submitted to TestFlight with all changes
 
+### Completed (2026-03-22): UI Polish — Tab Bar, Splash Screen, Onboarding
+- **Floating tab bar redesign**: SVG notch cutout path (10px depth, 74px width), camera button absolutely positioned above bar with teal glow shadow, glass fill `rgba(255,255,255,0.93)`, no scene padding/background so bar truly floats over content
+- **Premium splash screen**: Animated `SplashScreen` component in `_layout.tsx` — G logo scale+fade (600ms) → teal glow bloom behind logo (900ms) → "Glowlytics" wordmark fade+rise (400ms). Minimum 1.5s display via `Promise.all` with app init. Old `index.tsx` landing page (safety card, gradient blobs, terms link) replaced with minimal bridge screen.
+- **Onboarding v1.1.2**: Products step improvements, multi-select skin goals, copy rewrites across all onboarding screens
+- **Analyzing screen**: Now waits for backend response before navigating to results
+- **Backend refactoring**: `app.js` route organization cleanup, `rag.js` pipeline expansion (improved chunking/retrieval), `signal-models.js` improvements
+- **Lesion constants**: New `src/constants/lesions.ts` module (6 classes with descriptions, colors, zone definitions)
+- **Vision API service**: Expanded response parsing and error handling in `visionAPI.ts`
+- **Results screen**: Enhanced signal display and lesion visualization
+- **Latest build** submitted to TestFlight via local EAS build + `eas submit`
+
 ### Deferred (post-launch)
+- **Fix dailyContext in analyzing**: sunscreen_used/new_product_added hardcoded to `false` since checkin removal — need to collect these before analysis
 - HealthKit/Health Connect native integration (requires EAS bare workflow)
 - PDF export for clinician reports (currently stub)
 - Session replay via PostHog (currently disabled)
@@ -551,22 +553,23 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 
 ## Onboarding Implementation (Current)
 
-### Onboarding flow (15 screens, progressive disclosure)
+### Onboarding flow (16 screens, progressive disclosure)
 1. Welcome
 2. Age Range (2×3 grid)
 3. Biological Sex (branching: female → menstrual screens)
 4. Location (geolocation or ZIP)
 5. Skin Goal (3 cards with dynamic illustration)
-6. Menstrual Cycle (female only)
-7. Cycle Details (if yes to #6: date, length, birth control)
-8. Supplements & HRT (multi-select chips)
-9. Exercise Frequency
-10. Shower Frequency
-11. Hand Washing
-12. Scan Reminder (time picker for daily notifications)
-13. Camera Permission (pre-permission screen + system dialog)
-14. Ready (luminous orb animation → paywall)
-15. Paywall (RevenueCatUI inline, skip starts 7-day trial)
+6. Products (current skincare products)
+7. Menstrual Cycle (female only)
+8. Cycle Details (if yes to #7: date, length, birth control)
+9. Supplements & HRT (multi-select chips)
+10. Exercise Frequency
+11. Shower Frequency
+12. Hand Washing
+13. Scan Reminder (time picker for daily notifications)
+14. Camera Permission (pre-permission screen + system dialog)
+15. Ready (luminous orb animation → paywall)
+16. Paywall (RevenueCatUI inline, skip starts 7-day trial)
 
 ### Flow architecture
 - Dynamic flow array via `buildOnboardingFlow(sex, menstrualStatus)` in `src/services/onboardingFlow.ts`
@@ -597,7 +600,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 ### Redirect Logic
 - **Root layout** (`app/_layout.tsx`) contains `AuthRedirector` component that returns only `<Redirect>` components or `null` — never its own navigator
 - When Clerk is configured:
-  - `!isLoaded` → animated splash (index.tsx)
+  - `!appReady` → animated `SplashScreen` (G logo glow reveal, 1.5s min) in `_layout.tsx`
   - `!isSignedIn` → redirect to `/auth/sign-in`
   - `isSignedIn` + `!onboarding_complete` → redirect to `/onboarding/welcome`
   - `isSignedIn` + `onboarding_complete` → render normal tab navigation

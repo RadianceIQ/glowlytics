@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
@@ -23,10 +23,6 @@ import {
 import { scheduleDailyReminder, cancelDailyReminder } from '../../src/services/notifications';
 import { trackEvent, resetAnalytics } from '../../src/services/analytics';
 import { createDemoSeed } from '../../src/services/demoData';
-import {
-  buildOverallSkinInsight,
-  getLatestDailyForOutput,
-} from '../../src/services/skinInsights';
 import { LevelProgressBar } from '../../src/components/LevelProgressBar';
 import { BadgeShowcase } from '../../src/components/BadgeShowcase';
 
@@ -53,7 +49,6 @@ export default function ProfileTab() {
   const user = useStore((s) => s.user);
   const protocol = useStore((s) => s.protocol);
   const dailyRecords = useStore((s) => s.dailyRecords);
-  const modelOutputs = useStore((s) => s.modelOutputs);
   const gamification = useStore((s) => s.gamification);
   const subscription = useStore((s) => s.subscription);
   const setSubscription = useStore((s) => s.setSubscription);
@@ -73,22 +68,6 @@ export default function ProfileTab() {
       : user?.period_applicable === 'no'
         ? 'Not applicable'
         : 'Prefer not to say';
-
-  // Compute overall insight for personalized scoring
-  const overallInsight = useMemo(() => {
-    const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
-    const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
-    const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
-    return buildOverallSkinInsight({
-      latestOutput,
-      baselineOutput: baseline,
-      latestDaily,
-      serverSignalScores: latestOutput?.signal_scores,
-      serverSignalFeatures: latestOutput?.signal_features,
-      serverSignalConfidence: latestOutput?.signal_confidence,
-      serverLesions: latestOutput?.lesions,
-    });
-  }, [modelOutputs, dailyRecords]);
 
   const handleSignOut = async () => {
     if (clerk) {

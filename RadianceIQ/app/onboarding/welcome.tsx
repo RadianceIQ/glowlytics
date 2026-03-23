@@ -51,22 +51,27 @@ function WelcomeIllustration() {
 
 export default function Welcome() {
   const router = useRouter();
-  const { createUser, setOnboardingFlow, setOnboardingFlowIndex } = useStore();
+  const createUser = useStore((s) => s.createUser);
+  const setOnboardingFlow = useStore((s) => s.setOnboardingFlow);
+  const setOnboardingFlowIndex = useStore((s) => s.setOnboardingFlowIndex);
 
   const handleStart = () => {
     trackEvent('onboarding_started');
     createUser({});
     const flow = buildOnboardingFlow();
     setOnboardingFlow(flow);
-    setOnboardingFlowIndex(0);
-    const nextIndex = 1;
-    setOnboardingFlowIndex(nextIndex);
-    router.push(screenToRoute(flow[nextIndex]));
+    setOnboardingFlowIndex(1);
+    router.push(screenToRoute(flow[1]));
   };
 
   const handleSkip = () => {
     trackEvent('onboarding_skipped');
-    createUser({ onboarding_complete: true });
+    const existing = useStore.getState().user;
+    if (existing) {
+      useStore.getState().updateUser({ onboarding_complete: true });
+    } else {
+      createUser({ onboarding_complete: true });
+    }
     router.replace('/(tabs)/today' as any);
   };
 
