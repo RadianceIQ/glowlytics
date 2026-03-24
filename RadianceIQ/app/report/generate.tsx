@@ -16,7 +16,7 @@ import {
   Spacing,
 } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
-import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
+import { gateWithPaywall } from '../../src/services/subscription';
 import { trackEvent } from '../../src/services/analytics';
 import { buildReportHtml, type ReportHtmlData } from '../../src/services/reportHtml';
 
@@ -42,28 +42,25 @@ export default function GenerateReport() {
   const subscription = useStore((s) => s.subscription);
   const user = useStore((s) => s.user);
 
-  // Gate reports behind premium
   useEffect(() => {
     if (!subscription.is_active) {
       (async () => {
-        const purchased = await presentPaywall();
-        if (purchased) {
-          const sub = await checkSubscriptionStatus(useStore.getState().subscription);
-          useStore.getState().setSubscription(sub);
-        }
-        if (!useStore.getState().subscription.is_active) {
-          router.back();
-        }
+        const allowed = await gateWithPaywall();
+        if (!allowed) router.back();
       })();
     }
   }, []);
+
+  useEffect(() => {
+    trackEvent('report_viewed', { time_range: timeRange });
+  }, []);
+
   const protocol = useStore((s) => s.protocol);
   const products = useStore((s) => s.products);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const modelOutputs = useStore((s) => s.modelOutputs);
 
   const [timeRange, setTimeRange] = useState<TimeRange>(14);
-  const [showPreview, setShowPreview] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const cutoff = new Date();
@@ -189,17 +186,28 @@ export default function GenerateReport() {
     }
   };
 
-  if (!showPreview) {
+  if (totalScans === 0) {
     return (
-      <AtmosphereScreen scroll={false} contentContainerStyle={styles.builderLayout}>
-        <View style={styles.builderHeader}>
-          <Text style={styles.eyebrow}>Share report</Text>
-          <Text style={styles.title}>Package your trend story.</Text>
-          <Text style={styles.subtitle}>
-            Choose a time window, review the summary, and generate a clinician-facing preview.
+      <AtmosphereScreen scroll={false} contentContainerStyle={styles.emptyLayout}>
+        <View style={styles.emptyContent}>
+          <Text style={styles.eyebrow}>Clinician report</Text>
+          <Text style={styles.title}>No scans yet.</Text>
+          <Text style={styles.emptySubtitle}>
+            Take a few scans first so the report has enough signal to be credible.
           </Text>
         </View>
+        <Button title="Back" variant="ghost" onPress={() => router.back()} />
+      </AtmosphereScreen>
+    );
+  }
 
+  return (
+    <AtmosphereScreen>
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.eyebrow}>Clinician report</Text>
+          <Text style={styles.title}>Trend summary</Text>
+        </View>
         <View style={styles.segmentedControl}>
           {([7, 14, 30] as TimeRange[]).map((range) => (
             <TouchableOpacity
@@ -213,78 +221,14 @@ export default function GenerateReport() {
             </TouchableOpacity>
           ))}
         </View>
-
-        <View style={styles.spotlightCard}>
-          <Text style={styles.spotlightEyebrow}>Export snapshot</Text>
-          <Text style={styles.spotlightTitle}>
-            {totalScans > 0 ? `${totalScans} scans ready to summarize.` : 'No scans in this range yet.'}
-          </Text>
-          <Text style={styles.spotlightCopy}>
-            {totalScans > 0
-              ? `Sunscreen adherence is ${sunscreenRate}% and capture quality passed ${confidenceRate}% of the time.`
-              : 'Take a few scans first so the report has enough signal to be credible.'}
-          </Text>
-
-          <View style={styles.spotlightStats}>
-            <View style={styles.statChip}>
-              <Text style={styles.statValue}>{sunscreenRate}%</Text>
-              <Text style={styles.statLabel}>Adherence</Text>
-            </View>
-            <View style={styles.statChip}>
-              <Text style={styles.statValue}>{confidenceRate}%</Text>
-              <Text style={styles.statLabel}>Quality</Text>
-            </View>
-            <View style={styles.statChip}>
-              <Text style={styles.statValue}>{timeRange}d</Text>
-              <Text style={styles.statLabel}>Window</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.builderActions}>
-          <Button
-            title="Generate preview"
-            onPress={() => {
-              trackEvent('report_generated', { time_range: timeRange, total_scans: totalScans });
-              setShowPreview(true);
-            }}
-            disabled={totalScans === 0}
-            size="lg"
-          />
-          <Button title="Back" variant="ghost" onPress={() => router.back()} />
-        </View>
-      </AtmosphereScreen>
-    );
-  }
-
-  return (
-    <AtmosphereScreen>
-      <View style={styles.previewHeader}>
-        <View>
-          <Text style={styles.eyebrow}>Preview</Text>
-          <Text style={styles.title}>Glowlytics clinician export</Text>
-        </View>
-        <Button title="Back to builder" variant="secondary" size="sm" onPress={() => setShowPreview(false)} />
       </View>
 
       <View style={styles.reportHero}>
-        <Text style={styles.reportHeroTitle}>Trend summary for the last {timeRange} days</Text>
+        <Text style={styles.reportHeroTitle}>{cutoffStr} — {dateTo}</Text>
         <Text style={styles.reportHeroCopy}>
-          {cutoffStr} to {dateTo}
+          {totalScans} scans · {confidenceRate}% quality · {sunscreenRate}% sunscreen adherence
         </Text>
       </View>
-
-      <ReportSection title="Patient summary">
-        <Text style={styles.reportText}>Age range: {user?.age_range || 'N/A'}</Text>
-        <Text style={styles.reportText}>Location: {user?.location_coarse || 'N/A'}</Text>
-      </ReportSection>
-
-      <ReportSection title="Scan protocol">
-        <Text style={styles.reportText}>Region: {protocol?.scan_region?.replace(/_/g, ' ') || 'N/A'}</Text>
-        <Text style={styles.reportText}>Cadence: Daily</Text>
-        <Text style={styles.reportText}>Scans completed: {totalScans} / {timeRange}</Text>
-        <Text style={styles.reportText}>Quality pass rate: {confidenceRate}%</Text>
-      </ReportSection>
 
       <ReportSection title="Trend snapshot">
         <View style={styles.metricStack}>
@@ -363,15 +307,15 @@ export default function GenerateReport() {
         )}
       </ReportSection>
 
-      <ReportSection title="Context overlay">
-        <Text style={styles.reportText}>
-          Sunscreen adherence: {sunscreenRate}% ({sunscreenDays}/{totalScans} days)
-        </Text>
+      <ReportSection title="Context">
+        <Text style={styles.reportText}>Age range: {user?.age_range || 'N/A'}</Text>
+        <Text style={styles.reportText}>Location: {user?.location_coarse || 'N/A'}</Text>
+        <Text style={styles.reportText}>Region: {protocol?.scan_region?.replace(/_/g, ' ') || 'N/A'}</Text>
         {user?.period_applicable === 'yes' ? (
-          <Text style={styles.reportText}>Menstrual cycle: tracked ({user.cycle_length_days} day cycle)</Text>
+          <Text style={styles.reportText}>Menstrual cycle: {user.cycle_length_days} day cycle</Text>
         ) : null}
         {filteredRecords.some((record) => record.sleep_quality) ? (
-          <Text style={styles.reportText}>Sleep context: self-reported or device-supported</Text>
+          <Text style={styles.reportText}>Sleep context: self-reported</Text>
         ) : null}
       </ReportSection>
 
@@ -395,18 +339,31 @@ export default function GenerateReport() {
           loading={isGeneratingPdf}
           disabled={isGeneratingPdf}
         />
-        <Button title="Back" variant="ghost" onPress={() => router.back()} />
       </View>
     </AtmosphereScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  builderLayout: {
+  emptyLayout: {
     justifyContent: 'space-between',
   },
-  builderHeader: {
+  emptyContent: {
     gap: Spacing.sm,
+  },
+  emptySubtitle: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+    lineHeight: 24,
+    maxWidth: '85%',
+  },
+  header: {
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  headerText: {
+    gap: Spacing.xs,
   },
   eyebrow: {
     color: Colors.primaryLight,
@@ -420,13 +377,6 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.serifBold,
     fontSize: FontSize.hero,
     lineHeight: 42,
-  },
-  subtitle: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.md,
-    lineHeight: 24,
-    maxWidth: '90%',
   },
   segmentedControl: {
     flexDirection: 'row',
@@ -454,81 +404,19 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     color: Colors.primaryLight,
   },
-  spotlightCard: {
-    backgroundColor: Colors.glassStrong,
-    borderRadius: BorderRadius.xxl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  spotlightEyebrow: {
-    color: Colors.secondaryLight,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  spotlightTitle: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.xxl,
-  },
-  spotlightCopy: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.md,
-    lineHeight: 22,
-  },
-  spotlightStats: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  statChip: {
-    flex: 1,
-    backgroundColor: Colors.glass,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  statValue: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.xl,
-  },
-  statLabel: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  builderActions: {
-    gap: Spacing.md,
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
   reportHero: {
     backgroundColor: Colors.glassStrong,
     borderRadius: BorderRadius.xxl,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.lg,
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     marginBottom: Spacing.lg,
   },
   reportHeroTitle: {
     color: Colors.text,
     fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.xxl,
+    fontSize: FontSize.lg,
   },
   reportHeroCopy: {
     color: Colors.textSecondary,

@@ -103,8 +103,12 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   cardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.surfaceOverlay,
+    borderColor: '#3A9E8F',
+    backgroundColor: 'rgba(58, 158, 143, 0.08)',
+    shadowColor: '#3A9E8F',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
   },
   content: {
     flex: 1,
@@ -116,7 +120,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
   },
   labelSelected: {
-    color: Colors.primaryLight,
+    color: '#2B7D70',
   },
   description: {
     color: Colors.textSecondary,
@@ -134,13 +138,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   radioSelected: {
-    borderColor: Colors.primary,
+    borderColor: '#3A9E8F',
   },
   radioInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#3A9E8F',
   },
   checkbox: {
     width: 22,
@@ -152,8 +156,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary,
+    borderColor: '#3A9E8F',
+    backgroundColor: '#3A9E8F',
   },
   checkmark: {
     color: Colors.textOnDark,
@@ -172,8 +176,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceLight,
   },
   chipSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.surfaceOverlay,
+    borderColor: '#3A9E8F',
+    backgroundColor: 'rgba(58, 158, 143, 0.08)',
+    shadowColor: '#3A9E8F',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
   chipLabel: {
     color: Colors.text,
@@ -182,7 +190,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   chipLabelSelected: {
-    color: Colors.primaryLight,
+    color: '#2B7D70',
   },
 
   // Grid option (2-column)
@@ -199,8 +207,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
   },
   gridOptionSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.surfaceOverlay,
+    borderColor: '#3A9E8F',
+    backgroundColor: 'rgba(58, 158, 143, 0.08)',
+    shadowColor: '#3A9E8F',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
   },
   gridLabel: {
     color: Colors.text,
@@ -209,6 +221,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   gridLabelSelected: {
-    color: Colors.primaryLight,
+    color: '#2B7D70',
   },
 });

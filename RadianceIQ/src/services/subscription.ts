@@ -184,6 +184,26 @@ export function canScan(subscription: SubscriptionState): boolean {
 }
 
 /**
+ * Gate an action behind paywall. Presents paywall if needed, refreshes subscription,
+ * returns true if the user can proceed (subscribed or trial active).
+ */
+export async function gateWithPaywall(): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { useStore } = require('../store/useStore');
+  if (useStore.getState().canPerformScan()) return true;
+  try {
+    const purchased = await presentPaywall();
+    if (purchased) {
+      const sub = await checkSubscriptionStatus(useStore.getState().subscription);
+      useStore.getState().setSubscription(sub);
+    }
+  } catch {
+    // RevenueCat config error — non-fatal
+  }
+  return useStore.getState().canPerformScan();
+}
+
+/**
  * Listen for server-side subscription changes (e.g. renewal, expiry, family sharing)
  * and auto-update Zustand state. Returns an unsubscribe function for cleanup.
  * Uses lazy require to avoid circular dependency (hoisted outside callback).

@@ -40,7 +40,17 @@ export function useFaceTracking(
   const onFacesDetected = useCallback((faces: DetectedFace[], w: number, h: number) => {
     if (!enabled || !warmupDone.current) return;
     if (w > 0 && h > 0) setFrameDims({ w, h });
-    setTrackingState(analyzeAlignment(faces, frameWidth, frameHeight));
+    // Use actual camera frame dimensions (not screen dims) since MLKit
+    // returns face coords in camera-frame pixel space.
+    const fw = w > 0 ? w : frameWidth;
+    const fh = h > 0 ? h : frameHeight;
+    // Mirror face X for front camera — the preview is mirrored so direction
+    // hints need to match what the user sees, not raw camera coordinates.
+    const mirrored = fw > 0 ? faces.map((f) => ({
+      ...f,
+      x: fw - f.x - f.width,
+    })) : faces;
+    setTrackingState(analyzeAlignment(mirrored, fw, fh));
   }, [enabled, frameWidth, frameHeight]);
 
   return {

@@ -2,6 +2,7 @@ import type { BiologicalSex, MenstrualStatus, OnboardingScreenName } from '../ty
 
 /**
  * Builds the onboarding screen flow based on user answers.
+ * Trimmed to essential screens — deferred questions collected post-first-scan.
  * Female users get menstrual/cycle screens inserted after skin-goal.
  */
 export function buildOnboardingFlow(
@@ -12,9 +13,7 @@ export function buildOnboardingFlow(
     'welcome',
     'age-range',
     'sex',
-    'location',
     'skin-goal',
-    'products',
   ];
 
   if (sex === 'female') {
@@ -25,13 +24,8 @@ export function buildOnboardingFlow(
   }
 
   flow.push(
-    'supplements',
-    'exercise',
-    'shower-frequency',
-    'hand-washing',
-    'scan-reminder',
     'camera-permission',
-    'ready',
+    'preview',
     'paywall',
   );
 

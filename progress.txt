@@ -1,6 +1,6 @@
 Glowlytics - Build Progress
 ===========================
-Last Updated: 2026-03-23
+Last Updated: 2026-03-24
 
 MILESTONES:
 1. Project setup + foundation (Expo SDK 54, TypeScript, Expo Router)
@@ -50,10 +50,20 @@ MILESTONES:
 45. Onboarding screens polished: skin-goal multi-select, products step improvements, copy rewrites
 46. Profile screen: updated subscription card styling
 47. Build #19+ submitted to TestFlight with all UI changes
+48. Design system normalization: WCAG AAA contrast, token alignment, Switzer-Medium font
+49. 3-tier surface hierarchy system: hero, standard, recessed elevation levels
+50. Home screen distilled: progressive revelation, less clutter
+51. Profile screen redesign: identity header, consolidated cards, gamification section
+52. Results screen restructured: 3-tier progressive disclosure
+53. Gamification + achievements unified into single Progress section
+54. VisionCamera MLKit face detection wired up via frame processor (real-time GPU)
+55. Backend curated-products.js: product database with search, barcode lookup, ingredient enrichment
+56. Backend product endpoints with full test coverage (curated-products + product-endpoints tests)
+57. ingredientDB service expanded with curated product integration
 
 CURRENT STATUS:
-- 329 frontend tests (21 suites) + 101 backend tests (4 suites), 0 TypeScript errors
-- 47 screens, 24 components, 19 services, 6 backend modules
+- 422 tests (25 suites), 0 TypeScript errors
+- 43 screens, 24 components, 20 services, 7 backend modules
 - Scan flow: Camera → Analyzing → Results (checkin removed)
 - Backend live on Railway with PostgreSQL, health check passing
 - DB schema includes signal-specific columns (signal_scores, signal_features, lesions)
@@ -192,6 +202,17 @@ COMPLETED:
 [x] Profile screen: updated subscription card styling
 [x] TabsLayout simplified: removed sceneStyle paddingBottom/backgroundColor, tab bar truly floats over content
 [x] Latest build submitted to TestFlight via local EAS build + eas submit
+[x] Design system normalization: WCAG AAA contrast ratios, token alignment, medium font weight default
+[x] Switzer-Medium font added to assets
+[x] 3-tier surface hierarchy: hero (elevated + shadow), standard (flat), recessed (inset) surfaces
+[x] Home screen distilled: progressive revelation, reduced clutter
+[x] Profile redesign: identity header, consolidated cards, gamification Progress section
+[x] Results screen: 3-tier progressive disclosure layout
+[x] Gamification + achievements unified into single Progress section on profile
+[x] VisionCamera MLKit face detection: real GPU frame processor (replaced polling approach)
+[x] Backend curated-products.js: product search, barcode lookup, ingredient enrichment (843 lines)
+[x] Backend product endpoint tests: curated-products.test.js (119 lines) + product-endpoints.test.js (335 lines)
+[x] ingredientDB service expanded with curated product integration
 
 REMAINING (Launch checklist):
 [ ] !! CRITICAL: Replace Clerk TEST keys with PRODUCTION keys !!

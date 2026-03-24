@@ -252,7 +252,8 @@ export default function SignalDetailScreen() {
     [latestOutput, latestDaily, modelOutputs],
   );
 
-  const signalValue = insight ? insight.signals[signalProperty(signalKey)] : 0;
+  const hasData = insight !== null;
+  const signalValue = hasData ? insight.signals[signalProperty(signalKey)] : 0;
   const level = levelFromScore(signalValue) as Level;
 
   // ---- Gauge animation ----
@@ -378,8 +379,18 @@ export default function SignalDetailScreen() {
           <View style={{ width: 40 }} />
         </Animated.View>
 
+        {/* ---- Empty state ---- */}
+        {!hasData && (
+          <Animated.View style={[styles.card, gaugeAnim]}>
+            <Text style={[styles.cardTitle, { textAlign: 'center', marginBottom: 8 }]}>No data yet</Text>
+            <Text style={[styles.factorLabel, { textAlign: 'center' }]}>
+              Complete your first scan to see your {label.toLowerCase()} signal analysis.
+            </Text>
+          </Animated.View>
+        )}
+
         {/* ---- Gauge ---- */}
-        <Animated.View style={[styles.gaugeContainer, gaugeAnim]}>
+        {hasData && <Animated.View style={[styles.gaugeContainer, gaugeAnim]}>
           <Svg width={GAUGE_SIZE} height={GAUGE_SIZE}>
             {/* Background arc */}
             <Path
@@ -406,7 +417,7 @@ export default function SignalDetailScreen() {
               {level}
             </Text>
           </View>
-        </Animated.View>
+        </Animated.View>}
 
         {/* ---- Contributing Factors ---- */}
         <Animated.View style={[styles.card, factorsAnim]}>

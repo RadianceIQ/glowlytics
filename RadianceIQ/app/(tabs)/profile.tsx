@@ -42,7 +42,7 @@ try {
 const InfoRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <View style={styles.infoRow}>
     <Text style={styles.infoLabel}>{label}</Text>
-    <Text style={styles.infoValue}>{value}</Text>
+    <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
   </View>
 );
 
@@ -84,11 +84,15 @@ export default function ProfileTab() {
             text: 'Sign out',
             style: 'destructive',
             onPress: async () => {
-              trackEvent('auth_sign_out');
-              resetAnalytics();
-              await clerk.signOut();
-              resetAll();
-              router.replace('/');
+              try {
+                trackEvent('auth_sign_out');
+                resetAnalytics();
+                await clerk.signOut();
+                await resetAll();
+                router.replace('/');
+              } catch {
+                Alert.alert('Sign out failed', 'Please try again.');
+              }
             },
           },
         ],
@@ -122,8 +126,8 @@ export default function ProfileTab() {
         {
           text: 'Delete everything',
           style: 'destructive',
-          onPress: () => {
-            resetAll();
+          onPress: async () => {
+            await resetAll();
             router.replace('/');
           },
         },
@@ -326,8 +330,10 @@ export default function ProfileTab() {
                 const h = selected.getHours();
                 const m = selected.getMinutes();
                 const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                await scheduleDailyReminder(h, m);
-                setNotificationTime(timeStr);
+                try {
+                  await scheduleDailyReminder(h, m);
+                  setNotificationTime(timeStr);
+                } catch { /* notification scheduling failed — non-fatal */ }
               }
             }}
             themeVariant="light"
@@ -346,7 +352,9 @@ export default function ProfileTab() {
             <TouchableOpacity
               style={styles.modeButton}
               onPress={async () => {
-                await cancelDailyReminder();
+                try {
+                  await cancelDailyReminder();
+                } catch { /* non-fatal */ }
                 setNotificationTime(null);
                 setShowTimePicker(false);
               }}
@@ -362,8 +370,10 @@ export default function ProfileTab() {
             onPress={async () => {
               const defaultTime = '08:00';
               const [h, m] = defaultTime.split(':').map(Number);
-              await scheduleDailyReminder(h, m);
-              setNotificationTime(defaultTime);
+              try {
+                await scheduleDailyReminder(h, m);
+                setNotificationTime(defaultTime);
+              } catch { /* non-fatal */ }
             }}
             activeOpacity={0.7}
           >

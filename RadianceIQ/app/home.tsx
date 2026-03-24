@@ -20,7 +20,7 @@ import {
   getLatestDailyForOutput,
 } from '../src/services/skinInsights';
 import { useStore } from '../src/store/useStore';
-import { presentPaywall, checkSubscriptionStatus } from '../src/services/subscription';
+import { gateWithPaywall } from '../src/services/subscription';
 
 interface TopStat {
   key: string;
@@ -92,14 +92,7 @@ export default function Home() {
   const canPerformScan = useStore((s) => s.canPerformScan);
 
   const handleScanPress = async (path: string) => {
-    if (!canPerformScan()) {
-      const purchased = await presentPaywall();
-      if (purchased) {
-        const sub = await checkSubscriptionStatus(useStore.getState().subscription);
-        useStore.getState().setSubscription(sub);
-      }
-      if (!useStore.getState().canPerformScan()) return;
-    }
+    if (!(await gateWithPaywall())) return;
     router.push(path as any);
   };
 

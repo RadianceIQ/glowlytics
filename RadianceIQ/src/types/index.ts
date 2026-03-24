@@ -23,7 +23,7 @@ export type OnboardingScreenName =
   | 'welcome' | 'age-range' | 'sex' | 'location' | 'skin-goal'
   | 'products' | 'menstrual' | 'cycle-details' | 'supplements' | 'exercise'
   | 'shower-frequency' | 'hand-washing' | 'scan-reminder'
-  | 'camera-permission' | 'ready' | 'paywall';
+  | 'camera-permission' | 'ready' | 'preview' | 'paywall';
 
 export interface HealthConnectionState {
   status: PermissionStatus;

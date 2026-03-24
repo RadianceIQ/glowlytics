@@ -77,9 +77,10 @@ export const SkinScoreHero: React.FC<Props> = ({
     }).start();
   }, [score, revealMotion]);
 
-  const accent = scoreColor(score);
-  const displayScore = Math.round(animatedScore);
-  const progressRatio = Math.max(0, Math.min(100, animatedScore)) / 100;
+  const safeScore = Number.isFinite(score) ? score : 0;
+  const accent = scoreColor(safeScore);
+  const displayScore = Number.isFinite(animatedScore) ? Math.round(animatedScore) : 0;
+  const progressRatio = Math.max(0, Math.min(100, Number.isFinite(animatedScore) ? animatedScore : 0)) / 100;
   const arcLength = Math.PI * radius;
   const progressLength = arcLength * progressRatio;
   const gaugeCenterX = 120;

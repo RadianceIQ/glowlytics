@@ -10,12 +10,13 @@
     "scheme": "glowlytics",
     "backgroundColor": "#FAFAF7",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo-emblem.png",
       "resizeMode": "contain",
       "backgroundColor": "#FAFAF7"
     },
     "ios": {
       "supportsTablet": true,
+      "deploymentTarget": "16.0",
       "bundleIdentifier": "com.glowlytics.app",
       "usesAppleSignIn": true,
       "associatedDomains": [],
@@ -63,6 +64,9 @@
       [
         "expo-build-properties",
         {
+          "ios": {
+            "deploymentTarget": "16.0"
+          },
           "android": {
             "minSdkVersion": 26
           }

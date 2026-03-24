@@ -18,6 +18,7 @@ import Animated, {
   FadeOut,
 } from 'react-native-reanimated';
 import { Colors, FontFamily, FontSize, BorderRadius, Spacing } from '../../src/constants/theme';
+import { localDateStr } from '../../src/utils/localDate';
 import { useStore } from '../../src/store/useStore';
 import { analyzeWithFallback } from '../../src/services/skinAnalysis';
 import { streamInsights } from '../../src/services/visionAPI';
@@ -320,7 +321,7 @@ export default function AnalyzingScreen() {
 
       const prev = lastRecordRef.current;
       // Derive new_product_added from products added today
-      const scanDate = new Date().toISOString().split('T')[0];
+      const scanDate = localDateStr();
       const hasNewProduct = useStore.getState().products.some((p) => p.start_date === scanDate);
       const dailyRecord = addDailyRecord({
         date: scanDate,
@@ -363,11 +364,15 @@ export default function AnalyzingScreen() {
           setIsStreaming(false);
           if (insights) {
             insightsRef.current = insights;
-            // Update the latest model output with generated insights
-            const latestOutputs = useStore.getState().modelOutputs;
-            if (latestOutputs.length > 0) {
-              const latest = latestOutputs[latestOutputs.length - 1];
-              latest.generated_insights = insights;
+            // Update the latest model output with generated insights (immutable)
+            const currentOutputs = useStore.getState().modelOutputs;
+            if (currentOutputs.length > 0) {
+              const updated = [...currentOutputs];
+              updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                generated_insights: insights,
+              };
+              useStore.setState({ modelOutputs: updated });
               useStore.getState().persistData();
             }
           }
@@ -553,7 +558,7 @@ export default function AnalyzingScreen() {
     lastRecordRef.current = lastRecord;
 
     // Derive new_product_added: true if any product was added today
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localDateStr();
     const newProductToday = state.products.some((p) => p.start_date === todayStr);
     analysisStartTime.current = Date.now();
 
@@ -701,7 +706,10 @@ export default function AnalyzingScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.goBackButton}
-              onPress={() => router.replace('/(tabs)/today')}
+              onPress={() => {
+                useStore.getState().clearPendingPhotoBase64();
+                router.replace('/(tabs)/today');
+              }}
             >
               <Text style={styles.goBackText}>Go back</Text>
             </TouchableOpacity>

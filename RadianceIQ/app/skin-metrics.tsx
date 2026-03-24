@@ -16,7 +16,7 @@ import {
   getLatestDailyForOutput,
 } from '../src/services/skinInsights';
 import { useStore } from '../src/store/useStore';
-import { presentPaywall, checkSubscriptionStatus } from '../src/services/subscription';
+import { gateWithPaywall } from '../src/services/subscription';
 
 export default function SkinMetricsScreen() {
   const router = useRouter();
@@ -73,16 +73,7 @@ export default function SkinMetricsScreen() {
             Run your first scan to unlock acne, sun damage, and skin age assessments.
           </Text>
           <Button title="Start first scan" onPress={async () => {
-            if (!useStore.getState().canPerformScan()) {
-              try {
-                const purchased = await presentPaywall();
-                if (purchased) {
-                  const sub = await checkSubscriptionStatus(useStore.getState().subscription);
-                  useStore.getState().setSubscription(sub);
-                }
-              } catch { /* RevenueCat config error */ }
-              if (!useStore.getState().canPerformScan()) return;
-            }
+            if (!(await gateWithPaywall())) return;
             router.push('/scan/camera');
           }} />
         </View>

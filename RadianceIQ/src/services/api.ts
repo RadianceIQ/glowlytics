@@ -26,17 +26,29 @@ export const getAuthHeaders = async (): Promise<Record<string, string>> => {
   return h;
 };
 
-const request = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
+const request = async <T>(path: string, options: RequestInit = {}, timeoutMs = 15_000): Promise<T> => {
   const h = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { ...h, ...options.headers as Record<string, string> },
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`API ${res.status}: ${body}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: { ...h, ...options.headers as Record<string, string> },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => 'Unknown error');
+      throw new Error(`API ${res.status}: ${body}`);
+    }
+    return res.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error(`API timeout after ${timeoutMs}ms: ${path}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-  return res.json();
 };
 
 // ---- Users ----
@@ -108,4 +120,4 @@ export const identifyProductPhoto = (image_base64: string) =>
   request<PhotoIdentifyResult>('/api/products/identify-photo', {
     method: 'POST',
     body: JSON.stringify({ image_base64 }),
-  });
+  }, 30_000);

@@ -13,7 +13,7 @@ cornell-hackathon/
       home.tsx
       skin-metrics.tsx
       auth/           # Auth screens (sign-in, sign-up, forgot-password)
-      onboarding/     # Onboarding flow (16 screens, progressive disclosure + scan-reminder + paywall)
+      onboarding/     # Onboarding flow (7-9 screens: welcome, age-range, sex, skin-goal, [menstrual], [cycle-details], camera-permission, preview, paywall). Deferred screens (location, products, supplements, exercise, shower-frequency, hand-washing, scan-reminder) still exist as files for post-first-scan collection.
       scan/           # Scanning flow (camera → analyzing → results)
       report/         # Report screens (premium-gated)
       product/        # Product detail screens
@@ -22,11 +22,11 @@ cornell-hackathon/
       (tabs)/         # Tab navigation (today, products, camera, reports, profile)
       skin-metric/    # Skin metric detail
     src/
-      components/     # Reusable UI components (24 files, includes meshData.ts)
-      constants/      # Theme (colors, typography)
+      components/     # Reusable UI components (24 files)
+      constants/      # Theme (colors, typography), lesion classes, signal colors
       config/         # Environment config, Clerk token cache
       hooks/          # Custom hooks (useFaceTracking)
-      services/       # Business logic (19 services)
+      services/       # Business logic (20 services)
       store/          # Zustand state (useStore.ts)
       types/          # TypeScript type definitions
       utils/          # Animation utilities
@@ -35,10 +35,11 @@ cornell-hackathon/
       server.js       # Server entry point (app.listen + auto-init DB schema)
       db-init.js
       rag.js          # Pinecone RAG pipeline for AAD/ACOG guidelines
+      curated-products.js  # Product database: search, barcode lookup, ingredient enrichment
       image-processing.js  # Layer 1: Deterministic feature extraction (CIELAB, ITA, GLCM, LBP)
       signal-models.js     # Layer 2: ONNX model inference + score merging
       models/         # ONNX model files (structure, hydration, elasticity, lesion_detector)
-      __tests__/      # Backend test suites (vision, rag, integration, signal-models)
+      __tests__/      # Backend test suites (vision, rag, integration, signal-models, curated-products, product-endpoints)
     assets/           # Images, fonts
   ml/                 # ML training pipeline
     notebooks/        # Colab notebooks (01-09), export to ONNX
@@ -136,6 +137,8 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 
 - Light theme: background `#FAFAF7` (warm cream), primary accent `#3A9E8F` (teal)
 - Dark gradient backgrounds on scan/analyzing screens: `#060B12` → `#6B8799` → `#081522`
+- Typography: Switzer-Medium as default weight, WCAG AAA contrast ratios (7:1)
+- 3-tier surface hierarchy: hero (elevated + shadow), standard (flat), recessed (inset)
 - Animations via `react-native-reanimated`
 - Onboarding: fade transitions with staggered fade-with-rise entrance (Headspace-inspired)
 - Tab bar: floating pill with SVG notch cutout, glass fill `rgba(255,255,255,0.93)`, camera button absolutely positioned above with teal glow
@@ -152,7 +155,7 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 - `app/index.tsx` is now a minimal bridge screen (cream background) — the old landing page with safety card was removed
 - Tab bar: `NotchedTabBar.tsx` — SVG notch path (10px depth, 74px width), camera absolutely positioned via `cameraAnchor`, tabs layout has no sceneStyle (tab bar floats over content)
 - Lesion constants: `src/constants/lesions.ts` — 6 lesion classes with descriptions, colors, zone definitions
-- 340 tests (22 suites: 228 frontend + 112 backend), 0 TS errors
+- 422 tests (25 suites), 0 TS errors
 - Authentication via Clerk is mandatory when CLERK_PUBLISHABLE_KEY is set
 - Backend authorization: all POST/GET/DELETE endpoints use `req.auth.userId` — never trust `body.user_id`
 - Backend security: CORS via `CORS_ORIGINS`, rate limiting on public + vision/analyze endpoints, `safeErrorMessage()` hides PG details in production, timing-safe admin secret, transactional cascading deletes
@@ -174,6 +177,9 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 - Daily scan notifications: `src/services/notifications.ts` — `scheduleDailyReminder(h, m)`, `cancelDailyReminder()`, configurable in onboarding + profile
 - Products tab: `app/(tabs)/products.tsx` — full product management with routine score ring, ProductCard list, AddProductSheet (search/barcode/manual), FAB
 - Components: `ProductCard.tsx` (effectiveness ring, usage badge), `AddProductSheet.tsx` (modal bottom sheet with 3 add modes)
+- Scan UX components: `CoachingTooltip.tsx` (real-time user guidance), `DirectionIndicators.tsx` (alignment direction cues), `ConfidenceBadge.tsx` (confidence score display)
+- Backend curated products: `curated-products.js` — product database with `searchCuratedProducts()`, `lookupCuratedBarcode()`, `enrichIngredients()`
+- Services: `lesionTracker.ts` (lesion history tracking), `reportHtml.ts` (HTML report generation via expo-print)
 - Model download: `backend/scripts/download-models.sh` fetches ONNX files from HuggingFace
 - Lesion export: `ml/export_lesion_onnx.py` converts YOLOv8 .pt → .onnx
 

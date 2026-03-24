@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { useStore } from '../../src/store/useStore';
 import { CoachingTooltip } from '../../src/components/CoachingTooltip';
 import { NotchedTabBar } from '../../src/components/navigation/NotchedTabBar';
-import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
+import { gateWithPaywall } from '../../src/services/subscription';
 import { trackEvent } from '../../src/services/analytics';
 
 export default function TabsLayout() {
@@ -14,22 +14,10 @@ export default function TabsLayout() {
 
   const handleCameraPress = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const canScan = useStore.getState().canPerformScan();
-
-    if (!canScan) {
+    if (!useStore.getState().canPerformScan()) {
       trackEvent('paywall_shown', { trigger: 'camera_tab' });
-      try {
-        const purchased = await presentPaywall();
-        if (purchased) {
-          const sub = await checkSubscriptionStatus(useStore.getState().subscription);
-          useStore.getState().setSubscription(sub);
-        }
-      } catch {
-        // RevenueCat config error — allow scan anyway
-      }
-      if (!useStore.getState().canPerformScan()) return;
     }
-
+    if (!(await gateWithPaywall())) return;
     router.push('/scan/camera');
   };
 

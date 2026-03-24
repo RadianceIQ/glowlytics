@@ -79,6 +79,42 @@ const CURATED_PRODUCTS = [
     ingredients: ['Water', 'Glycerin', 'Niacinamide', 'Tranexamic Acid', 'Ceramide NP', 'Ceramide AP', 'Ceramide EOP', 'Phytosphingosine', 'Cholesterol', 'Ascorbyl Glucoside', 'Alpha-Arbutin', 'Sodium Hyaluronate', 'Sodium Lauroyl Lactylate', 'Carbomer', 'Sodium Hydroxide', 'Phenoxyethanol', 'Ethylhexylglycerin'],
     category: 'serum',
   },
+  {
+    name: 'Byoma Moisturizing Cream',
+    brand: 'Byoma',
+    ingredients: ['Water', 'Glycerin', 'Caprylic/Capric Triglyceride', 'Cetearyl Alcohol', 'Cetyl Alcohol', 'Ceramide NP', 'Ceramide AP', 'Ceramide EOP', 'Phytosphingosine', 'Cholesterol', 'Niacinamide', 'Squalane', 'Shea Butter', 'Sodium Hyaluronate', 'Panthenol', 'Allantoin', 'Tocopherol', 'Dimethicone', 'Carbomer', 'Xanthan Gum', 'Sodium Lauroyl Lactylate', 'Sodium Hydroxide', 'Disodium EDTA', 'Phenoxyethanol', 'Ethylhexylglycerin'],
+    category: 'moisturizer',
+  },
+  {
+    name: 'Byoma Moisturizing Rich Cream',
+    brand: 'Byoma',
+    ingredients: ['Water', 'Glycerin', 'Caprylic/Capric Triglyceride', 'Cetearyl Alcohol', 'Shea Butter', 'Ceramide NP', 'Ceramide AP', 'Ceramide EOP', 'Phytosphingosine', 'Cholesterol', 'Niacinamide', 'Squalane', 'Sodium Hyaluronate', 'Panthenol', 'Allantoin', 'Tocopherol', 'Dimethicone', 'Sodium Lauroyl Lactylate', 'Carbomer', 'Sodium Hydroxide', 'Phenoxyethanol', 'Ethylhexylglycerin'],
+    category: 'moisturizer',
+  },
+  {
+    name: 'Byoma Moisturizing Serum',
+    brand: 'Byoma',
+    ingredients: ['Water', 'Glycerin', 'Sodium Hyaluronate', 'Ceramide NP', 'Ceramide AP', 'Ceramide EOP', 'Phytosphingosine', 'Cholesterol', 'Niacinamide', 'Panthenol', 'Allantoin', 'Squalane', 'Betaine', 'Sodium Lauroyl Lactylate', 'Carbomer', 'Sodium Hydroxide', 'Phenoxyethanol', 'Ethylhexylglycerin'],
+    category: 'serum',
+  },
+  {
+    name: 'Byoma Sensitiv Soothing Serum',
+    brand: 'Byoma',
+    ingredients: ['Water', 'Glycerin', 'Ceramide NP', 'Ceramide AP', 'Ceramide EOP', 'Phytosphingosine', 'Cholesterol', 'Centella Asiatica Extract', 'Panthenol', 'Allantoin', 'Bisabolol', 'Sodium Hyaluronate', 'Sodium Lauroyl Lactylate', 'Carbomer', 'Phenoxyethanol', 'Ethylhexylglycerin'],
+    category: 'serum',
+  },
+  {
+    name: 'Byoma Exfoliating Gel Cleanser',
+    brand: 'Byoma',
+    ingredients: ['Water', 'Glycerin', 'Cocamidopropyl Betaine', 'Salicylic Acid', 'Lactic Acid', 'Ceramide NP', 'Ceramide AP', 'Ceramide EOP', 'Phytosphingosine', 'Cholesterol', 'Niacinamide', 'Sodium Lauroyl Lactylate', 'Citric Acid', 'Sodium Chloride', 'Phenoxyethanol', 'Ethylhexylglycerin'],
+    category: 'cleanser',
+  },
+  {
+    name: 'Byoma Lip Treatment',
+    brand: 'Byoma',
+    ingredients: ['Hydrogenated Polyisobutene', 'Diisostearyl Malate', 'Ceramide NP', 'Ceramide AP', 'Ceramide EOP', 'Phytosphingosine', 'Cholesterol', 'Shea Butter', 'Squalane', 'Tocopherol', 'Sodium Lauroyl Lactylate', 'Phenoxyethanol'],
+    category: 'lip care',
+  },
 
   // ==================== Carmex ====================
   {

@@ -24,7 +24,7 @@ import { getDirections } from '../../src/services/faceTracking';
 import type { DetectedFace } from '../../src/services/faceTracking';
 import { checkPhotoQuality } from '../../src/services/photoQuality';
 import { useStore } from '../../src/store/useStore';
-import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
+import { gateWithPaywall } from '../../src/services/subscription';
 import { trackEvent } from '../../src/services/analytics';
 import { env } from '../../src/config/env';
 import { LesionTracker } from '../../src/services/lesionTracker';
@@ -61,19 +61,9 @@ export default function CameraScreen() {
     if (!canPerformScan()) {
       (async () => {
         setPaywallVisible(true);
-        try {
-          const purchased = await presentPaywall();
-          if (purchased) {
-            const sub = await checkSubscriptionStatus(useStore.getState().subscription);
-            useStore.getState().setSubscription(sub);
-          }
-        } catch {
-          // RevenueCat config error — non-fatal
-        }
+        const allowed = await gateWithPaywall();
         setPaywallVisible(false);
-        if (!useStore.getState().canPerformScan()) {
-          router.back();
-        }
+        if (!allowed) router.back();
       })();
     }
   }, []);

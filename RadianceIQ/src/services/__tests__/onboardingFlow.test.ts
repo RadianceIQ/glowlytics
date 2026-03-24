@@ -7,38 +7,43 @@ import {
 
 describe('onboardingFlow', () => {
   describe('buildOnboardingFlow', () => {
-    it('builds base flow without sex-specific screens', () => {
+    it('builds base flow with essential screens', () => {
       const flow = buildOnboardingFlow();
       expect(flow).toContain('welcome');
       expect(flow).toContain('age-range');
       expect(flow).toContain('sex');
-      expect(flow).toContain('location');
       expect(flow).toContain('skin-goal');
-      expect(flow).toContain('products');
-      expect(flow).toContain('supplements');
-      expect(flow).toContain('exercise');
-      expect(flow).toContain('shower-frequency');
-      expect(flow).toContain('hand-washing');
-      expect(flow).toContain('scan-reminder');
       expect(flow).toContain('camera-permission');
-      expect(flow).toContain('ready');
+      expect(flow).toContain('preview');
       expect(flow).toContain('paywall');
       expect(flow).not.toContain('menstrual');
       expect(flow).not.toContain('cycle-details');
     });
 
-    it('places products right after skin-goal', () => {
+    it('does not include deferred screens', () => {
+      const flow = buildOnboardingFlow();
+      expect(flow).not.toContain('location');
+      expect(flow).not.toContain('products');
+      expect(flow).not.toContain('supplements');
+      expect(flow).not.toContain('exercise');
+      expect(flow).not.toContain('shower-frequency');
+      expect(flow).not.toContain('hand-washing');
+      expect(flow).not.toContain('scan-reminder');
+      expect(flow).not.toContain('ready');
+    });
+
+    it('places camera-permission after skin-goal for base flow', () => {
       const flow = buildOnboardingFlow();
       const goalIndex = flow.indexOf('skin-goal');
-      const productsIndex = flow.indexOf('products');
-      expect(productsIndex).toBe(goalIndex + 1);
+      const cameraIndex = flow.indexOf('camera-permission');
+      expect(cameraIndex).toBe(goalIndex + 1);
     });
 
     it('builds male flow without menstrual screens', () => {
       const flow = buildOnboardingFlow('male');
       expect(flow).not.toContain('menstrual');
       expect(flow).not.toContain('cycle-details');
-      expect(flow.length).toBe(14); // +products +scan-reminder +paywall
+      expect(flow.length).toBe(7);
     });
 
     it('inserts menstrual screen for female users', () => {
@@ -96,12 +101,12 @@ describe('onboardingFlow', () => {
     });
 
     it('has correct length for each path', () => {
-      expect(buildOnboardingFlow().length).toBe(14);       // base + products + scan-reminder + paywall
-      expect(buildOnboardingFlow('male').length).toBe(14);
-      expect(buildOnboardingFlow('female').length).toBe(15);
-      expect(buildOnboardingFlow('female', 'regular').length).toBe(16);
-      expect(buildOnboardingFlow('female', 'irregular').length).toBe(16);
-      expect(buildOnboardingFlow('female', 'no').length).toBe(15);
+      expect(buildOnboardingFlow().length).toBe(7);              // base
+      expect(buildOnboardingFlow('male').length).toBe(7);        // same as base
+      expect(buildOnboardingFlow('female').length).toBe(8);      // +menstrual
+      expect(buildOnboardingFlow('female', 'regular').length).toBe(9);   // +menstrual +cycle-details
+      expect(buildOnboardingFlow('female', 'irregular').length).toBe(9);
+      expect(buildOnboardingFlow('female', 'no').length).toBe(8);       // +menstrual only
     });
   });
 
@@ -110,7 +115,7 @@ describe('onboardingFlow', () => {
       expect(screenToRoute('welcome')).toBe('/onboarding/welcome');
       expect(screenToRoute('age-range')).toBe('/onboarding/age-range');
       expect(screenToRoute('camera-permission')).toBe('/onboarding/camera-permission');
-      expect(screenToRoute('scan-reminder')).toBe('/onboarding/scan-reminder');
+      expect(screenToRoute('preview')).toBe('/onboarding/preview');
       expect(screenToRoute('paywall')).toBe('/onboarding/paywall');
     });
   });

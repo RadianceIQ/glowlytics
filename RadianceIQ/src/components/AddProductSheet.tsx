@@ -13,9 +13,24 @@ import {
   View,
   ScrollView,
 } from 'react-native';
+import { localDateStr } from '../utils/localDate';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
-import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from 'react-native-vision-camera';
+// Safe VisionCamera import — gracefully degrades in Expo Go where native modules aren't available
+let VisionCamera: any = null;
+let useCameraDeviceHook: (position: string) => any = () => null;
+let useCameraPermissionHook: () => { hasPermission: boolean; requestPermission: () => Promise<boolean> } =
+  () => ({ hasPermission: false, requestPermission: async () => false });
+let useCodeScannerHook: (opts: any) => any = () => ({});
+try {
+  const vc = require('react-native-vision-camera');
+  VisionCamera = vc.Camera;
+  useCameraDeviceHook = vc.useCameraDevice;
+  useCameraPermissionHook = vc.useCameraPermission;
+  useCodeScannerHook = vc.useCodeScanner;
+} catch {
+  // VisionCamera not available (Expo Go) — camera features will show fallback UI
+}
 import { imageToBase64 } from '../services/visionAPI';
 import * as Haptics from 'expo-haptics';
 import {
@@ -45,8 +60,8 @@ interface SelectedProduct {
 
 export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
   const addProduct = useStore((s) => s.addProduct);
-  const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
+  const { hasPermission, requestPermission } = useCameraPermissionHook();
+  const device = useCameraDeviceHook('back');
 
   const [mode, setMode] = useState<SheetMode>('menu');
   const [originMode, setOriginMode] = useState<SheetMode>('menu');
@@ -63,12 +78,12 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
   const lastScannedBarcodeRef = useRef<string | null>(null);
   const photoCancelledRef = useRef(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cameraRef = useRef<Camera>(null);
+  const cameraRef = useRef<any>(null);
 
   // Barcode scanner hook — only active when in barcode mode
-  const codeScanner = useCodeScanner({
+  const codeScanner = useCodeScannerHook({
     codeTypes: ['ean-13', 'ean-8', 'upc-a', 'upc-e'],
-    onCodeScanned: (codes) => {
+    onCodeScanned: (codes: any[]) => {
       if (codes.length > 0 && codes[0].value) {
         handleBarcodeScan(codes[0].value);
       }
@@ -227,7 +242,7 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
       product_capture_method: captureMethod,
       ingredients_list: selected.ingredients,
       usage_schedule: schedule,
-      start_date: new Date().toISOString().split('T')[0],
+      start_date: localDateStr(),
     });
     trackEvent('product_added', { product_name: selected.name, capture_method: captureMethod, schedule });
     handleClose();
@@ -371,10 +386,10 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
 
             {mode === 'barcode' && (
               <View style={styles.barcodeMode}>
-                {hasPermission && device ? (
+                {hasPermission && device && VisionCamera ? (
                   <>
                     <View style={styles.cameraBox}>
-                      <Camera
+                      <VisionCamera
                         style={styles.camera}
                         device={device}
                         isActive={mode === 'barcode'}
@@ -409,13 +424,13 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
 
             {mode === 'photo' && (
               <View style={styles.photoMode}>
-                {hasPermission && device ? (
+                {hasPermission && device && VisionCamera ? (
                   <>
                     <Text style={styles.photoHint}>
                       Point at the product so the name and brand are visible
                     </Text>
                     <View style={styles.cameraBox}>
-                      <Camera
+                      <VisionCamera
                         ref={cameraRef}
                         style={styles.camera}
                         device={device}
@@ -483,9 +498,9 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
 
             {mode === 'schedule' && selected && (
               <View style={styles.scheduleMode}>
-                <Text style={styles.selectedName}>{selected.name}</Text>
+                <Text style={styles.selectedName} numberOfLines={2}>{selected.name}</Text>
                 {selected.brand && (
-                  <Text style={styles.selectedBrand}>{selected.brand}</Text>
+                  <Text style={styles.selectedBrand} numberOfLines={1}>{selected.brand}</Text>
                 )}
                 <Text style={styles.selectedMeta}>{selected.ingredients.length} ingredients</Text>
 

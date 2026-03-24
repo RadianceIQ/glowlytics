@@ -23,7 +23,8 @@ interface GamificationCardProps {
 }
 
 export const GamificationCard: React.FC<GamificationCardProps> = ({ gamification, streak }) => {
-  const { current, next, progress, nextThreshold } = getLevelProgress(gamification.xp);
+  const xp = gamification?.xp ?? 0;
+  const { current, next, progress, nextThreshold } = getLevelProgress(xp);
 
   const animatedProgress = useSharedValue(0);
 
@@ -39,7 +40,7 @@ export const GamificationCard: React.FC<GamificationCardProps> = ({ gamification
   }));
 
   // Find the first incomplete challenge
-  const activeChallenge = gamification.weekly_challenges.find((c) => !c.completed);
+  const activeChallenge = (gamification?.weekly_challenges ?? []).find((c) => !c.completed);
   const challengeProgress = activeChallenge
     ? Math.min(1, activeChallenge.progress / activeChallenge.target)
     : 0;
@@ -63,7 +64,7 @@ export const GamificationCard: React.FC<GamificationCardProps> = ({ gamification
       <View style={styles.topRow}>
         <View style={styles.levelInfo}>
           <Text style={styles.levelLabel}>{current}</Text>
-          <Text style={styles.xpLabel}>{gamification.xp.toLocaleString()} XP</Text>
+          <Text style={styles.xpLabel}>{xp.toLocaleString()} XP</Text>
         </View>
 
         <View style={styles.streakBadge}>

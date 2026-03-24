@@ -11,6 +11,7 @@ import type {
 import { defaultSubscription, canScan as canScanPure, startTrial as computeTrial } from '../services/subscription';
 import * as api from '../services/api';
 import { buildOnboardingFlow } from '../services/onboardingFlow';
+import { localDateStr } from '../utils/localDate';
 import {
   getLevelForXP,
   getXPForScan,
@@ -69,7 +70,7 @@ interface AppState {
   getOutputHistory: (days: number) => ModelOutput[];
   loadPersistedData: () => Promise<void>;
   persistData: () => Promise<void>;
-  resetAll: () => void;
+  resetAll: () => Promise<void>;
   awardXP: (amount: number) => void;
   checkAndAwardBadges: () => void;
   updatePersonalBests: () => void;
@@ -255,7 +256,7 @@ export const useStore = create<AppState>((set, get) => ({
       primary_goal: goal,
       scan_region: region,
       scan_frequency: 'daily',
-      baseline_date: new Date().toISOString().split('T')[0],
+      baseline_date: localDateStr(),
     };
     set({ protocol });
     debouncedPersist(() => get().persistData());
@@ -337,7 +338,7 @@ export const useStore = create<AppState>((set, get) => ({
     for (let i = 0; i < records.length; i++) {
       const expected = new Date(today);
       expected.setDate(expected.getDate() - i);
-      const expectedStr = expected.toISOString().split('T')[0];
+      const expectedStr = localDateStr(expected);
       if (dateSet.has(expectedStr)) {
         streak++;
       } else {
@@ -356,7 +357,7 @@ export const useStore = create<AppState>((set, get) => ({
   getOutputHistory: (days) => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const cutoffStr = localDateStr(cutoff);
     const records = get().dailyRecords.filter((r) => r.date >= cutoffStr);
     const dailyIds = new Set(records.map((r) => r.daily_id));
     return get().modelOutputs.filter((o) => dailyIds.has(o.daily_id));
@@ -542,15 +543,22 @@ export const useStore = create<AppState>((set, get) => ({
   persistData: async () => {
     try {
       const { user, protocol, products, dailyRecords, modelOutputs, gamification, subscription, notificationSettings, onboardingFlow, onboardingFlowIndex } = get();
+      // Cap stored records to last 365 days to prevent AsyncStorage bloat
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 365);
+      const cutoffStr = localDateStr(cutoff);
+      const cappedDailyRecords = dailyRecords.filter((r) => r.date >= cutoffStr);
+      const cappedDailyIds = new Set(cappedDailyRecords.map((r) => r.daily_id));
+      const cappedModelOutputs = modelOutputs.filter((o) => cappedDailyIds.has(o.daily_id));
       await AsyncStorage.setItem('glowlytics_data', JSON.stringify({
-        user, protocol, products, dailyRecords, modelOutputs, gamification, subscription, notificationSettings, onboardingFlow, onboardingFlowIndex,
+        user, protocol, products, dailyRecords: cappedDailyRecords, modelOutputs: cappedModelOutputs, gamification, subscription, notificationSettings, onboardingFlow, onboardingFlowIndex,
       }));
     } catch (e) {
       console.log('Failed to persist data', e);
     }
   },
 
-  resetAll: () => {
+  resetAll: async () => {
     // Cancel any pending debounced persist so it doesn't re-write cleared data
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
     set({
@@ -569,6 +577,10 @@ export const useStore = create<AppState>((set, get) => ({
       subscription: defaultSubscription(),
       notificationSettings: { notifications_enabled: false, notification_time: null },
     });
-    AsyncStorage.removeItem('glowlytics_data');
+    try {
+      await AsyncStorage.removeItem('glowlytics_data');
+    } catch {
+      // Best-effort cleanup
+    }
   },
 }));

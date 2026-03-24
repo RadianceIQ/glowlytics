@@ -206,10 +206,15 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Simple in-memory rate limiter for the public detect-lesions endpoint
+// Simple in-memory rate limiters
 const detectRateMap = new Map();
 const DETECT_RATE_WINDOW = 10000; // 10s
 const DETECT_RATE_MAX = 10; // max 10 requests per window per IP
+
+// Photo identification rate limiter (declared here so cleanup interval can reference it)
+const photoRateMap = new Map();
+const PHOTO_RATE_WINDOW = 10000;
+const PHOTO_RATE_MAX = 5;
 function detectRateLimit(req, res, next) {
   const ip = req.ip || req.socket.remoteAddress;
   const now = Date.now();
@@ -234,6 +239,9 @@ setInterval(() => {
   }
   for (const [key, entry] of analyzeRateMap) {
     if (now - entry.start > ANALYZE_RATE_WINDOW) analyzeRateMap.delete(key);
+  }
+  for (const [key, entry] of photoRateMap) {
+    if (now - entry.start > PHOTO_RATE_WINDOW) photoRateMap.delete(key);
   }
 }, RATE_CLEANUP_INTERVAL);
 
@@ -261,8 +269,11 @@ app.post('/api/vision/detect-lesions', detectRateLimit, async (req, res) => {
   const start = Date.now();
   try {
     const { image_base64 } = req.body;
-    if (!image_base64) {
+    if (!image_base64 || typeof image_base64 !== 'string') {
       return res.status(400).json({ error: 'image_base64 is required' });
+    }
+    if (image_base64.length > 10 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Image too large (max 10MB)' });
     }
 
     const lesions = await signalModels.runLesionDetector(image_base64);
@@ -468,9 +479,6 @@ app.get('/api/products/search', detectRateLimit, async (req, res) => {
 });
 
 // Photo-based product identification (public, rate-limited)
-const photoRateMap = new Map();
-const PHOTO_RATE_WINDOW = 10000;
-const PHOTO_RATE_MAX = 5;
 function photoRateLimit(req, res, next) {
   const ip = req.ip || req.socket.remoteAddress;
   const now = Date.now();
@@ -544,9 +552,11 @@ app.post('/api/products/identify-photo', photoRateLimit, async (req, res) => {
     }
 
     if (!parsed) {
+      log.warn('[identify-photo] Could not parse GPT response:', raw.slice(0, 200));
       return res.json({ identified: false, error: 'Could not parse response' });
     }
     if (!parsed.identified) {
+      log.warn('[identify-photo] GPT could not identify product');
       return res.json({ identified: false, error: 'Could not identify product' });
     }
 
@@ -593,8 +603,11 @@ app.post('/api/vision/analyze', analyzeRateLimit, async (req, res) => {
   try {
     const { image_base64, context } = req.body;
 
-    if (!image_base64) {
+    if (!image_base64 || typeof image_base64 !== 'string') {
       return res.status(400).json({ error: 'image_base64 is required' });
+    }
+    if (image_base64.length > 15 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Image too large (max 15MB)' });
     }
     if (!context) {
       return res.status(400).json({ error: 'context object is required' });
@@ -668,28 +681,31 @@ Return ONLY valid JSON matching this schema:
         return null;
       }),
 
-      // Layer 3: GPT-4o
-      openai.chat.completions.create({
-        model: modelId,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Analyze this facial skin photo and return the structured scores.' },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/jpeg;base64,${image_base64}`,
-                  detail: 'high',
+      // Layer 3: GPT-4o (30s timeout to prevent hung connections)
+      Promise.race([
+        openai.chat.completions.create({
+          model: modelId,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Analyze this facial skin photo and return the structured scores.' },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:image/jpeg;base64,${image_base64}`,
+                    detail: 'high',
+                  },
                 },
-              },
-            ],
-          },
-        ],
-        max_tokens: 1200,
-        temperature: 0.2,
-      }),
+              ],
+            },
+          ],
+          max_tokens: 1200,
+          temperature: 0.2,
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('OpenAI request timed out after 30s')), 30_000)),
+      ]),
     ]);
 
     // ==================== PARSE LAYER 3 (GPT-4o) RESPONSE ====================
@@ -1404,18 +1420,5 @@ app._resetRateLimiters = () => {
   photoRateMap.clear();
 };
 
-// Periodic cleanup of stale rate limiter entries (production memory hygiene)
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of detectRateMap) {
-    if (now - entry.start > DETECT_RATE_WINDOW * 2) detectRateMap.delete(ip);
-  }
-  for (const [ip, entry] of photoRateMap) {
-    if (now - entry.start > PHOTO_RATE_WINDOW * 2) photoRateMap.delete(ip);
-  }
-  for (const [ip, entry] of analyzeRateMap) {
-    if (now - entry.start > ANALYZE_RATE_WINDOW * 2) analyzeRateMap.delete(ip);
-  }
-}, 60000).unref(); // unref so the timer doesn't prevent process exit
 
 module.exports = app;

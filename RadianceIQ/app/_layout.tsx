@@ -7,11 +7,13 @@ import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ClerkProvider, ClerkLoaded, useAuth } from '@clerk/clerk-expo';
 import Animated, {
+  Easing,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withDelay,
   withSequence,
+  withRepeat,
 } from 'react-native-reanimated';
 import { tokenCache } from '../src/config/tokenCache';
 import { env } from '../src/config/env';
@@ -28,29 +30,83 @@ const initLesionDetection = () =>
 const SPLASH_MIN_MS = 1500;
 
 // ─── Splash Screen ───────────────────────────────────────────────
+const EXPO_OUT = Easing.out(Easing.exp);
+
 function SplashScreen() {
-  const logoScale = useSharedValue(0.88);
+  // Phase 1: Logo materializes
+  const logoScale = useSharedValue(0.55);
   const logoOpacity = useSharedValue(0);
-  const glowScale = useSharedValue(0.5);
-  const glowOpacity = useSharedValue(0);
+
+  // Phase 2: Three concentric glow rings bloom outward like a scan pulse
+  const ring1Scale = useSharedValue(0.3);
+  const ring1Opacity = useSharedValue(0);
+  const ring2Scale = useSharedValue(0.3);
+  const ring2Opacity = useSharedValue(0);
+  const ring3Scale = useSharedValue(0.3);
+  const ring3Opacity = useSharedValue(0);
+
+  // Phase 3: Scan line sweeps through the logo
+  const scanY = useSharedValue(-90);
+  const scanOpacity = useSharedValue(0);
+
+  // Phase 4: Wordmark reveals
   const nameOpacity = useSharedValue(0);
-  const nameY = useSharedValue(10);
+  const nameY = useSharedValue(22);
 
   useEffect(() => {
-    // Logo: scale + fade in
-    logoOpacity.value = withTiming(1, { duration: 500, easing: CALM_EASING });
-    logoScale.value = withTiming(1, { duration: 600, easing: CALM_EASING });
+    // ── Phase 1: Logo (0–700ms) ──
+    logoOpacity.value = withTiming(1, { duration: 600, easing: EXPO_OUT });
+    logoScale.value = withTiming(1, { duration: 800, easing: EXPO_OUT });
 
-    // Glow bloom behind logo (150ms delay)
-    glowScale.value = withDelay(150, withTiming(1.4, { duration: 900, easing: CALM_EASING }));
-    glowOpacity.value = withDelay(150, withSequence(
-      withTiming(0.55, { duration: 600, easing: CALM_EASING }),
-      withTiming(0.18, { duration: 600 }),
+    // ── Phase 2: Glow rings bloom (staggered 150ms apart) ──
+    // Inner ring — brightest, tightest
+    ring1Scale.value = withDelay(150, withTiming(1, { duration: 900, easing: EXPO_OUT }));
+    ring1Opacity.value = withDelay(150, withSequence(
+      withTiming(0.30, { duration: 400, easing: EXPO_OUT }),
+      withTiming(0.10, { duration: 700 }),
+      // Settle into a gentle breathe
+      withRepeat(withSequence(
+        withTiming(0.14, { duration: 2000 }),
+        withTiming(0.08, { duration: 2000 }),
+      ), -1, true),
     ));
 
-    // Wordmark fade + rise (650ms delay)
-    nameOpacity.value = withDelay(650, withTiming(1, { duration: 400, easing: CALM_EASING }));
-    nameY.value = withDelay(650, withTiming(0, { duration: 400, easing: CALM_EASING }));
+    // Mid ring
+    ring2Scale.value = withDelay(300, withTiming(1, { duration: 900, easing: EXPO_OUT }));
+    ring2Opacity.value = withDelay(300, withSequence(
+      withTiming(0.20, { duration: 400, easing: EXPO_OUT }),
+      withTiming(0.06, { duration: 700 }),
+      withRepeat(withSequence(
+        withTiming(0.09, { duration: 2200 }),
+        withTiming(0.04, { duration: 2200 }),
+      ), -1, true),
+    ));
+
+    // Outer ring — softest, widest
+    ring3Scale.value = withDelay(450, withTiming(1, { duration: 900, easing: EXPO_OUT }));
+    ring3Opacity.value = withDelay(450, withSequence(
+      withTiming(0.14, { duration: 400, easing: EXPO_OUT }),
+      withTiming(0.03, { duration: 700 }),
+      withRepeat(withSequence(
+        withTiming(0.06, { duration: 2400 }),
+        withTiming(0.02, { duration: 2400 }),
+      ), -1, true),
+    ));
+
+    // ── Phase 3: Scan line (400–950ms) ──
+    scanOpacity.value = withDelay(400, withSequence(
+      withTiming(0.7, { duration: 80 }),
+      withTiming(0.5, { duration: 400 }),
+      withTiming(0, { duration: 70 }),
+    ));
+    scanY.value = withDelay(400, withTiming(90, {
+      duration: 550,
+      easing: Easing.inOut(Easing.cubic),
+    }));
+
+    // ── Phase 4: Wordmark (800ms) ──
+    nameOpacity.value = withDelay(800, withTiming(1, { duration: 500, easing: EXPO_OUT }));
+    nameY.value = withDelay(800, withTiming(0, { duration: 600, easing: EXPO_OUT }));
   }, []);
 
   const logoStyle = useAnimatedStyle(() => ({
@@ -58,9 +114,24 @@ function SplashScreen() {
     transform: [{ scale: logoScale.value }],
   }));
 
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-    transform: [{ scale: glowScale.value }],
+  const ring1Style = useAnimatedStyle(() => ({
+    opacity: ring1Opacity.value,
+    transform: [{ scale: ring1Scale.value }],
+  }));
+
+  const ring2Style = useAnimatedStyle(() => ({
+    opacity: ring2Opacity.value,
+    transform: [{ scale: ring2Scale.value }],
+  }));
+
+  const ring3Style = useAnimatedStyle(() => ({
+    opacity: ring3Opacity.value,
+    transform: [{ scale: ring3Scale.value }],
+  }));
+
+  const scanStyle = useAnimatedStyle(() => ({
+    opacity: scanOpacity.value,
+    transform: [{ translateY: scanY.value }],
   }));
 
   const nameStyle = useAnimatedStyle(() => ({
@@ -71,14 +142,24 @@ function SplashScreen() {
   return (
     <View style={splash.container}>
       <StatusBar style="dark" />
-      <Animated.View style={[splash.glow, glowStyle]} />
-      <Animated.View style={logoStyle}>
-        <Image
-          source={require('../assets/splash-icon.png')}
-          style={splash.logo}
-          resizeMode="contain"
-        />
-      </Animated.View>
+
+      {/* Glow rings — outermost first for z-order */}
+      <Animated.View style={[splash.ring, splash.ring3, ring3Style]} />
+      <Animated.View style={[splash.ring, splash.ring2, ring2Style]} />
+      <Animated.View style={[splash.ring, splash.ring1, ring1Style]} />
+
+      {/* Logo + scan line container */}
+      <View style={splash.logoArea}>
+        <Animated.View style={[splash.scanLine, scanStyle]} />
+        <Animated.View style={logoStyle}>
+          <Image
+            source={require('../assets/logo-emblem.png')}
+            style={splash.logo}
+            resizeMode="contain"
+          />
+        </Animated.View>
+      </View>
+
       <Animated.Text style={[splash.name, nameStyle]}>Glowlytics</Animated.Text>
     </View>
   );
@@ -91,23 +172,48 @@ const splash = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  glow: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: BorderRadius.full,
-    backgroundColor: 'rgba(58, 158, 143, 0.10)',
+  logoArea: {
+    width: 180,
+    height: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   logo: {
-    width: 140,
-    height: 140,
+    width: 170,
+    height: 170,
+  },
+  ring: {
+    position: 'absolute',
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary,
+  },
+  ring1: {
+    width: 220,
+    height: 220,
+  },
+  ring2: {
+    width: 320,
+    height: 320,
+  },
+  ring3: {
+    width: 440,
+    height: 440,
+  },
+  scanLine: {
+    position: 'absolute',
+    width: 160,
+    height: 2,
+    backgroundColor: Colors.primary,
+    borderRadius: 1,
+    zIndex: 10,
   },
   name: {
-    marginTop: 20,
+    marginTop: 28,
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xxl,
     color: Colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: 2,
   },
 });
 

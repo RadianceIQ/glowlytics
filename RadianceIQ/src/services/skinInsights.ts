@@ -1,4 +1,5 @@
 import type { DailyRecord, DetectedLesion, ModelOutput, ProductEntry, SignalConfidence, SignalFeatures, SignalScores } from '../types';
+import { localDateStr } from '../utils/localDate';
 
 export type SkinMetricKey = 'acne' | 'sun_damage' | 'skin_age';
 export type SeverityLevel = 'low' | 'moderate' | 'high';
@@ -479,7 +480,7 @@ export const computeSignalHistory = (
 ): { date: string; value: number }[] => {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
-  const cutoffStr = cutoff.toISOString().split('T')[0];
+  const cutoffStr = localDateStr(cutoff);
 
   const recentRecords = dailyRecords
     .filter((r) => r.date >= cutoffStr)
