@@ -15,7 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { tokenCache } from '../src/config/tokenCache';
 import { env } from '../src/config/env';
-import { Colors, FontFamily, FontSize } from '../src/constants/theme';
+import { BorderRadius, Colors, FontFamily, FontSize } from '../src/constants/theme';
 import { CALM_EASING } from '../src/utils/animations';
 import { useStore } from '../src/store/useStore';
 import { setAuthTokenProvider } from '../src/services/api';
@@ -95,7 +95,7 @@ const splash = StyleSheet.create({
     position: 'absolute',
     width: 220,
     height: 220,
-    borderRadius: 110,
+    borderRadius: BorderRadius.full,
     backgroundColor: 'rgba(58, 158, 143, 0.10)',
   },
   logo: {
@@ -243,6 +243,7 @@ function ClerkGatedApp() {
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     'Switzer-Regular': require('../assets/fonts/Switzer-Regular.ttf'),
+    'Switzer-Medium': require('../assets/fonts/Switzer-Medium.ttf'),
     'Switzer-Bold': require('../assets/fonts/Switzer-Bold.ttf'),
   });
 

@@ -11,6 +11,7 @@ export const Colors = {
 
   background: '#FAFAF7',
   backgroundDeep: '#F5F4F0',
+  backgroundWarm: '#EDE9E3',
   backgroundRaised: '#FFFFFF',
   surface: '#F0EFEB',
   surfaceLight: '#E8E7E3',
@@ -76,6 +77,7 @@ export const Spacing = {
 };
 
 export const FontSize = {
+  xxs: 10,
   xs: 11,
   sm: 13,
   md: 15,
@@ -87,6 +89,7 @@ export const FontSize = {
 };
 
 export const BorderRadius = {
+  xs: 6,
   sm: 10,
   md: 14,
   lg: 20,
@@ -97,7 +100,7 @@ export const BorderRadius = {
 
 export const FontFamily = {
   sans: 'Switzer-Regular',
-  sansMedium: 'Switzer-Regular',
+  sansMedium: 'Switzer-Medium',
   sansSemiBold: 'Switzer-Bold',
   sansBold: 'Switzer-Bold',
   serif: 'Switzer-Regular',

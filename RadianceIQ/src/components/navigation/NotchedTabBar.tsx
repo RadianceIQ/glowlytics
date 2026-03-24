@@ -4,7 +4,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Dimensions, Pressable, StyleSheet, Text, View, Keyboard, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { BorderRadius, Colors, FontFamily, Spacing } from '../../constants/theme';
+import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../constants/theme';
 
 const TAB_VISUAL_HEIGHT = 74;
 const CAMERA_SIZE = 68;
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   tabLabel: {
     color: Colors.textMuted,
     fontFamily: FontFamily.sansMedium,
-    fontSize: 10,
+    fontSize: FontSize.xxs,
     letterSpacing: 0.3,
   },
   tabLabelActive: {

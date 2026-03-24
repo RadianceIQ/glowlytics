@@ -170,6 +170,8 @@ export default function ProductsTab() {
             style={styles.emptyButton}
             onPress={() => setShowAddSheet(true)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Add your first product"
           >
             <Feather name="plus" size={18} color="#FFFFFF" />
             <Text style={styles.emptyButtonText}>Add your first product</Text>
@@ -185,6 +187,8 @@ export default function ProductsTab() {
           style={styles.fab}
           onPress={() => setShowAddSheet(true)}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Add product"
         >
           <Feather name="plus" size={24} color="#FFFFFF" />
         </TouchableOpacity>
@@ -283,7 +287,7 @@ const styles = StyleSheet.create({
     ...Shadows.glow,
   },
   emptyButtonText: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.md,
   },

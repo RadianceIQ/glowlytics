@@ -128,7 +128,7 @@ export const ScoreTile: React.FC<Props> = ({
 
       <View style={styles.railBlock}>
         <TrendRail
-          data={sparklineData && sparklineData.length > 1 ? sparklineData : [score - 6, score - 2, score]}
+          data={sparklineData && sparklineData.length > 1 ? sparklineData : [score]}
           color={color}
           compact={compact}
         />

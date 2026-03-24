@@ -375,8 +375,8 @@ export default function CameraScreen() {
 
       {/* Top bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Feather name="chevron-left" size={28} color={Colors.text} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+          <Feather name="chevron-left" size={28} color={Colors.textOnDark} />
         </TouchableOpacity>
 
         {/* Region pill */}
@@ -465,6 +465,9 @@ export default function CameraScreen() {
             onPress={handleCapture}
             disabled={trackingState.status !== 'aligned' || capturing}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Capture photo"
+            accessibilityState={{ disabled: trackingState.status !== 'aligned' || capturing }}
           >
             <Animated.View style={buttonAnimStyle}>
               <View style={[
@@ -508,7 +511,7 @@ const styles = StyleSheet.create({
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: BorderRadius.lg,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -520,7 +523,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   regionText: {
-    color: Colors.text,
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.xs,
     letterSpacing: 1.2,
@@ -536,7 +539,7 @@ const styles = StyleSheet.create({
   lightingDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: BorderRadius.xs,
   },
   lightingText: {
     fontFamily: FontFamily.sansSemiBold,
@@ -550,7 +553,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusText: {
-    color: Colors.text,
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.md,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
@@ -569,7 +572,7 @@ const styles = StyleSheet.create({
   captureRing: {
     width: 72,
     height: 72,
-    borderRadius: 36,
+    borderRadius: BorderRadius.full,
     borderWidth: 4,
     alignItems: 'center',
     justifyContent: 'center',
@@ -577,7 +580,7 @@ const styles = StyleSheet.create({
   captureInner: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: BorderRadius.full,
     backgroundColor: Colors.primary,
   },
   retakeContainer: {
@@ -594,7 +597,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
   },
   retakeIssue: {
-    color: Colors.textSecondary,
+    color: Colors.textOnDarkDim,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
   },

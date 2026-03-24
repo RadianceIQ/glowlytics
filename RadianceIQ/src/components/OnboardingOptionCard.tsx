@@ -156,8 +156,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   checkmark: {
-    color: '#FFFFFF',
-    fontSize: 14,
+    color: Colors.textOnDark,
+    fontSize: FontSize.md,
     fontWeight: '700',
     lineHeight: 16,
   },

@@ -122,7 +122,7 @@ export const OnboardingTransition: React.FC<OnboardingTransitionProps> = ({
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <LinearGradient
-        colors={[Colors.background, Colors.backgroundDeep, '#EDE9E3']}
+        colors={[Colors.background, Colors.backgroundDeep, Colors.backgroundWarm]}
         start={{ x: 0.1, y: 0 }}
         end={{ x: 0.95, y: 1 }}
         style={StyleSheet.absoluteFill}

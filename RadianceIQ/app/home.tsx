@@ -170,6 +170,8 @@ export default function Home() {
               key={stat.key}
               style={styles.summaryStat}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${stat.label} signal, score ${stat.value ?? 'no data'}`}
               onPress={() => router.push({ pathname: '/signal/[key]', params: { key: stat.key } })}
             >
               <TopStatRing value={stat.value} color={stat.color} icon={stat.icon} />
@@ -259,10 +261,10 @@ export default function Home() {
 
 
       <View style={styles.utilityStrip}>
-        <TouchableOpacity style={styles.utilityAction} onPress={() => router.push('/report/generate')}>
+        <TouchableOpacity style={styles.utilityAction} onPress={() => router.push('/report/generate')} accessibilityRole="button" accessibilityLabel="Share report">
           <Text style={styles.utilityLabel}>Share report</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.utilityAction} onPress={() => router.push('/onboarding/products')}>
+        <TouchableOpacity style={styles.utilityAction} onPress={() => router.push('/onboarding/products')} accessibilityRole="button" accessibilityLabel="View products">
           <Text style={styles.utilityLabel}>Products</Text>
         </TouchableOpacity>
       </View>

@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: BorderRadius.xs,
     marginTop: 6,
   },
   ingredientInfo: {
@@ -518,13 +518,13 @@ const styles = StyleSheet.create({
   alignmentBarTrack: {
     height: 8,
     backgroundColor: Colors.surfaceHighlight,
-    borderRadius: 4,
+    borderRadius: BorderRadius.xs,
     overflow: 'hidden',
     marginBottom: Spacing.sm,
   },
   alignmentBarFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: BorderRadius.xs,
   },
   alignmentMeta: {
     flexDirection: 'row',
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
   signalDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: BorderRadius.xs,
   },
   signalName: {
     flex: 1,

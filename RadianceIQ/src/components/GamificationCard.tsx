@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   challengeProgress: {
     color: Colors.textDim,
     fontFamily: FontFamily.sans,
-    fontSize: 10,
+    fontSize: FontSize.xxs,
     textAlign: 'right',
   },
 });

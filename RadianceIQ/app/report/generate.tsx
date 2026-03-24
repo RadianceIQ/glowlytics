@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
   photoImage: {
     width: 100,
     height: 130,
-    borderRadius: 12,
+    borderRadius: BorderRadius.sm,
     backgroundColor: Colors.surfaceHighlight,
   },
   photoDate: {

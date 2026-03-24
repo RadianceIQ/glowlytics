@@ -40,7 +40,7 @@ export const AtmosphereScreen: React.FC<Props> = ({
   return (
     <View style={[styles.root, style]}>
       <LinearGradient
-        colors={[Colors.background, Colors.backgroundDeep, '#EDE9E3']}
+        colors={[Colors.background, Colors.backgroundDeep, Colors.backgroundWarm]}
         start={{ x: 0.1, y: 0 }}
         end={{ x: 0.95, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -65,7 +65,6 @@ export const AtmosphereScreen: React.FC<Props> = ({
           style={styles.warmGlow}
         />
       )}
-      <View style={styles.gridOverlay} pointerEvents="none" />
       <LinearGradient
         colors={['transparent', 'rgba(250, 250, 247, 0.7)']}
         start={{ x: 0.5, y: 0 }}
@@ -117,13 +116,6 @@ const styles = StyleSheet.create({
     height: 260,
     borderRadius: BorderRadius.full,
     opacity: 0.25,
-  },
-  gridOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: BorderRadius.xxl,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    backgroundColor: 'transparent',
   },
   bottomVignette: {
     position: 'absolute',

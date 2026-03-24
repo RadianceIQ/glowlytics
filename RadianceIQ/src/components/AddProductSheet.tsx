@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from 'react-native-vision-camera';
+import { imageToBase64 } from '../services/visionAPI';
 import * as Haptics from 'expo-haptics';
 import {
   BorderRadius,
@@ -44,7 +45,8 @@ interface SelectedProduct {
 
 export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
   const addProduct = useStore((s) => s.addProduct);
-  const [permission, requestPermission] = useCameraPermissions();
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
 
   const [mode, setMode] = useState<SheetMode>('menu');
   const [originMode, setOriginMode] = useState<SheetMode>('menu');
@@ -61,7 +63,17 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
   const lastScannedBarcodeRef = useRef<string | null>(null);
   const photoCancelledRef = useRef(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cameraRef = useRef<CameraView>(null);
+  const cameraRef = useRef<Camera>(null);
+
+  // Barcode scanner hook — only active when in barcode mode
+  const codeScanner = useCodeScanner({
+    codeTypes: ['ean-13', 'ean-8', 'upc-a', 'upc-e'],
+    onCodeScanned: (codes) => {
+      if (codes.length > 0 && codes[0].value) {
+        handleBarcodeScan(codes[0].value);
+      }
+    },
+  });
 
   // Clean up debounce timer on unmount to prevent firing after sheet closes
   useEffect(() => {
@@ -160,13 +172,14 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
     setPhotoIdentifying(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.7 });
-      if (!photo?.base64) {
+      const photo = await cameraRef.current.takePhoto({ flash: 'off' });
+      if (!photo?.path) {
         setPhotoIdentifying(false);
         Alert.alert('Error', 'Could not capture photo. Please try again.');
         return;
       }
-      const result = await identifyProductPhoto(photo.base64);
+      const base64 = await imageToBase64(photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`);
+      const result = await identifyProductPhoto(base64);
       // Discard result if user cancelled while request was in-flight
       if (photoCancelledRef.current) return;
       if (result) {
@@ -221,9 +234,9 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
   };
 
   const requestCameraAndGo = async (target: SheetMode) => {
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (!result.granted) return; // User denied — stay on menu
+    if (!hasPermission) {
+      const granted = await requestPermission();
+      if (!granted) return; // User denied — stay on menu
     }
     setBarcodeFound(false);
     setPhotoIdentifying(false);
@@ -358,14 +371,14 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
 
             {mode === 'barcode' && (
               <View style={styles.barcodeMode}>
-                {permission?.granted ? (
+                {hasPermission && device ? (
                   <>
                     <View style={styles.cameraBox}>
-                      <CameraView
+                      <Camera
                         style={styles.camera}
-                        facing="back"
-                        barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'] }}
-                        onBarcodeScanned={(result) => handleBarcodeScan(result.data)}
+                        device={device}
+                        isActive={mode === 'barcode'}
+                        codeScanner={codeScanner}
                       />
                       <View style={styles.cameraOverlay}>
                         <View style={[
@@ -396,20 +409,22 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
 
             {mode === 'photo' && (
               <View style={styles.photoMode}>
-                {permission?.granted ? (
+                {hasPermission && device ? (
                   <>
                     <Text style={styles.photoHint}>
                       Point at the product so the name and brand are visible
                     </Text>
                     <View style={styles.cameraBox}>
-                      <CameraView
+                      <Camera
                         ref={cameraRef}
                         style={styles.camera}
-                        facing="back"
+                        device={device}
+                        isActive={mode === 'photo'}
+                        photo={true}
                       />
                       {photoIdentifying && (
                         <View style={styles.photoOverlay}>
-                          <ActivityIndicator size="large" color="#FFFFFF" />
+                          <ActivityIndicator size="large" color={Colors.textOnDark} />
                           <Text style={styles.photoOverlayText}>Identifying product...</Text>
                           <TouchableOpacity
                             style={styles.photoCancelButton}
@@ -659,7 +674,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   scanFeedbackText: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.sm,
   },
@@ -694,7 +709,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   photoOverlayText: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.md,
   },
@@ -707,7 +722,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   photoCancelText: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.md,
     textDecorationLine: 'underline',
@@ -814,7 +829,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   confirmText: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.md,
   },

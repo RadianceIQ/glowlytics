@@ -10,6 +10,7 @@ import {
   Spacing,
 } from '../constants/theme';
 import type { DetectedCondition, DetectedLesion, SignalConfidence } from '../types';
+import { LESION_INFO } from '../constants/lesions';
 import { V, edges } from './meshData';
 
 interface HotZone {
@@ -28,6 +29,7 @@ interface Props {
   signalConfidence?: SignalConfidence;
 }
 
+// Condition-level colors (distinct from lesion-level colors in constants/lesions.ts)
 const CONDITION_COLORS: Record<string, string> = {
   acne: '#FF4444',
   hyperpigmentation: '#F2B56A',
@@ -40,14 +42,9 @@ const CONDITION_COLORS: Record<string, string> = {
   enlarged_pores: '#E8A87C',
 };
 
-const LESION_COLORS: Record<string, string> = {
-  comedone: '#FFB347',
-  papule: '#FF7A78',
-  pustule: '#FF4444',
-  nodule: '#E63946',
-  macule: '#F2B56A',
-  patch: '#B68AFF',
-};
+const LESION_COLORS: Record<string, string> = Object.fromEntries(
+  Object.entries(LESION_INFO).map(([k, v]) => [k, v.color]),
+);
 
 // SVG viewBox dimensions for coordinate mapping
 const SVG_WIDTH = 310;

@@ -176,3 +176,14 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 - Components: `ProductCard.tsx` (effectiveness ring, usage badge), `AddProductSheet.tsx` (modal bottom sheet with 3 add modes)
 - Model download: `backend/scripts/download-models.sh` fetches ONNX files from HuggingFace
 - Lesion export: `ml/export_lesion_onnx.py` converts YOLOv8 .pt → .onnx
+
+## Design Context
+
+Full design context is in `.impeccable.md` at the project root. Summary:
+
+- **Personality:** Minimal, Scientific, Precise — confident clinical voice, data-forward, no filler
+- **Emotions:** Calm confidence, curiosity & delight, premium exclusivity
+- **References:** Oura Ring/Whoop (data-rich premium), Headspace/Calm (warm organic motion), Curology/Hims (approachable science)
+- **Principles:** Precision over decoration, calm authority, progressive revelation, warmth in science, sensory polish
+- **Accessibility:** WCAG AAA target (7:1 contrast, 48pt+ touch targets, reduced motion support)
+- **Anti-patterns:** No generic health-app look, no dense dashboards, no blue-gray palettes, no aggressive conversion UI

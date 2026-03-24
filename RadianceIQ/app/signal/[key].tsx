@@ -643,13 +643,13 @@ const styles = StyleSheet.create({
   },
   factorBarBg: {
     height: 6,
-    borderRadius: 3,
+    borderRadius: BorderRadius.xs,
     backgroundColor: Colors.surfaceHighlight,
     overflow: 'hidden',
   },
   factorBarFill: {
     height: 6,
-    borderRadius: 3,
+    borderRadius: BorderRadius.xs,
   },
 
   // Trend chart
@@ -674,7 +674,7 @@ const styles = StyleSheet.create({
   recDot: {
     width: 6,
     height: 6,
-    borderRadius: 3,
+    borderRadius: BorderRadius.xs,
     marginTop: 7,
     marginRight: Spacing.sm,
   },

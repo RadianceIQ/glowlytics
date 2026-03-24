@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   submitButton: {
     backgroundColor: Colors.primary,
     height: 56,
-    borderRadius: 16,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.sm,
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   checkCircle: {
     width: 80,
     height: 80,
-    borderRadius: 40,
+    borderRadius: BorderRadius.full,
     backgroundColor: 'rgba(52, 167, 123, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',

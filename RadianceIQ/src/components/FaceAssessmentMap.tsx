@@ -9,15 +9,11 @@ import {
 } from '../constants/theme';
 import type { FaceZoneInsight, SeverityLevel } from '../services/skinInsights';
 import type { DetectedLesion } from '../types';
+import { LESION_INFO } from '../constants/lesions';
 
-const LESION_COLORS: Record<string, string> = {
-  comedone: '#F2B56A',
-  papule: '#FF9A5C',
-  pustule: '#FF7A78',
-  nodule: '#D94545',
-  macule: '#C4956A',
-  patch: '#B68AFF',
-};
+const LESION_COLORS: Record<string, string> = Object.fromEntries(
+  Object.entries(LESION_INFO).map(([k, v]) => [k, v.color]),
+);
 
 interface Props {
   zones: FaceZoneInsight[];

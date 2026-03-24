@@ -61,9 +61,11 @@ export const Button: React.FC<Props> = ({
   const sizeConfig = sizeMap[resolvedSize];
   const textColor = disabled
     ? Colors.textMuted
-    : variant === 'ghost'
-      ? Colors.primaryLight
-      : Colors.text;
+    : variant === 'primary'
+      ? Colors.textOnDark
+      : variant === 'ghost'
+        ? Colors.primaryLight
+        : Colors.text;
 
   const content = (
     <View

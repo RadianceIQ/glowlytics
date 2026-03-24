@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
   logoImage: {
     width: 80,
     height: 80,
-    borderRadius: 20,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
   },
   brandName: {
@@ -565,15 +565,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#000000',
     height: 56,
-    borderRadius: 16,
+    borderRadius: BorderRadius.md,
     gap: Spacing.sm,
   },
   appleIcon: {
-    fontSize: 20,
-    color: '#FFFFFF',
+    fontSize: FontSize.xl,
+    color: Colors.textOnDark,
   },
   appleButtonText: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.md,
   },
@@ -583,16 +583,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#4285F4',
     height: 56,
-    borderRadius: 16,
+    borderRadius: BorderRadius.md,
     gap: Spacing.sm,
   },
   googleIcon: {
-    fontSize: 20,
-    color: '#FFFFFF',
+    fontSize: FontSize.xl,
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansBold,
   },
   googleButtonText: {
-    color: '#FFFFFF',
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.md,
   },
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   signUpButton: {
     backgroundColor: Colors.primary,
     height: 56,
-    borderRadius: 16,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },

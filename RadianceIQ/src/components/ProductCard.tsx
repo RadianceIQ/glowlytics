@@ -170,6 +170,6 @@ const styles = StyleSheet.create({
   ringText: {
     position: 'absolute',
     fontFamily: FontFamily.sansBold,
-    fontSize: 11,
+    fontSize: FontSize.xs,
   },
 });

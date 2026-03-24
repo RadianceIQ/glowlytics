@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
   bulletDot: {
     width: 5,
     height: 5,
-    borderRadius: 3,
+    borderRadius: BorderRadius.xs,
     backgroundColor: Colors.primary,
     marginTop: 7,
     flexShrink: 0,

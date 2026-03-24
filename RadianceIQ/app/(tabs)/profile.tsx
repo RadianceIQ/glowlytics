@@ -144,6 +144,8 @@ export default function ProfileTab() {
           style={styles.modeButton}
           onPress={handleSignOut}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out of your account"
         >
           <Feather name="log-out" size={16} color={Colors.error} />
           <Text style={[styles.modeButtonText, { color: Colors.error }]}>Sign out</Text>
@@ -153,6 +155,8 @@ export default function ProfileTab() {
           style={styles.modeButton}
           onPress={() => router.push('/privacy-policy')}
           activeOpacity={0.7}
+          accessibilityRole="link"
+          accessibilityLabel="Terms and Privacy Policy"
         >
           <Feather name="shield" size={16} color={Colors.primaryLight} />
           <Text style={styles.modeButtonText}>Terms & Privacy Policy</Text>
@@ -162,6 +166,8 @@ export default function ProfileTab() {
           style={[styles.modeButton, styles.modeButtonDestructive]}
           onPress={handleResetAllData}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Reset all data"
         >
           <Feather name="trash-2" size={16} color={Colors.error} />
           <Text style={[styles.modeButtonText, { color: Colors.error }]}>Reset all data</Text>
@@ -205,6 +211,8 @@ export default function ProfileTab() {
                 }
               }}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Manage subscription"
             >
               <Feather name="settings" size={16} color={Colors.primaryLight} />
               <Text style={styles.modeButtonText}>Manage subscription</Text>
@@ -224,6 +232,8 @@ export default function ProfileTab() {
             )}
             <TouchableOpacity
               style={styles.modeButton}
+              accessibilityRole="button"
+              accessibilityLabel="Upgrade to Glow Pro"
               onPress={async () => {
                 try {
                   const purchased = await presentPaywall();

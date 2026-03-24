@@ -139,6 +139,6 @@ const styles = StyleSheet.create({
   earnedDate: {
     color: Colors.textMuted,
     fontFamily: FontFamily.sans,
-    fontSize: 9,
+    fontSize: FontSize.xxs,
   },
 });

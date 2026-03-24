@@ -252,6 +252,8 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
               <TouchableOpacity
                 activeOpacity={0.85}
                 style={styles.metricCard}
+                accessibilityRole="button"
+                accessibilityLabel={`${metric.title} score ${score} out of 100, open detailed assessment`}
                 onPress={() =>
                   router.push({
                     pathname: '/skin-metric/[metric]',
@@ -431,7 +433,7 @@ const styles = StyleSheet.create({
   signalDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: BorderRadius.xs,
   },
   signalLabel: {
     flex: 1,
@@ -447,12 +449,12 @@ const styles = StyleSheet.create({
   signalBarBg: {
     height: 4,
     backgroundColor: Colors.surfaceOverlay,
-    borderRadius: 2,
+    borderRadius: BorderRadius.xs,
     overflow: 'hidden',
   },
   signalBarFill: {
     height: 4,
-    borderRadius: 2,
+    borderRadius: BorderRadius.xs,
   },
   confidenceBadge: {
     paddingHorizontal: Spacing.xs,
@@ -461,7 +463,7 @@ const styles = StyleSheet.create({
   },
   confidenceText: {
     fontFamily: FontFamily.sansSemiBold,
-    fontSize: 9,
+    fontSize: FontSize.xxs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -484,7 +486,7 @@ const styles = StyleSheet.create({
   lesionDot: {
     width: 6,
     height: 6,
-    borderRadius: 3,
+    borderRadius: BorderRadius.xs,
   },
   lesionCardTitle: {
     color: Colors.text,
