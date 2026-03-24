@@ -5,8 +5,6 @@ import Svg, { Circle } from 'react-native-svg';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../src/components/AtmosphereScreen';
 import { Button } from '../src/components/Button';
-import { GamificationCard } from '../src/components/GamificationCard';
-import { ScoreTile } from '../src/components/ScoreTile';
 import { SkinScoreHero } from '../src/components/SkinScoreHero';
 import {
   BorderRadius,
@@ -16,7 +14,7 @@ import {
   Surfaces,
   Spacing,
 } from '../src/constants/theme';
-import { formatMetricStatus, signalColorByRouteKey } from '../src/constants/signals';
+import { signalColorByRouteKey } from '../src/constants/signals';
 import {
   buildOverallSkinInsight,
   getLatestDailyForOutput,
@@ -91,7 +89,6 @@ export default function Home() {
   const protocol = useStore((s) => s.protocol);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const modelOutputs = useStore((s) => s.modelOutputs);
-  const gamification = useStore((s) => s.gamification);
   const canPerformScan = useStore((s) => s.canPerformScan);
 
   const handleScanPress = async (path: string) => {
@@ -113,18 +110,6 @@ export default function Home() {
   const getStreak = useStore((s) => s.getStreak);
   const streak = useMemo(() => getStreak(), [dailyRecords, getStreak]);
 
-  const outputHistory = useMemo(() => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 7);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
-    const records = dailyRecords.filter((record) => record.date >= cutoffStr);
-    const ids = new Set(records.map((record) => record.daily_id));
-    return modelOutputs.filter((output) => ids.has(output.daily_id));
-  }, [dailyRecords, modelOutputs]);
-
-  const acneHistory = useMemo(() => outputHistory.map((o) => o.acne_score), [outputHistory]);
-  const sunHistory = useMemo(() => outputHistory.map((o) => o.sun_damage_score), [outputHistory]);
-  const ageHistory = useMemo(() => outputHistory.map((o) => o.skin_age_score), [outputHistory]);
 
   const overallInsight = useMemo(
     () =>
@@ -203,72 +188,47 @@ export default function Home() {
         </View>
       )}
 
-      <View style={styles.infoCard}>
-        <Text style={styles.infoEyebrow}>Cadence</Text>
-        <Text style={styles.infoValue}>{streak} day streak</Text>
-        <Text style={styles.infoCopy}>
-          {protocol?.scan_region
-            ? `Same-region scans on ${protocol.scan_region.replace(/_/g, ' ')} keep the trend cleaner.`
-            : 'Choose a consistent region for cleaner signal tracking.'}
-        </Text>
-      </View>
-
-      <GamificationCard gamification={gamification} streak={streak} />
+      {streak > 0 && (
+        <View style={styles.streakRow}>
+          <Text style={styles.streakValue}>{streak} day streak</Text>
+          <Text style={styles.streakDot}> · </Text>
+          <Text style={styles.streakHint}>
+            {protocol?.scan_region
+              ? `${protocol.scan_region.replace(/_/g, ' ')} region`
+              : 'Keep scanning daily'}
+          </Text>
+        </View>
+      )}
 
       {latestOutput ? (
-        <View style={styles.metricStack}>
-          <ScoreTile
-            label="Acne"
-            score={latestOutput.acne_score}
-            delta={baseline ? latestOutput.acne_score - baseline.acne_score : undefined}
-            color={Colors.acne}
-            sparklineData={acneHistory}
-            compact
-            lowLabel="Baseline"
-            highLabel="Today"
-            statusLabel={formatMetricStatus(latestOutput.acne_score)}
-          />
-          <ScoreTile
-            label="Sun Damage"
-            score={latestOutput.sun_damage_score}
-            delta={baseline ? latestOutput.sun_damage_score - baseline.sun_damage_score : undefined}
-            color={Colors.sunDamage}
-            sparklineData={sunHistory}
-            compact
-            lowLabel="Baseline"
-            highLabel="Today"
-            statusLabel={formatMetricStatus(latestOutput.sun_damage_score)}
-          />
-          <ScoreTile
-            label="Skin Age"
-            score={latestOutput.skin_age_score}
-            delta={baseline ? latestOutput.skin_age_score - baseline.skin_age_score : undefined}
-            color={Colors.skinAge}
-            sparklineData={ageHistory}
-            compact
-            lowLabel="Baseline"
-            highLabel="Today"
-            statusLabel={formatMetricStatus(latestOutput.skin_age_score)}
-          />
+        <View style={styles.metricRow}>
+          {[
+            { label: 'Acne', score: latestOutput.acne_score, color: Colors.acne },
+            { label: 'Sun Damage', score: latestOutput.sun_damage_score, color: Colors.sunDamage },
+            { label: 'Skin Age', score: latestOutput.skin_age_score, color: Colors.skinAge },
+          ].map((m) => (
+            <TouchableOpacity
+              key={m.label}
+              style={styles.metricPill}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${m.label} score ${m.score}`}
+              onPress={() => router.push('/skin-metrics')}
+            >
+              <View style={[styles.metricDot, { backgroundColor: m.color }]} />
+              <Text style={styles.metricPillLabel}>{m.label}</Text>
+              <Text style={[styles.metricPillScore, { color: m.color }]}>{m.score}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       ) : (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No scan data yet</Text>
           <Text style={styles.emptyCopy}>
-            Your first baseline will unlock this dashboard and the detailed assessment flow.
+            Your first baseline will unlock trends and the detailed assessment flow.
           </Text>
         </View>
       )}
-
-
-      <View style={styles.utilityStrip}>
-        <TouchableOpacity style={styles.utilityAction} onPress={() => router.push('/report/generate')} accessibilityRole="button" accessibilityLabel="Share report">
-          <Text style={styles.utilityLabel}>Share report</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.utilityAction} onPress={() => router.push('/onboarding/products')} accessibilityRole="button" accessibilityLabel="View products">
-          <Text style={styles.utilityLabel}>Products</Text>
-        </TouchableOpacity>
-      </View>
     </AtmosphereScreen>
   );
 }
@@ -349,34 +309,55 @@ const styles = StyleSheet.create({
   emptyHeroActions: {
     gap: Spacing.sm,
   },
-  infoCard: {
-    ...Surfaces.recessed,
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: Spacing.lg,
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
   },
-  infoEyebrow: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  infoValue: {
+  streakValue: {
     color: Colors.text,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.lg,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+  },
+  streakDot: {
+    color: Colors.textDim,
+    fontSize: FontSize.sm,
+  },
+  streakHint: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.sm,
     textTransform: 'capitalize',
   },
-  infoCopy: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.sm,
-    lineHeight: 20,
-  },
-  metricStack: {
+  metricRow: {
+    flexDirection: 'row',
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+  },
+  metricPill: {
+    flex: 1,
+    ...Surfaces.recessed,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm + 2,
+    gap: Spacing.xs,
+  },
+  metricDot: {
+    width: 6,
+    height: 6,
+    borderRadius: BorderRadius.xs,
+  },
+  metricPillLabel: {
+    flex: 1,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xxs,
+  },
+  metricPillScore: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.sm,
   },
   emptyState: {
     ...Surfaces.standard,
@@ -394,23 +375,5 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
     lineHeight: 23,
-  },
-  utilityStrip: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-  },
-  utilityAction: {
-    flex: 1,
-    ...Surfaces.recessed,
-    borderRadius: BorderRadius.full,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    alignItems: 'center',
-  },
-  utilityLabel: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.sm,
   },
 });
