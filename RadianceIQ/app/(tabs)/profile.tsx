@@ -10,6 +10,7 @@ import {
   FontFamily,
   FontSize,
   Spacing,
+  Surfaces,
 } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import {
@@ -23,6 +24,7 @@ import {
 import { scheduleDailyReminder, cancelDailyReminder } from '../../src/services/notifications';
 import { trackEvent, resetAnalytics } from '../../src/services/analytics';
 import { createDemoSeed } from '../../src/services/demoData';
+import { GamificationCard } from '../../src/components/GamificationCard';
 import { LevelProgressBar } from '../../src/components/LevelProgressBar';
 import { BadgeShowcase } from '../../src/components/BadgeShowcase';
 
@@ -57,6 +59,8 @@ export default function ProfileTab() {
   const resetAll = useStore((s) => s.resetAll);
 
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const getStreak = useStore((s) => s.getStreak);
+  const streak = getStreak();
 
   const clerkUser = useUser ? useUser() : null;
   const clerk = useClerk ? useClerk() : null;
@@ -129,14 +133,34 @@ export default function ProfileTab() {
 
   return (
     <AtmosphereScreen>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Profile</Text>
-        <Text style={styles.title}>Your details</Text>
+      {/* Identity header */}
+      <View style={styles.identityHeader}>
+        <View style={styles.avatarCircle}>
+          <Text style={styles.avatarLetter}>
+            {(clerkEmail?.[0] || user?.age_range?.[0] || 'G').toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.identityInfo}>
+          {clerkEmail && <Text style={styles.identityEmail} numberOfLines={1}>{clerkEmail}</Text>}
+          <View style={styles.identityMeta}>
+            <View style={styles.tierBadge}>
+              <Text style={styles.tierBadgeText}>
+                {subscription.is_active ? 'Glow Pro' : isTrialActive(subscription) ? 'Trial' : 'Free'}
+              </Text>
+            </View>
+            {streak > 0 && (
+              <Text style={styles.identityStreak}>{streak} day streak</Text>
+            )}
+          </View>
+        </View>
       </View>
 
-      {/* Account */}
+      {/* Gamification */}
+      <GamificationCard gamification={gamification} streak={streak} />
+
+      {/* Account & Subscription */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Account</Text>
+        <Text style={styles.cardTitle}>Account & Plan</Text>
         {clerkEmail ? (
           <InfoRow label="Email" value={clerkEmail} />
         ) : null}
@@ -182,11 +206,8 @@ export default function ProfileTab() {
             <Text style={[styles.modeButtonText, { color: Colors.primary }]}>Load demo data</Text>
           </TouchableOpacity>
         )}
-      </View>
-
-      {/* Subscription */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Subscription</Text>
+        {/* Subscription inline */}
+        <View style={styles.divider} />
         {subscription.is_active ? (
           <>
             <InfoRow label="Plan" value="Glow Pro" />
@@ -355,9 +376,9 @@ export default function ProfileTab() {
         )}
       </View>
 
-      {/* Demographics */}
+      {/* Your Profile — demographics + scan protocol combined */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Demographics</Text>
+        <Text style={styles.cardTitle}>Your Profile</Text>
         <InfoRow label="Age range" value={user?.age_range || '—'} />
         <InfoRow label="Location" value={user?.location_coarse || '—'} />
         <InfoRow label="Period tracking" value={periodLabel} />
@@ -367,11 +388,7 @@ export default function ProfileTab() {
         {user?.drink_baseline_frequency && (
           <InfoRow label="Alcohol" value={user.drink_baseline_frequency} />
         )}
-      </View>
-
-      {/* Scan protocol */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Scan protocol</Text>
+        <View style={styles.divider} />
         <InfoRow label="Goal" value={protocol?.primary_goal?.replace(/_/g, ' ') || '—'} />
         <InfoRow label="Region" value={protocol?.scan_region?.replace(/_/g, ' ') || '—'} />
         <InfoRow label="Total scans" value={String(dailyRecords.length)} />
@@ -398,21 +415,63 @@ export default function ProfileTab() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    marginBottom: Spacing.lg,
+  identityHeader: {
+    ...Surfaces.hero,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  eyebrow: {
-    color: Colors.primaryLight,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: {
-    marginTop: Spacing.xs,
-    color: Colors.text,
+  avatarLetter: {
+    color: Colors.textOnDark,
     fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.xxl,
+    fontSize: FontSize.xl,
+  },
+  identityInfo: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  identityEmail: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.md,
+  },
+  identityMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  tierBadge: {
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+  },
+  tierBadgeText: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xxs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  identityStreak: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xs,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.divider,
+    marginVertical: Spacing.xs,
   },
   card: {
     backgroundColor: Colors.glass,
