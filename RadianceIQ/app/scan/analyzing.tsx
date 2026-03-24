@@ -319,8 +319,11 @@ export default function AnalyzingScreen() {
       const badgesBefore = state.gamification.badges.length;
 
       const prev = lastRecordRef.current;
+      // Derive new_product_added from products added today
+      const scanDate = new Date().toISOString().split('T')[0];
+      const hasNewProduct = useStore.getState().products.some((p) => p.start_date === scanDate);
       const dailyRecord = addDailyRecord({
-        date: new Date().toISOString().split('T')[0],
+        date: scanDate,
         scanner_reading_id: `scan_${Date.now()}`,
         scanner_indices: scannerDataRef.current,
         scanner_quality_flag: 'pass',
@@ -328,7 +331,7 @@ export default function AnalyzingScreen() {
         photo_uri: savedPhotoUri,
         photo_quality_flag: 'pass',
         sunscreen_used: prev?.sunscreen_used ?? false,
-        new_product_added: false,
+        new_product_added: hasNewProduct,
         cycle_day_estimated: cycleDayRef.current,
         sleep_quality: prev?.sleep_quality,
         stress_level: prev?.stress_level,
@@ -543,10 +546,15 @@ export default function AnalyzingScreen() {
     // Clear any stale base64 from a previous scan before starting fresh
     clearPendingPhotoBase64();
 
-    // Carry forward context from most recent daily record (no checkin screen)
-    const { modelOutputs: prevOutputs, dailyRecords } = useStore.getState();
+    // Carry forward context from most recent daily record
+    const state = useStore.getState();
+    const { modelOutputs: prevOutputs, dailyRecords } = state;
     const lastRecord = dailyRecords.length > 0 ? dailyRecords[dailyRecords.length - 1] : null;
     lastRecordRef.current = lastRecord;
+
+    // Derive new_product_added: true if any product was added today
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newProductToday = state.products.some((p) => p.start_date === todayStr);
     analysisStartTime.current = Date.now();
 
     // Encode the current photo fresh each time
@@ -569,7 +577,7 @@ export default function AnalyzingScreen() {
         previousOutputs: prevOutputs,
         dailyContext: {
           sunscreen_used: lastRecord?.sunscreen_used ?? false,
-          new_product_added: false,
+          new_product_added: newProductToday,
           cycle_day_estimated: estimatedCycleDay,
           sleep_quality: lastRecord?.sleep_quality,
           stress_level: lastRecord?.stress_level,

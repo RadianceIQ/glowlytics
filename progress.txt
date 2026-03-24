@@ -229,13 +229,38 @@ SECURITY & LAUNCH READINESS (2026-03-23):
 [x] 42. Demo data: "Load demo data" button hidden in production builds (__DEV__ guard)
 [x] 43. Subscription service: console.log wrapped in __DEV__ guards
 [x] 44. DELETE /api/products/:id: now verifies product ownership via user_id WHERE clause
-[ ] 45. Replace expo-face-detector → react-native-vision-camera + MLKit frame processor (IN PROGRESS)
-[ ] 46. Clerk pk_live_ key in eas.json production profile
-[ ] 47. CORS_ORIGINS set on Railway
-[ ] 48. SSL rejectUnauthorized: true with CA cert
-[ ] 49. Sunscreen/product pre-scan context UI
-[ ] 50. Real PDF report generation
-[ ] 51. Backend log masking in production
+[x] 45. Replace expo-face-detector → react-native-vision-camera + MLKit frame processor
+    - Installed react-native-vision-camera, react-native-vision-camera-face-detector, react-native-worklets-core
+    - Removed expo-face-detector (deprecated)
+    - faceTracking.ts: pure analyzeAlignment() function, no camera dependency
+    - photoQuality.ts: pure checkPhotoQualityFromFaces() function
+    - useFaceTracking hook: frame-processor callback pattern (no more takePictureAsync polling)
+    - camera.tsx: updated hook signature
+    - 23 face/photo tests rewritten as pure function tests (no mocking needed)
+[x] 46. Rate limiter periodic cleanup: 60s sweep removes stale entries (prevents memory leak)
+[x] 47. Backend log masking: production-safe logger masks err.message details (9 error/warn sites)
+[x] 48. Scan context: new_product_added now derived from products added today (no longer hardcoded false)
+[x] 49. Report generation: already functional client-side (expo-print + buildReportHtml). Backend stub is only a DB reference record — not a blocker.
+
+MANUAL STEPS REMAINING (credentials/config — complete these before App Store submission):
+[ ] 50. Clerk pk_live_ key in eas.json production profile
+    HOW: 1. Go to dashboard.clerk.com → API Keys → Production
+         2. Copy the pk_live_xxx key
+         3. Edit RadianceIQ/eas.json → production.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+         4. Also set CLERK_ISSUER_URL on Railway to your production Clerk issuer URL
+[ ] 51. CORS_ORIGINS on Railway
+    HOW: 1. Go to Railway dashboard → your backend service → Variables
+         2. Add: CORS_ORIGINS=https://glowlytics.ai,https://glowlytics-api-production.up.railway.app
+         3. Redeploy
+[ ] 52. SSL rejectUnauthorized on Railway DB
+    HOW: 1. Check Railway dashboard for DATABASE_URL — Railway managed Postgres may auto-handle SSL
+         2. If CA cert available: set CA_CERT env var, update backend/app.js and db-init.js:
+            ssl: { rejectUnauthorized: true, ca: process.env.CA_CERT }
+         3. If Railway doesn't provide CA cert, rejectUnauthorized: false is acceptable behind their internal network
+[ ] 53. ADMIN_SECRET on Railway
+    HOW: 1. Generate: openssl rand -hex 32
+         2. Set ADMIN_SECRET=<value> in Railway env vars
+         3. Use when seeding RAG: curl -X POST .../api/rag/seed -H "X-Admin-Secret: <value>"
 
 REMAINING (ML pipeline):
 [x] Models trained and exported to ONNX (hosted on HuggingFace: mufasabrownie/glowlytics-skin-models)

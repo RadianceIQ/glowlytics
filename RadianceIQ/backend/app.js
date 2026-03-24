@@ -13,6 +13,14 @@ const { searchCuratedProducts, lookupCuratedBarcode, enrichIngredients } = requi
 
 const app = express();
 
+// Production-safe logger — masks potentially sensitive error details
+const isProd = process.env.NODE_ENV === 'production';
+const log = {
+  info: (...args) => console.log(...args),
+  warn: (...args) => isProd ? console.warn(args[0]) : console.warn(...args),
+  error: (...args) => isProd ? console.error(args[0]) : console.error(...args),
+};
+
 // CORS — restrict origins in production
 const ALLOWED_ORIGINS = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',')
@@ -53,7 +61,7 @@ app.post('/api/waitlist', async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    console.error('Waitlist insert error:', err.message);
+    log.error('Waitlist insert error:', err.message);
     res.status(500).json({ error: 'Failed to save' });
   }
 });
@@ -217,6 +225,18 @@ function detectRateLimit(req, res, next) {
   next();
 }
 
+// Periodic cleanup of stale rate limiter entries (prevents memory leak under sustained traffic)
+const RATE_CLEANUP_INTERVAL = 60000; // sweep every 60s
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of detectRateMap) {
+    if (now - entry.start > DETECT_RATE_WINDOW) detectRateMap.delete(key);
+  }
+  for (const [key, entry] of analyzeRateMap) {
+    if (now - entry.start > ANALYZE_RATE_WINDOW) analyzeRateMap.delete(key);
+  }
+}, RATE_CLEANUP_INTERVAL);
+
 // Per-user rate limiter for expensive authenticated endpoints (vision/analyze)
 const analyzeRateMap = new Map();
 const ANALYZE_RATE_WINDOW = 60000; // 1 minute
@@ -248,7 +268,7 @@ app.post('/api/vision/detect-lesions', detectRateLimit, async (req, res) => {
     const lesions = await signalModels.runLesionDetector(image_base64);
     res.json({ lesions, latency_ms: Date.now() - start });
   } catch (err) {
-    console.warn('[detect-lesions] Error:', err.message);
+    log.warn('[detect-lesions] Error:', err.message);
     res.json({ lesions: [], latency_ms: Date.now() - start });
   }
 });
@@ -546,7 +566,7 @@ app.post('/api/products/identify-photo', photoRateLimit, async (req, res) => {
       source: 'gpt4o_vision',
     });
   } catch (err) {
-    console.warn('[identify-photo] Error:', err.message);
+    log.warn('[identify-photo] Error:', err.message);
     res.json({ identified: false, error: 'Product identification failed' });
   }
 });
@@ -644,7 +664,7 @@ Return ONLY valid JSON matching this schema:
         const summaryFeatures = imageProcessing.extractSummaryFeatures(features);
         return { features, layer1Scores, layer2Results, summaryFeatures };
       }).catch((err) => {
-        console.warn('[vision] Layer 1/2 failed, continuing with Layer 3 only:', err.message);
+        log.warn('[vision] Layer 1/2 failed, continuing with Layer 3 only:', err.message);
         return null;
       }),
 
@@ -790,7 +810,7 @@ Return ONLY valid JSON matching this schema:
         }));
       }
     } catch (err) {
-      console.warn('RAG query failed, continuing without recommendations:', err.message);
+      log.warn('RAG query failed, continuing without recommendations:', err.message);
     }
 
     // ==================== BUILD RESPONSE ====================
@@ -815,7 +835,7 @@ Return ONLY valid JSON matching this schema:
 
     res.json(result);
   } catch (err) {
-    console.error('Vision API error:', err.message);
+    log.error('Vision API error:', err.message);
     if (err.status === 401 || err.code === 'invalid_api_key') {
       return res.status(502).json({ error: 'OpenAI API key is invalid or missing' });
     }
@@ -936,7 +956,7 @@ app.post('/api/vision/generate-insights', async (req, res) => {
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (err) {
-    console.error('[generate-insights] Error:', err.message);
+    log.error('[generate-insights] Error:', err.message);
     // If headers already sent (streaming started), just end
     if (res.headersSent) {
       res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
@@ -1346,7 +1366,7 @@ app.post('/api/rag/seed', async (req, res) => {
       categories: result.categories,
     });
   } catch (err) {
-    console.error('RAG seed error:', err.message);
+    log.error('RAG seed error:', err.message);
     res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
@@ -1372,7 +1392,7 @@ app.post('/api/rag/query', async (req, res) => {
       results,
     });
   } catch (err) {
-    console.error('RAG query error:', err.message);
+    log.error('RAG query error:', err.message);
     res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
