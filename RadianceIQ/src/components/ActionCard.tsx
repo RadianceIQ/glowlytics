@@ -8,6 +8,7 @@ import {
   FontSize,
   Shadows,
   Spacing,
+  Surfaces,
 } from '../constants/theme';
 
 interface Props {
@@ -72,12 +73,10 @@ export const ActionCard: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   container: {
+    ...Surfaces.hero,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadows.card,
   },
   heroContainer: {
     minHeight: 220,

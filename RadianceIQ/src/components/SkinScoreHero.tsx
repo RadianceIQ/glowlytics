@@ -7,6 +7,7 @@ import {
   Colors,
   FontFamily,
   FontSize,
+  Surfaces,
   Shadows,
   Spacing,
 } from '../constants/theme';
@@ -148,14 +149,10 @@ const styles = StyleSheet.create({
   card: {
     position: 'relative',
     overflow: 'hidden',
-    borderRadius: BorderRadius.xxl,
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
+    ...Surfaces.hero,
     padding: Spacing.lg,
-    backgroundColor: Colors.glassStrong,
     marginBottom: Spacing.lg,
     gap: Spacing.md,
-    ...Shadows.card,
   },
   glow: {
     position: 'absolute',

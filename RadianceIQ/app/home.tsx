@@ -13,6 +13,7 @@ import {
   Colors,
   FontFamily,
   FontSize,
+  Surfaces,
   Spacing,
 } from '../src/constants/theme';
 import { formatMetricStatus, signalColorByRouteKey } from '../src/constants/signals';
@@ -329,10 +330,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptyHero: {
-    backgroundColor: Colors.glassStrong,
-    borderRadius: BorderRadius.xxl,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    ...Surfaces.hero,
     padding: Spacing.lg,
     gap: Spacing.md,
     marginBottom: Spacing.lg,
@@ -352,11 +350,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   infoCard: {
-    backgroundColor: Colors.glass,
+    ...Surfaces.recessed,
     marginBottom: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
     padding: Spacing.md,
     gap: Spacing.sm,
   },
@@ -384,10 +379,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   emptyState: {
-    backgroundColor: Colors.glass,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    ...Surfaces.standard,
     padding: Spacing.lg,
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
@@ -410,10 +402,8 @@ const styles = StyleSheet.create({
   },
   utilityAction: {
     flex: 1,
-    backgroundColor: Colors.glass,
+    ...Surfaces.recessed,
     borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     alignItems: 'center',

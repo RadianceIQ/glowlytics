@@ -1,4 +1,4 @@
-import { Colors, FontFamily, FontSize, BorderRadius, Spacing, Motion } from '../theme';
+import { Colors, FontFamily, FontSize, BorderRadius, Spacing, Motion, Surfaces } from '../theme';
 
 describe('Theme constants', () => {
   describe('FontFamily', () => {
@@ -76,6 +76,37 @@ describe('Theme constants', () => {
       expect(Motion.slow).toBeLessThan(Motion.graceful);
       expect(Motion.graceful).toBeLessThan(Motion.dramatic);
       expect(Motion.dramatic).toBeLessThan(Motion.breathe);
+    });
+  });
+
+  describe('Surfaces', () => {
+    it('defines three tiers: hero, standard, recessed', () => {
+      expect(Surfaces).toHaveProperty('hero');
+      expect(Surfaces).toHaveProperty('standard');
+      expect(Surfaces).toHaveProperty('recessed');
+    });
+
+    it('hero has solid white background and shadow (no border)', () => {
+      expect(Surfaces.hero.backgroundColor).toBe(Colors.backgroundRaised);
+      expect(Surfaces.hero).not.toHaveProperty('borderWidth');
+      expect(Surfaces.hero).not.toHaveProperty('borderColor');
+    });
+
+    it('standard has glass background and border', () => {
+      expect(Surfaces.standard.backgroundColor).toBe(Colors.glass);
+      expect(Surfaces.standard.borderWidth).toBe(1);
+      expect(Surfaces.standard.borderColor).toBe(Colors.border);
+    });
+
+    it('recessed has overlay tint and no border', () => {
+      expect(Surfaces.recessed.backgroundColor).toBe(Colors.surfaceOverlay);
+      expect(Surfaces.recessed).not.toHaveProperty('borderWidth');
+      expect(Surfaces.recessed).not.toHaveProperty('borderColor');
+    });
+
+    it('hero has largest borderRadius, recessed has smallest', () => {
+      expect(Surfaces.hero.borderRadius).toBeGreaterThanOrEqual(Surfaces.standard.borderRadius);
+      expect(Surfaces.standard.borderRadius).toBeGreaterThanOrEqual(Surfaces.recessed.borderRadius);
     });
   });
 });

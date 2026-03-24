@@ -152,3 +152,42 @@ export const Motion = {
   dramatic: 800,
   breathe: 2000,
 };
+
+/**
+ * 3-tier surface hierarchy to break visual monotony.
+ *
+ * hero     — Primary cards (score, action). Solid white, elevated shadow, no border.
+ * standard — Default cards (info, metrics). Glass + border.
+ * recessed — Secondary metadata, utility. Tinted bg, no border, low weight.
+ */
+export const Surfaces = {
+  hero: {
+    backgroundColor: Colors.backgroundRaised,
+    borderRadius: BorderRadius.xxl,
+    ...Platform.select({
+      ios: {
+        shadowColor: 'rgba(0,0,0,0.10)',
+        shadowOpacity: 1,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 8 },
+      },
+      android: { elevation: 6 },
+      default: {
+        shadowColor: 'rgba(0,0,0,0.10)',
+        shadowOpacity: 1,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 8 },
+      },
+    }),
+  },
+  standard: {
+    backgroundColor: Colors.glass,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  recessed: {
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: BorderRadius.lg,
+  },
+} as const;

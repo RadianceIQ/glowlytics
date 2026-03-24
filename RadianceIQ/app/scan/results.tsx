@@ -11,6 +11,7 @@ import {
   Colors,
   FontFamily,
   FontSize,
+  Surfaces,
   Spacing,
 } from '../../src/constants/theme';
 import {
@@ -361,10 +362,8 @@ const styles = StyleSheet.create({
   },
   ragSection: {
     marginTop: Spacing.lg,
-    backgroundColor: Colors.glassStrong,
+    ...Surfaces.recessed,
     borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
     padding: Spacing.lg,
     gap: Spacing.md,
   },
@@ -541,10 +540,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   overallCard: {
-    backgroundColor: Colors.glassStrong,
-    borderRadius: BorderRadius.xxl,
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
+    ...Surfaces.hero,
     padding: Spacing.lg,
     gap: Spacing.sm,
     marginTop: Spacing.lg,

@@ -13,6 +13,7 @@ import {
   FontSize,
   Shadows,
   Spacing,
+  Surfaces,
 } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import { computeProductEffectiveness } from '../../src/services/ingredientDB';
@@ -217,10 +218,8 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   scoreCard: {
-    backgroundColor: Colors.glass,
+    ...Surfaces.hero,
     borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
   },
