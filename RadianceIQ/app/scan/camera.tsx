@@ -87,7 +87,7 @@ export default function CameraScreen() {
   const alignedStartRef = useRef<number | null>(null);
   const lesionTrackerRef = useRef(new LesionTracker());
 
-  const { trackingState, onFacesDetected, lastFrameUri, lastFrameWidth, lastFrameHeight } = useFaceTracking(cameraReady && !capturing && !paywallVisible);
+  const { trackingState, lastFrameUri, lastFrameWidth, lastFrameHeight } = useFaceTracking(cameraRef, cameraReady && !capturing && !paywallVisible);
 
   // Keep refs in sync so callbacks read latest values without causing effect re-runs
   useEffect(() => { lastFrameUriRef.current = lastFrameUri; }, [lastFrameUri]);
