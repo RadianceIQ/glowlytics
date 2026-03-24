@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, FadeInRight, ZoomIn } from 'react-native-reanimated';
+import { Feather } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { ActionCard } from '../../src/components/ActionCard';
 import { Button } from '../../src/components/Button';
@@ -101,35 +102,26 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
     router.replace('/(tabs)/today');
   };
 
+  const [showDeepDive, setShowDeepDive] = useState(false);
+
   return (
     <AtmosphereScreen>
-      {/* Header: FadeIn + slide from top, 0ms delay */}
-      <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
-        <Text style={styles.eyebrow}>Results</Text>
-        <Text style={styles.title}>Your scan results</Text>
-      </Animated.View>
+      {/* ── Tier 1: Hero — Overall Score (visible immediately) ── */}
+      {overallInsight && (
+        <Animated.View entering={FadeIn.duration(500)} style={styles.overallCard}>
+          <Text style={styles.overallLabel}>Overall score</Text>
+          <Text style={styles.overallScore}>
+            {overallInsight.score} <Text style={styles.overallStatus}>{overallInsight.statusLabel}</Text>
+          </Text>
+          <Text style={styles.overallAction}>
+            {generatedInsights?.overall_score_context || overallInsight.actionStatement}
+          </Text>
+        </Animated.View>
+      )}
 
-      <Animated.View entering={FadeIn.duration(400).delay(100)} style={styles.metaRow}>
-        <Text style={styles.metaText}>
-          Driver: {(latestOutput.primary_driver || 'daily insight').replace(/_/g, ' ')}
-        </Text>
-      </Animated.View>
-
-      {/* FacialMesh: scale-up + fade, 200ms delay */}
-      <Animated.View entering={ZoomIn.duration(600).delay(200)}>
-        <FacialMesh
-          acneScore={latestOutput.acne_score}
-          sunDamageScore={latestOutput.sun_damage_score}
-          skinAgeScore={latestOutput.skin_age_score}
-          conditions={latestOutput.conditions}
-          lesions={latestOutput.lesions}
-          signalConfidence={latestOutput.signal_confidence}
-        />
-      </Animated.View>
-
-      {/* Signal Scores: per-signal breakdown with confidence indicators */}
+      {/* ── Tier 2: Signal Overview (compact) ── */}
       {latestOutput.signal_scores && (
-        <Animated.View entering={FadeInDown.duration(500).delay(300)} style={styles.signalSection}>
+        <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.signalSection}>
           <Text style={styles.signalSectionTitle}>Signal Breakdown</Text>
           <View style={styles.signalGrid}>
             {(Object.keys(SIGNAL_LABELS) as Array<keyof typeof SIGNAL_LABELS>).map((key) => {
@@ -157,6 +149,45 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
               );
             })}
           </View>
+        </Animated.View>
+      )}
+
+      {/* Action insight */}
+      <Animated.View entering={FadeInDown.duration(500).delay(300)} style={{ marginTop: Spacing.lg }}>
+        <ActionCard
+          driver={latestOutput.primary_driver || 'daily insight'}
+          action={explanation}
+          supportingText={latestOutput.recommended_action}
+        />
+      </Animated.View>
+
+      {/* ── Tier 3: Deep Dive (collapsible) ── */}
+      <TouchableOpacity
+        style={styles.deepDiveToggle}
+        onPress={() => setShowDeepDive(!showDeepDive)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={showDeepDive ? 'Collapse detailed analysis' : 'Show detailed analysis'}
+      >
+        <Text style={styles.deepDiveToggleText}>Detailed analysis</Text>
+        <Feather name={showDeepDive ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.primaryLight} />
+      </TouchableOpacity>
+
+      {showDeepDive && (
+        <>
+          {/* Face mesh */}
+          <Animated.View entering={FadeInDown.duration(400)}>
+            <FacialMesh
+              acneScore={latestOutput.acne_score}
+              sunDamageScore={latestOutput.sun_damage_score}
+              skinAgeScore={latestOutput.skin_age_score}
+              conditions={latestOutput.conditions}
+              lesions={latestOutput.lesions}
+              signalConfidence={latestOutput.signal_confidence}
+            />
+          </Animated.View>
+
+          {/* Lesion cards inside deep dive */}
           {lesionGroups.length > 0 && (
             <View style={styles.lesionCards}>
               {lesionGroups.map((group) => (
@@ -176,110 +207,80 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
               ))}
             </View>
           )}
-        </Animated.View>
-      )}
 
-      {/* ActionCard: slide from bottom + fade, 400ms delay */}
-      <Animated.View entering={FadeInDown.duration(500).delay(400)} style={{ marginTop: Spacing.lg }}>
-        <ActionCard
-          driver={latestOutput.primary_driver || 'daily insight'}
-          action={explanation}
-          supportingText={latestOutput.recommended_action}
-        />
-      </Animated.View>
-
-      {/* RAG recommendations: cascade in from bottom, 100ms stagger */}
-      {latestOutput.rag_recommendations && latestOutput.rag_recommendations.length > 0 && (
-        <Animated.View entering={FadeInDown.duration(500).delay(500)} style={styles.ragSection}>
-          <Text style={styles.ragTitle}>Evidence-based guidelines</Text>
-          {latestOutput.rag_recommendations.map((rec, i) => (
-            <Animated.View key={i} entering={FadeInDown.duration(400).delay(600 + i * 100)} style={styles.ragCard}>
-              <View style={styles.ragCategoryBadge}>
-                <Text style={styles.ragCategoryText}>
-                  {rec.category.replace(/_/g, ' ')}
-                </Text>
-              </View>
-              <Text style={styles.ragText}>{rec.text}</Text>
-            </Animated.View>
-          ))}
-        </Animated.View>
-      )}
-
-      {/* Action plan from generated insights */}
-      {generatedInsights?.action_plan && generatedInsights.action_plan.length > 0 && (
-        <Animated.View entering={FadeInDown.duration(500).delay(550)} style={styles.actionPlanSection}>
-          <Text style={styles.ragTitle}>Your action plan</Text>
-          {generatedInsights.action_plan.map((action, i) => (
-            <View key={i} style={styles.actionPlanItem}>
-              <Text style={styles.actionPlanNumber}>{i + 1}</Text>
-              <Text style={styles.actionPlanText}>{action}</Text>
-            </View>
-          ))}
-        </Animated.View>
-      )}
-
-      {/* Overall score card */}
-      {overallInsight && (
-        <Animated.View entering={FadeInDown.duration(500).delay(600)} style={styles.overallCard}>
-          <Text style={styles.overallLabel}>Overall score</Text>
-          <Text style={styles.overallScore}>
-            {overallInsight.score} <Text style={styles.overallStatus}>{overallInsight.statusLabel}</Text>
-          </Text>
-          <Text style={styles.overallAction}>
-            {generatedInsights?.overall_score_context || overallInsight.actionStatement}
-          </Text>
-          <View style={styles.signalChipRow}>
-            <Text style={styles.signalChip}>Structure {overallInsight.signals.structure}</Text>
-            <Text style={styles.signalChip}>Hydration {overallInsight.signals.hydration}</Text>
-            <Text style={styles.signalChip}>Inflammation {overallInsight.signals.inflammation}</Text>
-            <Text style={styles.signalChip}>Sun Damage {overallInsight.signals.sunDamage}</Text>
-            <Text style={styles.signalChip}>Elasticity {overallInsight.signals.elasticity}</Text>
-          </View>
-        </Animated.View>
-      )}
-
-      {/* Metric guide cards */}
-      <View style={styles.metricStack}>
-        {METRIC_GUIDE.map((metric, i) => {
-          const score =
-            metric.key === 'acne'
-              ? latestOutput.acne_score
-              : metric.key === 'sun_damage'
-                ? latestOutput.sun_damage_score
-                : latestOutput.skin_age_score;
-
-          return (
-            <Animated.View key={metric.key} entering={FadeInRight.duration(500).delay(700 + i * 100)}>
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.metricCard}
-                accessibilityRole="button"
-                accessibilityLabel={`${metric.title} score ${score} out of 100, open detailed assessment`}
-                onPress={() =>
-                  router.push({
-                    pathname: '/skin-metric/[metric]',
-                    params: { metric: metric.key },
-                  })
-                }
-              >
-                <View style={styles.metricCardHeader}>
-                  <Text style={styles.metricTitle}>{metric.title}</Text>
-                  <Text style={[styles.metricScore, { color: metric.color }]}>
-                    {score}/100
-                  </Text>
+          {/* RAG recommendations */}
+          {latestOutput.rag_recommendations && latestOutput.rag_recommendations.length > 0 && (
+            <View style={styles.ragSection}>
+              <Text style={styles.ragTitle}>Evidence-based guidelines</Text>
+              {latestOutput.rag_recommendations.map((rec, i) => (
+                <View key={i} style={styles.ragCard}>
+                  <View style={styles.ragCategoryBadge}>
+                    <Text style={styles.ragCategoryText}>
+                      {rec.category.replace(/_/g, ' ')}
+                    </Text>
+                  </View>
+                  <Text style={styles.ragText}>{rec.text}</Text>
                 </View>
-                <Text style={styles.metricSubtitle}>{metric.subtitle}</Text>
-                <Text style={styles.metricDetail}>{metric.detail}</Text>
-                <Text style={styles.metricCta}>Open detailed assessment</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          );
-        })}
-      </View>
+              ))}
+            </View>
+          )}
 
-      {/* Escalation alert: slide from bottom, 800ms delay */}
+          {/* Action plan */}
+          {generatedInsights?.action_plan && generatedInsights.action_plan.length > 0 && (
+            <View style={styles.actionPlanSection}>
+              <Text style={styles.ragTitle}>Your action plan</Text>
+              {generatedInsights.action_plan.map((action, i) => (
+                <View key={i} style={styles.actionPlanItem}>
+                  <Text style={styles.actionPlanNumber}>{i + 1}</Text>
+                  <Text style={styles.actionPlanText}>{action}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Metric guide cards */}
+          <View style={styles.metricStack}>
+            {METRIC_GUIDE.map((metric, i) => {
+              const score =
+                metric.key === 'acne'
+                  ? latestOutput.acne_score
+                  : metric.key === 'sun_damage'
+                    ? latestOutput.sun_damage_score
+                    : latestOutput.skin_age_score;
+
+              return (
+                <TouchableOpacity
+                  key={metric.key}
+                  activeOpacity={0.85}
+                  style={styles.metricCard}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${metric.title} score ${score} out of 100, open detailed assessment`}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/skin-metric/[metric]',
+                      params: { metric: metric.key },
+                    })
+                  }
+                >
+                  <View style={styles.metricCardHeader}>
+                    <Text style={styles.metricTitle}>{metric.title}</Text>
+                    <Text style={[styles.metricScore, { color: metric.color }]}>
+                      {score}/100
+                    </Text>
+                  </View>
+                  <Text style={styles.metricSubtitle}>{metric.subtitle}</Text>
+                  <Text style={styles.metricDetail}>{metric.detail}</Text>
+                  <Text style={styles.metricCta}>Open detailed assessment</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      )}
+
+      {/* Escalation alert — always visible (important) */}
       {latestOutput.escalation_flag ? (
-        <Animated.View entering={FadeInDown.duration(500).delay(900)} style={styles.alertStrip}>
+        <View style={styles.alertStrip}>
           <Text style={styles.alertTitle}>Worth escalating</Text>
           <Text style={styles.alertCopy}>
             Your trend changed quickly for this baseline. This is not diagnostic, but it is worth packaging for clinician context.
@@ -290,13 +291,13 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
             size="sm"
             onPress={() => router.push('/report/generate')}
           />
-        </Animated.View>
+        </View>
       ) : null}
 
       {!hideBottomAction && (
-        <Animated.View entering={FadeInDown.duration(400).delay(1000)} style={styles.bottomAction}>
+        <View style={styles.bottomAction}>
           <Button title="Continue" onPress={handleDone} size="lg" />
-        </Animated.View>
+        </View>
       )}
     </AtmosphereScreen>
   );
@@ -333,6 +334,19 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.sm,
     textTransform: 'capitalize',
+  },
+  deepDiveToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  deepDiveToggleText: {
+    color: Colors.primaryLight,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
   },
   metricStack: {
     gap: Spacing.sm,
@@ -568,24 +582,6 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
     lineHeight: 22,
-  },
-  signalChipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  signalChip: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.xs,
-    backgroundColor: Colors.glass,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    overflow: 'hidden',
   },
   metricCard: {
     backgroundColor: Colors.glass,
