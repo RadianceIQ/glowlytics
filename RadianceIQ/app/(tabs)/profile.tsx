@@ -155,9 +155,6 @@ export default function ProfileTab() {
         </View>
       </View>
 
-      {/* Gamification */}
-      <GamificationCard gamification={gamification} streak={streak} />
-
       {/* Account & Subscription */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Account & Plan</Text>
@@ -394,13 +391,13 @@ export default function ProfileTab() {
         <InfoRow label="Total scans" value={String(dailyRecords.length)} />
       </View>
 
-      {/* Achievements */}
+      {/* Progress — gamification + achievements unified */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Achievements</Text>
+        <Text style={styles.cardTitle}>Progress</Text>
+        <GamificationCard gamification={gamification} streak={streak} />
+        <View style={styles.divider} />
         <LevelProgressBar xp={gamification.xp} />
         <BadgeShowcase earnedBadges={gamification.badges} />
-
-        {/* Personal bests */}
         <View style={styles.personalBests}>
           <InfoRow label="Longest streak" value={`${gamification.personal_bests.longest_streak} days`} />
           <InfoRow label="Lowest acne" value={gamification.personal_bests.lowest_acne < 100 ? String(gamification.personal_bests.lowest_acne) : '--'} />
