@@ -1,12 +1,24 @@
+import * as api from './api';
+
 export interface ProductResult {
   name: string;
+  brand?: string;
   ingredients: string[];
   source: string;
 }
 
 export interface SearchResult {
   name: string;
+  brand?: string;
   ingredients: string[];
+}
+
+export interface PhotoIdentifyResult {
+  identified: boolean;
+  name: string;
+  brand: string;
+  ingredients: string[];
+  confidence: 'low' | 'med' | 'high';
 }
 
 // ---- Individual lookup sources ----
@@ -113,6 +125,22 @@ const lookupSources = [
 ];
 
 export async function lookupBarcode(barcode: string): Promise<ProductResult | null> {
+  // Try backend first (has curated DB + ingredient enrichment)
+  try {
+    const backendResult = await api.lookupBarcode(barcode);
+    const ingredients = backendResult.ingredients
+      ? backendResult.ingredients.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : [];
+    return {
+      name: backendResult.name,
+      brand: backendResult.brands || undefined,
+      ingredients,
+      source: backendResult.source,
+    };
+  } catch {
+    // Backend unreachable — fall back to client-side waterfall
+  }
+
   for (const lookup of lookupSources) {
     try {
       const result = await lookup(barcode);
@@ -122,4 +150,42 @@ export async function lookupBarcode(barcode: string): Promise<ProductResult | nu
     }
   }
   return null;
+}
+
+// ---- Multi-source search via backend ----
+
+export async function searchProductsMultiSource(query: string): Promise<SearchResult[]> {
+  try {
+    const results = await api.searchProducts(query);
+    return results.map((r) => ({
+      name: r.name,
+      brand: r.brands || undefined,
+      ingredients: r.ingredients
+        ? r.ingredients.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [],
+    }));
+  } catch {
+    // Fallback to direct OBF search if backend is unreachable
+    return searchOpenBeautyFacts(query);
+  }
+}
+
+// ---- Photo-based product identification via backend ----
+
+export async function identifyProductPhoto(imageBase64: string): Promise<PhotoIdentifyResult | null> {
+  try {
+    const result = await api.identifyProductPhoto(imageBase64);
+    if (result.identified) {
+      return {
+        identified: true,
+        name: result.name,
+        brand: result.brand,
+        ingredients: result.ingredients,
+        confidence: result.confidence,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }

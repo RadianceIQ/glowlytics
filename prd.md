@@ -25,7 +25,8 @@ Glowlytics is a skin health tracking app that enables users to gain insights int
 - **3-layer parallel vision pipeline** — Layer 1: deterministic features (CIELAB, ITA, GLCM, LBP, Gabor, Frangi) + Layer 2: ONNX CV models (structure MobileNetV3, hydration/elasticity EfficientNet-B0, YOLOv8 lesion detector) + Layer 3: fine-tuned GPT-4o. Score merging: L2 overrides > L1+L3 blend.
 - **On-device lesion detection** — YOLOv8 ONNX model via onnxruntime-react-native, CoreML on iOS. Downloads from HuggingFace on first use, cached locally. Real-time inference during camera scan.
 - **RAG pipeline** — Pinecone vector DB + OpenAI text-embedding-3-small, 19 curated AAD/ACOG guideline chunks, auto-queried on each scan for evidence-based recommendations
-- **On-device photo quality** — expo-face-detector for real face detection (fill %, centering, angle validation)
+- **Real-time face tracking** — react-native-vision-camera with MLKit face detection frame processor (GPU-accelerated, zero disk I/O, ~15-30ms per frame). Replaced expo-face-detector (deprecated).
+- **On-device photo quality** — MLKit face detection for fill %, centering, angle validation (via react-native-vision-camera frame processor)
 - Scanner data: **deterministic simulation** with seeded PRNG for reproducible readings
 - **Gamification engine** — XP system (6 levels), 15 achievement badges, weekly challenges, personal bests tracking
 
@@ -668,6 +669,45 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 ### Home Integration
 - Signal rings on home screen are tappable → navigate to signal detail
 - Tap any ring to see full breakdown, history, and recommendations
+
+---
+
+## Launch Readiness Milestones
+
+### Milestone 1: Security & Compliance (DONE — 2026-03-23)
+- [x] IDOR fix: all POST routes use req.auth.userId
+- [x] Account deletion endpoint (Apple 5.1.1(v))
+- [x] Input validation on user creation
+- [x] Rate limiting on vision/analyze (10 req/min/user)
+- [x] RAG seed endpoint admin-only (timing-safe secret)
+- [x] Auth bypass hardened (NODE_ENV denylist)
+- [x] Cascading delete wrapped in transaction
+- [x] Android RECORD_AUDIO permission removed
+- [x] Localhost API guard in production builds
+- [x] Demo data hidden in production
+- [x] Console.log gated behind __DEV__
+
+### Milestone 2: Camera Pipeline Upgrade (IN PROGRESS)
+- [ ] Replace expo-face-detector with react-native-vision-camera + MLKit
+- [ ] Frame processor for real-time face detection (~15ms vs ~200ms)
+- [ ] Remove takePictureAsync polling loop (useFaceTracking)
+- [ ] Update photoQuality to use VisionCamera face data
+- [ ] Integrate lesion detection with frame processor pipeline
+- [ ] Update tests for new camera module
+
+### Milestone 3: Remaining Launch Blockers
+- [ ] Clerk pk_live_ key in production EAS profile
+- [ ] CORS_ORIGINS set on Railway
+- [ ] SSL rejectUnauthorized: true with CA cert
+- [ ] Sunscreen/product context collection before scan
+- [ ] Real PDF report generation (replace stub)
+- [ ] Backend log masking in production
+
+### Milestone 4: App Store Submission
+- [ ] EAS production build (iOS)
+- [ ] TestFlight distribution
+- [ ] App Store Connect metadata + screenshots
+- [ ] App Review submission
 
 ---
 

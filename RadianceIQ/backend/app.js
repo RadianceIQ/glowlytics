@@ -255,8 +255,15 @@ app.post('/api/vision/detect-lesions', detectRateLimit, async (req, res) => {
 
 // ==================== BARCODE PRODUCT LOOKUP (waterfall) ====================
 
+// 5-second timeout for external API calls
+function fetchWithTimeout(url, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(id));
+}
+
 async function lookupOpenBeautyFacts(barcode) {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://world.openbeautyfacts.org/api/v0/product/${barcode}.json`
   );
   const data = await res.json();
@@ -272,7 +279,7 @@ async function lookupOpenBeautyFacts(barcode) {
 }
 
 async function lookupOpenFoodFacts(barcode) {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
   );
   const data = await res.json();
@@ -288,7 +295,7 @@ async function lookupOpenFoodFacts(barcode) {
 }
 
 async function lookupUPCitemdb(barcode) {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`
   );
   if (!res.ok) return null;
@@ -305,7 +312,7 @@ async function lookupUPCitemdb(barcode) {
 }
 
 async function lookupNIHDailyMed(barcode) {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json?ndc=${barcode}`
   );
   if (!res.ok) return null;
@@ -323,9 +330,14 @@ async function lookupNIHDailyMed(barcode) {
   };
 }
 
-// Barcode product lookup (public -- called before the user has an account)
-app.get('/api/products/lookup/:barcode', async (req, res) => {
+// Barcode product lookup (public, rate-limited)
+app.get('/api/products/lookup/:barcode', detectRateLimit, async (req, res) => {
   const barcode = req.params.barcode;
+
+  // Validate barcode format (numeric, 6-14 digits)
+  if (!/^[0-9]{6,14}$/.test(barcode)) {
+    return res.status(400).json({ error: 'Invalid barcode format' });
+  }
 
   // Check curated DB first (instant, local)
   const curated = lookupCuratedBarcode(barcode);
@@ -369,8 +381,8 @@ app.get('/api/products/lookup/:barcode', async (req, res) => {
   res.status(404).json({ error: 'Product not found in any database' });
 });
 
-// Product text search — multi-source (public)
-app.get('/api/products/search', async (req, res) => {
+// Product text search — multi-source (public, rate-limited)
+app.get('/api/products/search', detectRateLimit, async (req, res) => {
   const query = req.query.q;
   if (!query || typeof query !== 'string' || query.length < 2) {
     return res.status(400).json({ error: 'Query parameter "q" must be at least 2 characters' });

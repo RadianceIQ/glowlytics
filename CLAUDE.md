@@ -57,6 +57,7 @@ cornell-hackathon/
 - **Notifications:** expo-notifications (daily scan reminders, configurable time picker)
 - **Analytics:** PostHog (posthog-react-native, 20 events across auth/onboarding/scan/paywall/engagement)
 - **Vision:** 3-layer parallel pipeline — deterministic image processing + ONNX CV models + fine-tuned GPT-4o (`ft:gpt-4o-2024-08-06:personal:radianceiq-skin:DHBaOo20`)
+- **Camera:** react-native-vision-camera with MLKit face detection frame processor (replaced deprecated expo-face-detector)
 - **Image Processing:** `sharp` for CIELAB/ITA/GLCM/LBP feature extraction, `onnxruntime-node` (optional) for custom CV models
 - **RAG:** Pinecone vector DB + OpenAI embeddings for AAD/ACOG guidelines
 - **Backend:** Express.js + PostgreSQL + OpenAI SDK + sharp + onnxruntime-node
@@ -100,7 +101,7 @@ cd backend && npm test
 
 Camera → Analyzing → Results
 
-1. **Camera** (`app/scan/camera.tsx`): Face tracking, quality checks, auto-capture after 2s aligned, **real-time on-device lesion detection** (YOLOv8 via `onDeviceLesionDetection` service, teal bounding box overlay every 1.2s while aligned, filtered to face region only)
+1. **Camera** (`app/scan/camera.tsx`): VisionCamera with MLKit frame processor for real-time face tracking (~15ms/frame), quality checks, auto-capture after 2s aligned, **real-time on-device lesion detection** (YOLOv8 via `onDeviceLesionDetection` service, teal bounding box overlay every 1.2s while aligned, filtered to face region only)
 2. **Analyzing** (`app/scan/analyzing.tsx`): Pre-encodes photo to base64 if needed, runs `analyzeWithFallback`, 9-stage progress animation, stores results + awards XP
 3. **Results** (`app/scan/results.tsx`): Displays scores, face mesh, signal breakdown, lesion overlay, RAG recommendations
 
@@ -151,17 +152,19 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 - `app/index.tsx` is now a minimal bridge screen (cream background) — the old landing page with safety card was removed
 - Tab bar: `NotchedTabBar.tsx` — SVG notch path (10px depth, 74px width), camera absolutely positioned via `cameraAnchor`, tabs layout has no sceneStyle (tab bar floats over content)
 - Lesion constants: `src/constants/lesions.ts` — 6 lesion classes with descriptions, colors, zone definitions
-- 329 frontend tests (21 suites) + 101 backend tests (4 suites), 0 TS errors
+- 340 tests (22 suites: 228 frontend + 112 backend), 0 TS errors
 - Authentication via Clerk is mandatory when CLERK_PUBLISHABLE_KEY is set
-- Backend authorization: all user-data endpoints verify `req.auth.userId` matches requested resource
-- Backend security: CORS restricted via `CORS_ORIGINS` env var, rate limiting on public endpoints, `safeErrorMessage()` hides PG details in production
-- Face tracking thresholds (faceTracking.ts) and photo quality thresholds (photoQuality.ts) both use 20% min fill
+- Backend authorization: all POST/GET/DELETE endpoints use `req.auth.userId` — never trust `body.user_id`
+- Backend security: CORS via `CORS_ORIGINS`, rate limiting on public + vision/analyze endpoints, `safeErrorMessage()` hides PG details in production, timing-safe admin secret, transactional cascading deletes
+- Account deletion: `DELETE /api/users/:id` — atomic cascade across all tables (Apple 5.1.1(v))
+- DB schema: `user_id` is TEXT (Clerk ID), not UUID. Migration v2 handles UUID→TEXT conversion.
+- Face tracking: react-native-vision-camera + react-native-vision-camera-face-detector (MLKit GPU frame processor). Thresholds in faceTracking.ts and photoQuality.ts: 20% min fill, 15deg max angle
 - Gamification system: XP, 6 levels, 15 badges, weekly challenges, personal bests
 - Subscription model: 7-day free trial (started on onboarding skip), then paywall. No free scan counter.
 - Trial state: `trial_start_date`, `trial_end_date` in SubscriptionState; `isTrialActive()`, `trialDaysRemaining()`, `canScan()` in subscription service
 - RevenueCat Error 23 (CONFIGURATION_ERROR) silenced in `initRevenueCat()` — SDK already configured
 - Onboarding paywall: `app/onboarding/paywall.tsx` — inline RevenueCatUI.Paywall, skip starts trial
-- `useFaceTracking` cleans up temp frame photos to prevent storage leaks; exposes `lastFrameUri`, `lastFrameWidth`, `lastFrameHeight` for crop-aware lesion overlay coordinate mapping
+- `useFaceTracking` hook wraps VisionCamera frame processor; exposes `trackingState`, `lastFrameUri`, `lastFrameWidth`, `lastFrameHeight` for crop-aware lesion overlay coordinate mapping
 - RevenueCat functions guard on `env.REVENUECAT_API_KEY` — all are safe to call without a key
 - PostHog analytics guard on `env.POSTHOG_API_KEY` — all no-op when key is empty
 - Subscription state persisted in Zustand: tier, is_active, expires_at, product_id, free_scans_used, trial_start_date, trial_end_date

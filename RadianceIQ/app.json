@@ -72,7 +72,14 @@
       "expo-font",
       "expo-notifications",
       "expo-web-browser",
-      "expo-mail-composer"
+      "expo-mail-composer",
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Glowlytics uses the camera to capture guided skin scans and compare trends over time.",
+          "enableFrameProcessors": true
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"

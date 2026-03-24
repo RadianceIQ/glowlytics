@@ -1,6 +1,6 @@
 Glowlytics - Build Progress
 ===========================
-Last Updated: 2026-03-22
+Last Updated: 2026-03-23
 
 MILESTONES:
 1. Project setup + foundation (Expo SDK 54, TypeScript, Expo Router)
@@ -215,6 +215,27 @@ REMAINING (Launch checklist):
 [ ] TestFlight: smoke test all 3 journeys + subscription flow + paywall
 [ ] Submit for App Review
 [ ] Fix analyzing screen dailyContext: sunscreen_used/new_product_added hardcoded to false since checkin removal
+
+SECURITY & LAUNCH READINESS (2026-03-23):
+[x] 33. Security audit: fixed critical IDOR on 5 POST routes (protocols, products, daily-records, model-outputs, reports)
+[x] 34. Account deletion endpoint: DELETE /api/users/:id with atomic cascading transaction (Apple 5.1.1(v))
+[x] 35. DB schema: user_id migrated UUID→TEXT (Clerk ID), migration v2 handles existing data
+[x] 36. Input validation: POST /api/users validates age_range, location, period, cycle_length, drink_frequency
+[x] 37. Rate limiting: POST /api/vision/analyze (10 req/min/user), existing detect-lesions limit preserved
+[x] 38. RAG seed endpoint: requires X-Admin-Secret header (timing-safe comparison)
+[x] 39. Auth hardening: dev-mode passthrough no longer leaks when NODE_ENV unset
+[x] 40. Android RECORD_AUDIO permission removed from app.json
+[x] 41. API_BASE_URL: logs error if pointed at localhost in production build
+[x] 42. Demo data: "Load demo data" button hidden in production builds (__DEV__ guard)
+[x] 43. Subscription service: console.log wrapped in __DEV__ guards
+[x] 44. DELETE /api/products/:id: now verifies product ownership via user_id WHERE clause
+[ ] 45. Replace expo-face-detector → react-native-vision-camera + MLKit frame processor (IN PROGRESS)
+[ ] 46. Clerk pk_live_ key in eas.json production profile
+[ ] 47. CORS_ORIGINS set on Railway
+[ ] 48. SSL rejectUnauthorized: true with CA cert
+[ ] 49. Sunscreen/product pre-scan context UI
+[ ] 50. Real PDF report generation
+[ ] 51. Backend log masking in production
 
 REMAINING (ML pipeline):
 [x] Models trained and exported to ONNX (hosted on HuggingFace: mufasabrownie/glowlytics-skin-models)

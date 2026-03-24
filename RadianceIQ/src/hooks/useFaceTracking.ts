@@ -1,78 +1,51 @@
-import { useEffect, useRef, useState, RefObject } from 'react';
-import { CameraView } from 'expo-camera';
-import * as FileSystemLegacy from 'expo-file-system/legacy';
-import { analyzeFrame, FaceTrackingState } from '../services/faceTracking';
+import { useCallback, useRef, useState } from 'react';
+import { analyzeAlignment, FaceTrackingState } from '../services/faceTracking';
+import type { DetectedFace } from '../services/faceTracking';
 
-const TRACKING_INTERVAL = 200; // ms (~5 FPS)
-
+/**
+ * Face tracking hook for VisionCamera.
+ *
+ * Instead of polling takePictureAsync (old expo-face-detector approach),
+ * this hook processes face data from VisionCamera's frame processor callback.
+ * The camera screen calls `onFacesDetected` with face data from the
+ * react-native-vision-camera-face-detector plugin.
+ *
+ * Returns:
+ *  - trackingState: alignment status, faceRect, issues, lighting
+ *  - onFacesDetected: callback to feed face data from the frame processor
+ *  - lastFrameUri: URI of the last captured frame (for lesion detection)
+ *  - lastFrameWidth/Height: dimensions of the last frame
+ */
 export function useFaceTracking(
-  cameraRef: RefObject<CameraView | null>,
   enabled: boolean,
   frameWidth: number = 720,
   frameHeight: number = 1280,
-): { trackingState: FaceTrackingState; lastFrame: string | null; lastFrameUri: string | null; lastFrameWidth: number; lastFrameHeight: number } {
+): {
+  trackingState: FaceTrackingState;
+  onFacesDetected: (faces: DetectedFace[]) => void;
+  lastFrameUri: string | null;
+  lastFrameWidth: number;
+  lastFrameHeight: number;
+} {
   const [trackingState, setTrackingState] = useState<FaceTrackingState>({
     status: 'no_face',
     issues: [],
     lightingOk: false,
   });
-  const [lastFrame, setLastFrame] = useState<string | null>(null);
+  const [lastFrameUri, setLastFrameUri] = useState<string | null>(null);
   const frameDimsRef = useRef({ w: 0, h: 0 });
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isProcessing = useRef(false);
-  const prevUriRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!enabled) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      return;
-    }
+  const onFacesDetected = useCallback((faces: DetectedFace[]) => {
+    if (!enabled) return;
+    const state = analyzeAlignment(faces, frameWidth, frameHeight);
+    setTrackingState(state);
+  }, [enabled, frameWidth, frameHeight]);
 
-    intervalRef.current = setInterval(async () => {
-      if (isProcessing.current || !cameraRef.current) return;
-      isProcessing.current = true;
-
-      try {
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.1,
-        });
-
-        if (photo?.uri) {
-          // Delay cleanup of old frame until new one is set in state,
-          // so consumers (lesion detection) don't read a deleted file
-          const oldUri = prevUriRef.current;
-          prevUriRef.current = photo.uri;
-          setLastFrame(photo.uri);
-          if (photo.width && photo.height) {
-            frameDimsRef.current = { w: photo.width, h: photo.height };
-          }
-          if (oldUri) {
-            FileSystemLegacy.deleteAsync(oldUri, { idempotent: true }).catch((e) => console.debug('Frame cleanup:', e));
-          }
-          const state = await analyzeFrame(photo.uri, frameWidth, frameHeight);
-          setTrackingState(state);
-        }
-      } catch {
-        // Frame capture failed, skip this cycle
-      } finally {
-        isProcessing.current = false;
-      }
-    }, TRACKING_INTERVAL);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      if (prevUriRef.current) {
-        FileSystemLegacy.deleteAsync(prevUriRef.current, { idempotent: true }).catch((e) => console.debug('Frame cleanup:', e));
-        prevUriRef.current = null;
-      }
-    };
-  }, [enabled, cameraRef, frameWidth, frameHeight]);
-
-  return { trackingState, lastFrame, lastFrameUri: lastFrame, lastFrameWidth: frameDimsRef.current.w, lastFrameHeight: frameDimsRef.current.h };
+  return {
+    trackingState,
+    onFacesDetected,
+    lastFrameUri,
+    lastFrameWidth: frameDimsRef.current.w,
+    lastFrameHeight: frameDimsRef.current.h,
+  };
 }

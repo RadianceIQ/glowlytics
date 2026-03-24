@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -25,27 +25,16 @@ import {
   Spacing,
 } from '../constants/theme';
 import { useStore } from '../store/useStore';
-import { lookupBarcode, searchOpenBeautyFacts } from '../services/productLookup';
+import { lookupBarcode, searchProductsMultiSource, identifyProductPhoto } from '../services/productLookup';
 import { trackEvent } from '../services/analytics';
-import type { UsageSchedule } from '../types';
-
-const MOCK_PRODUCTS = [
-  { name: 'CeraVe Foaming Facial Cleanser', ingredients: ['Ceramides', 'Niacinamide', 'Hyaluronic Acid'] },
-  { name: 'La Roche-Posay Anthelios SPF 50', ingredients: ['Avobenzone', 'Homosalate', 'Niacinamide'] },
-  { name: 'The Ordinary Niacinamide 10%', ingredients: ['Niacinamide', 'Zinc PCA'] },
-  { name: 'CeraVe Moisturizing Cream', ingredients: ['Ceramides', 'Hyaluronic Acid', 'Petrolatum'] },
-  { name: 'Neutrogena Hydro Boost', ingredients: ['Hyaluronic Acid', 'Glycerin', 'Dimethicone'] },
-  { name: "Paula's Choice BHA Exfoliant", ingredients: ['Salicylic Acid', 'Green Tea Extract'] },
-  { name: 'The Ordinary Retinol 0.5%', ingredients: ['Retinol', 'Squalane', 'Jojoba Oil'] },
-  { name: 'Differin Adapalene Gel', ingredients: ['Adapalene 0.1%', 'Carbomer', 'Propylene Glycol'] },
-];
+import type { CaptureMethod, UsageSchedule } from '../types';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
 }
 
-type SheetMode = 'menu' | 'search' | 'barcode' | 'manual' | 'schedule';
+type SheetMode = 'menu' | 'search' | 'barcode' | 'photo' | 'manual' | 'schedule';
 
 interface SelectedProduct {
   name: string;
@@ -58,18 +47,33 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
   const [permission, requestPermission] = useCameraPermissions();
 
   const [mode, setMode] = useState<SheetMode>('menu');
+  const [originMode, setOriginMode] = useState<SheetMode>('menu');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Array<{ name: string; ingredients: string[] }>>([]);
+  const [searchResults, setSearchResults] = useState<Array<{ name: string; brand?: string; ingredients: string[] }>>([]);
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<SelectedProduct | null>(null);
   const [schedule, setSchedule] = useState<UsageSchedule>('AM');
   const [manualName, setManualName] = useState('');
   const [manualIngredients, setManualIngredients] = useState('');
   const [barcodeFound, setBarcodeFound] = useState(false);
+  const [photoIdentifying, setPhotoIdentifying] = useState(false);
   const processingRef = useRef(false);
+  const lastScannedBarcodeRef = useRef<string | null>(null);
+  const photoCancelledRef = useRef(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cameraRef = useRef<CameraView>(null);
+
+  // Clean up debounce timer on unmount to prevent firing after sheet closes
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, []);
 
   const resetState = () => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     setMode('menu');
+    setOriginMode('menu');
     setSearchQuery('');
     setSearchResults([]);
     setSearching(false);
@@ -78,6 +82,9 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
     setManualName('');
     setManualIngredients('');
     setBarcodeFound(false);
+    setPhotoIdentifying(false);
+    lastScannedBarcodeRef.current = null;
+    photoCancelledRef.current = false;
   };
 
   const handleClose = () => {
@@ -85,41 +92,43 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
     onClose();
   };
 
-  const handleSearch = async (query: string) => {
+  const goToSchedule = (product: SelectedProduct, from: SheetMode) => {
+    setSelected(product);
+    setOriginMode(from);
+    setMode('schedule');
+  };
+
+  // Debounced multi-source search
+  const handleSearchInput = useCallback((query: string) => {
     setSearchQuery(query);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     if (query.length < 2) {
       setSearchResults([]);
+      setSearching(false);
       return;
     }
     setSearching(true);
-    try {
-      const results = await searchOpenBeautyFacts(query);
-      const localResults = MOCK_PRODUCTS.filter((p) =>
-        p.name.toLowerCase().includes(query.toLowerCase()),
-      );
-      const combined = [...localResults];
-      for (const r of results) {
-        if (!combined.some((c) => c.name === r.name)) combined.push(r);
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const results = await searchProductsMultiSource(query);
+        setSearchResults(results.slice(0, 15));
+        trackEvent('product_searched', { query, result_count: results.length });
+      } catch {
+        setSearchResults([]);
       }
-      const finalResults = combined.slice(0, 10);
-      setSearchResults(finalResults);
-      trackEvent('product_searched', { query, result_count: finalResults.length });
-    } catch {
-      const localResults = MOCK_PRODUCTS.filter((p) =>
-        p.name.toLowerCase().includes(query.toLowerCase()),
-      );
-      setSearchResults(localResults);
-    }
-    setSearching(false);
-  };
+      setSearching(false);
+    }, 300);
+  }, []);
 
-  const handleSelectResult = (product: { name: string; ingredients: string[] }) => {
-    setSelected({ name: product.name, ingredients: product.ingredients });
-    setMode('schedule');
+  const handleSelectResult = (product: { name: string; brand?: string; ingredients: string[] }) => {
+    goToSchedule({ name: product.name, brand: product.brand, ingredients: product.ingredients }, 'search');
   };
 
   const handleBarcodeScan = async (barcode: string) => {
     if (processingRef.current) return;
+    // Suppress duplicate scans of the same barcode (camera fires continuously)
+    if (lastScannedBarcodeRef.current === barcode) return;
+    lastScannedBarcodeRef.current = barcode;
     processingRef.current = true;
     setBarcodeFound(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -127,13 +136,15 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
       const result = await lookupBarcode(barcode);
       if (result) {
         trackEvent('product_barcode_scanned', { found: true });
-        setSelected({ name: result.name, ingredients: result.ingredients });
-        setMode('schedule');
+        goToSchedule({ name: result.name, brand: result.brand, ingredients: result.ingredients }, 'barcode');
       } else {
         trackEvent('product_barcode_scanned', { found: false });
         setBarcodeFound(false);
-        Alert.alert('Not found', 'Product not found. Try searching by name or enter manually.');
-        setMode('menu');
+        Alert.alert('Not found', 'Product not found. Try searching by name or take a photo instead.', [
+          { text: 'Search', onPress: () => setMode('search') },
+          { text: 'Take Photo', onPress: () => setMode('photo') },
+          { text: 'Cancel', style: 'cancel', onPress: () => setMode('menu') },
+        ]);
       }
     } catch {
       setBarcodeFound(false);
@@ -143,19 +154,60 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
     processingRef.current = false;
   };
 
+  const handlePhotoCapture = async () => {
+    if (!cameraRef.current || photoIdentifying) return;
+    photoCancelledRef.current = false;
+    setPhotoIdentifying(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.7 });
+      if (!photo?.base64) {
+        setPhotoIdentifying(false);
+        Alert.alert('Error', 'Could not capture photo. Please try again.');
+        return;
+      }
+      const result = await identifyProductPhoto(photo.base64);
+      // Discard result if user cancelled while request was in-flight
+      if (photoCancelledRef.current) return;
+      if (result) {
+        trackEvent('product_photo_identified', { success: true, confidence: result.confidence });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        goToSchedule({
+          name: result.name,
+          brand: result.brand,
+          ingredients: result.ingredients,
+        }, 'photo');
+      } else {
+        trackEvent('product_photo_identified', { success: false });
+        Alert.alert(
+          'Could not identify',
+          'Try a different angle showing the product name, or enter it manually.',
+          [
+            { text: 'Try Again', onPress: () => setPhotoIdentifying(false) },
+            { text: 'Enter Manually', onPress: () => { setPhotoIdentifying(false); setMode('manual'); } },
+          ],
+        );
+      }
+    } catch {
+      Alert.alert('Error', 'Product identification failed. Please try again.');
+    }
+    setPhotoIdentifying(false);
+  };
+
   const handleManualAdd = () => {
     if (!manualName.trim()) return;
     const ingredients = manualIngredients
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    setSelected({ name: manualName.trim(), ingredients });
-    setMode('schedule');
+    goToSchedule({ name: manualName.trim(), ingredients }, 'manual');
   };
 
   const handleConfirmAdd = () => {
     if (!selected) return;
-    const captureMethod = mode === 'barcode' ? 'barcode' : 'search';
+    const captureMethod: CaptureMethod =
+      originMode === 'barcode' ? 'barcode' :
+      originMode === 'photo' ? 'photo' : 'search';
     addProduct({
       product_name: selected.name,
       brand: selected.brand,
@@ -166,6 +218,16 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
     });
     trackEvent('product_added', { product_name: selected.name, capture_method: captureMethod, schedule });
     handleClose();
+  };
+
+  const requestCameraAndGo = async (target: SheetMode) => {
+    if (!permission?.granted) {
+      const result = await requestPermission();
+      if (!result.granted) return; // User denied — stay on menu
+    }
+    setBarcodeFound(false);
+    setPhotoIdentifying(false);
+    setMode(target);
   };
 
   return (
@@ -187,6 +249,7 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
               {mode === 'menu' ? 'Add Product' :
                mode === 'search' ? 'Search Products' :
                mode === 'barcode' ? 'Scan Barcode' :
+               mode === 'photo' ? 'Take Photo' :
                mode === 'manual' ? 'Enter Manually' :
                'Usage Schedule'}
             </Text>
@@ -216,11 +279,7 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
 
                 <TouchableOpacity
                   style={styles.menuOption}
-                  onPress={async () => {
-                    if (!permission?.granted) await requestPermission();
-                    setBarcodeFound(false);
-                    setMode('barcode');
-                  }}
+                  onPress={() => requestCameraAndGo('barcode')}
                 >
                   <View style={styles.menuIconWrap}>
                     <Feather name="maximize" size={20} color={Colors.primary} />
@@ -228,6 +287,20 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
                   <View style={styles.menuTextCol}>
                     <Text style={styles.menuLabel}>Scan barcode</Text>
                     <Text style={styles.menuDesc}>Use your camera</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={Colors.textMuted} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuOption}
+                  onPress={() => requestCameraAndGo('photo')}
+                >
+                  <View style={styles.menuIconWrap}>
+                    <Feather name="camera" size={20} color={Colors.primary} />
+                  </View>
+                  <View style={styles.menuTextCol}>
+                    <Text style={styles.menuLabel}>Take a photo</Text>
+                    <Text style={styles.menuDesc}>Snap the product packaging</Text>
                   </View>
                   <Feather name="chevron-right" size={16} color={Colors.textMuted} />
                 </TouchableOpacity>
@@ -254,7 +327,7 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
                     placeholder="Search products..."
                     placeholderTextColor={Colors.textMuted}
                     value={searchQuery}
-                    onChangeText={handleSearch}
+                    onChangeText={handleSearchInput}
                     autoFocus
                     returnKeyType="search"
                   />
@@ -272,7 +345,9 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
                     onPress={() => handleSelectResult(r)}
                   >
                     <Text style={styles.resultName} numberOfLines={1}>{r.name}</Text>
-                    <Text style={styles.resultMeta}>{r.ingredients.length} ingredients</Text>
+                    <Text style={styles.resultMeta}>
+                      {r.brand ? `${r.brand} \u00B7 ` : ''}{r.ingredients.length} ingredients
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
@@ -284,28 +359,79 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
             {mode === 'barcode' && (
               <View style={styles.barcodeMode}>
                 {permission?.granted ? (
-                  <View style={styles.cameraBox}>
-                    <CameraView
-                      style={styles.camera}
-                      facing="back"
-                      barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'] }}
-                      onBarcodeScanned={(result) => handleBarcodeScan(result.data)}
-                    />
-                    <View style={styles.cameraOverlay}>
-                      <View style={[
-                        styles.scanFrame,
-                        barcodeFound && styles.scanFrameFound,
-                      ]} />
-                      {barcodeFound && (
-                        <View style={styles.scanFeedback}>
-                          <Feather name="check-circle" size={28} color={Colors.success} />
-                          <Text style={styles.scanFeedbackText}>Barcode detected</Text>
+                  <>
+                    <View style={styles.cameraBox}>
+                      <CameraView
+                        style={styles.camera}
+                        facing="back"
+                        barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'] }}
+                        onBarcodeScanned={(result) => handleBarcodeScan(result.data)}
+                      />
+                      <View style={styles.cameraOverlay}>
+                        <View style={[
+                          styles.scanFrame,
+                          barcodeFound && styles.scanFrameFound,
+                        ]} />
+                        {barcodeFound && (
+                          <View style={styles.scanFeedback}>
+                            <Feather name="check-circle" size={28} color={Colors.success} />
+                            <Text style={styles.scanFeedbackText}>Barcode detected</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.photoFallbackLink}
+                      onPress={() => setMode('photo')}
+                    >
+                      <Feather name="camera" size={14} color={Colors.primary} />
+                      <Text style={styles.photoFallbackText}>No barcode? Take a photo instead</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <Text style={styles.noResults}>Camera permission required to scan barcodes.</Text>
+                )}
+              </View>
+            )}
+
+            {mode === 'photo' && (
+              <View style={styles.photoMode}>
+                {permission?.granted ? (
+                  <>
+                    <Text style={styles.photoHint}>
+                      Point at the product so the name and brand are visible
+                    </Text>
+                    <View style={styles.cameraBox}>
+                      <CameraView
+                        ref={cameraRef}
+                        style={styles.camera}
+                        facing="back"
+                      />
+                      {photoIdentifying && (
+                        <View style={styles.photoOverlay}>
+                          <ActivityIndicator size="large" color="#FFFFFF" />
+                          <Text style={styles.photoOverlayText}>Identifying product...</Text>
+                          <TouchableOpacity
+                            style={styles.photoCancelButton}
+                            onPress={() => { photoCancelledRef.current = true; setPhotoIdentifying(false); setMode('menu'); }}
+                            hitSlop={12}
+                          >
+                            <Text style={styles.photoCancelText}>Cancel</Text>
+                          </TouchableOpacity>
                         </View>
                       )}
                     </View>
-                  </View>
+                    <TouchableOpacity
+                      style={[styles.shutterButton, photoIdentifying && styles.shutterButtonDisabled]}
+                      onPress={handlePhotoCapture}
+                      disabled={photoIdentifying}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.shutterInner} />
+                    </TouchableOpacity>
+                  </>
                 ) : (
-                  <Text style={styles.noResults}>Camera permission required to scan barcodes.</Text>
+                  <Text style={styles.noResults}>Camera permission required to take photos.</Text>
                 )}
               </View>
             )}
@@ -343,6 +469,9 @@ export const AddProductSheet: React.FC<Props> = ({ visible, onClose }) => {
             {mode === 'schedule' && selected && (
               <View style={styles.scheduleMode}>
                 <Text style={styles.selectedName}>{selected.name}</Text>
+                {selected.brand && (
+                  <Text style={styles.selectedBrand}>{selected.brand}</Text>
+                )}
                 <Text style={styles.selectedMeta}>{selected.ingredients.length} ingredients</Text>
 
                 <Text style={styles.fieldLabel}>When do you use this product?</Text>
@@ -534,6 +663,74 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.sm,
   },
+  photoFallbackLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  photoFallbackText: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.sm,
+  },
+  photoMode: {
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  photoHint: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+  },
+  photoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  photoOverlayText: {
+    color: '#FFFFFF',
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.md,
+  },
+  photoCancelButton: {
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    minHeight: 44, // Apple HIG minimum tap target
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoCancelText: {
+    color: '#FFFFFF',
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.md,
+    textDecorationLine: 'underline',
+  },
+  shutterButton: {
+    width: 72, // Apple HIG: camera shutter ≥ 60pt, we use 72pt for comfortable tap
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 4,
+    borderColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.sm,
+  },
+  shutterButtonDisabled: {
+    opacity: 0.4,
+  },
+  shutterInner: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: Colors.primary,
+  },
   manualMode: {
     gap: Spacing.md,
   },
@@ -567,6 +764,12 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.lg,
     textAlign: 'center',
+  },
+  selectedBrand: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.sm,
+    marginTop: -4,
   },
   selectedMeta: {
     color: Colors.textMuted,
