@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor } from 'react-native-vision-camera';
+import { useFaceDetector } from 'react-native-vision-camera-face-detector';
+import { Worklets } from 'react-native-worklets-core';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -19,6 +21,7 @@ import { DirectionIndicators } from '../../src/components/DirectionIndicators';
 import { LesionOverlay } from '../../src/components/LesionOverlay';
 import { useFaceTracking } from '../../src/hooks/useFaceTracking';
 import { getDirections } from '../../src/services/faceTracking';
+import type { DetectedFace } from '../../src/services/faceTracking';
 import { checkPhotoQuality } from '../../src/services/photoQuality';
 import { useStore } from '../../src/store/useStore';
 import { presentPaywall, checkSubscriptionStatus } from '../../src/services/subscription';
@@ -28,7 +31,6 @@ import { LesionTracker } from '../../src/services/lesionTracker';
 import type { DetectedLesion } from '../../src/types';
 
 // Lazy import — onnxruntime-react-native crashes in Expo Go.
-// Module-level cache is safe: JS modules are singletons, loaded once per app session.
 type LesionModule = typeof import('../../src/services/onDeviceLesionDetection');
 let _lesionMod: Awaited<LesionModule> | null = null;
 const loadLesionModule = async (): Promise<Awaited<LesionModule> | null> => {
@@ -37,7 +39,7 @@ const loadLesionModule = async (): Promise<Awaited<LesionModule> | null> => {
     _lesionMod = await import('../../src/services/onDeviceLesionDetection');
     return _lesionMod;
   } catch (err) {
-    console.warn('[Camera] Lesion detection module unavailable:', err);
+    if (__DEV__) console.warn('[Camera] Lesion detection module unavailable:', err);
     return null;
   }
 };
@@ -45,7 +47,11 @@ const loadLesionModule = async (): Promise<Awaited<LesionModule> | null> => {
 export default function CameraScreen() {
   const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
   const router = useRouter();
-  const [permission, requestPermission] = useCameraPermissions();
+
+  // VisionCamera hooks
+  const device = useCameraDevice('front');
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const cameraRef = useRef<Camera>(null);
   const protocol = useStore((s) => s.protocol);
   const canPerformScan = useStore((s) => s.canPerformScan);
 
@@ -71,7 +77,6 @@ export default function CameraScreen() {
       })();
     }
   }, []);
-  const cameraRef = useRef<CameraView>(null);
 
   const [cameraReady, setCameraReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -83,14 +88,16 @@ export default function CameraScreen() {
   const detectedLesionsRef = useRef<DetectedLesion[]>([]);
   const detectingRef = useRef(false);
   const detectionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastFrameUriRef = useRef<string | null>(null);
   const alignedStartRef = useRef<number | null>(null);
   const lesionTrackerRef = useRef(new LesionTracker());
 
-  const { trackingState, lastFrameUri, lastFrameWidth, lastFrameHeight } = useFaceTracking(cameraRef, cameraReady && !capturing && !paywallVisible);
+  const { trackingState, onFacesDetected, lastFrameWidth, lastFrameHeight } = useFaceTracking(
+    cameraReady && !capturing && !paywallVisible,
+    SCREEN_W,
+    SCREEN_H,
+  );
 
-  // Keep refs in sync so callbacks read latest values without causing effect re-runs
-  useEffect(() => { lastFrameUriRef.current = lastFrameUri; }, [lastFrameUri]);
+  // Keep refs in sync
   useEffect(() => { detectedLesionsRef.current = detectedLesions; }, [detectedLesions]);
   const directions = getDirections(trackingState.issues);
 
@@ -105,10 +112,42 @@ export default function CameraScreen() {
     };
   }, [fr?.x, fr?.y, fr?.width, fr?.height, lastFrameWidth, lastFrameHeight]);
 
-  // Animations
+  // ─── MLKit Face Detection Frame Processor ──────────────────────────
+  const { detectFaces } = useFaceDetector({
+    performanceMode: 'fast',
+    classificationMode: 'none',
+    landmarkMode: 'none',
+  });
+
+  // Stable ref for the JS callback — updated on every render so it sees latest closure
+  const onFacesRef = useRef(onFacesDetected);
+  useEffect(() => { onFacesRef.current = onFacesDetected; }, [onFacesDetected]);
+
+  // Create the worklet-to-JS bridge once
+  const callOnFaces = useMemo(
+    () => Worklets.createRunOnJS((faces: DetectedFace[], w: number, h: number) => {
+      onFacesRef.current(faces, w, h);
+    }),
+    [],
+  );
+
+  const frameProcessor = useFrameProcessor((frame) => {
+    'worklet';
+    const result = detectFaces(frame);
+    const mapped: DetectedFace[] = result.map((f: any) => ({
+      x: f.bounds.x,
+      y: f.bounds.y,
+      width: f.bounds.width,
+      height: f.bounds.height,
+      yawAngle: f.yawAngle ?? null,
+      rollAngle: f.rollAngle ?? null,
+    }));
+    callOnFaces(mapped, frame.width, frame.height);
+  }, [detectFaces, callOnFaces]);
+
+  // ─── Animations ────────────────────────────────────────────────────
   const flashOpacity = useSharedValue(0);
   const buttonScale = useSharedValue(1);
-
 
   // Auto-capture: track continuous alignment
   useEffect(() => {
@@ -120,7 +159,6 @@ export default function CameraScreen() {
       if (elapsed >= 2000) {
         handleCaptureRef.current();
       } else {
-        // Update countdown
         setAutoCountdown(Math.ceil((2000 - elapsed) / 1000));
       }
     } else {
@@ -129,17 +167,17 @@ export default function CameraScreen() {
     }
   }, [trackingState]);
 
-  // Lazy-load lesion detection — ONNX runtime crashes in Expo Go
+  // Lazy-load lesion detection
   useEffect(() => {
-    console.log('[Camera] Initializing lesion detection model...');
+    if (__DEV__) console.log('[Camera] Initializing lesion detection model...');
     loadLesionModule()
       .then((m) => m?.initLesionDetection())
       .then((ok) => {
-        console.log('[Camera] Lesion detection init:', ok ? 'SUCCESS' : 'SKIPPED');
+        if (__DEV__) console.log('[Camera] Lesion detection init:', ok ? 'SUCCESS' : 'SKIPPED');
         trackEvent('camera_lesion_init', { success: !!ok });
       })
       .catch((err) => {
-        console.warn('[Camera] Lesion detection init error:', err);
+        if (__DEV__) console.warn('[Camera] Lesion detection init error:', err);
         trackEvent('camera_lesion_init', { success: false, error: String(err) });
       });
     return () => {
@@ -147,8 +185,7 @@ export default function CameraScreen() {
     };
   }, []);
 
-  // Lesion detection when face is aligned — on-device first, server fallback
-  // Uses dedicated frame capture (quality 0.4), 600ms interval, temporal smoothing
+  // Lesion detection when face is aligned
   useEffect(() => {
     if (trackingState.status !== 'aligned' || capturing) {
       if (detectionTimerRef.current) {
@@ -163,7 +200,6 @@ export default function CameraScreen() {
     const detectOnDevice = async (frameUri: string): Promise<DetectedLesion[]> => {
       const m = await loadLesionModule();
       if (!m || !m.isReady()) return [];
-      // Pass URI directly — uses native preprocessing pipeline (letterbox + ImageNet norm)
       return m.detectLesions(frameUri);
     };
 
@@ -194,19 +230,19 @@ export default function CameraScreen() {
       detectingRef.current = true;
 
       try {
-        // Capture a dedicated frame at higher quality for lesion detection
-        // (separate from face tracking's quality 0.1 frames)
-        const photo = await cameraRef.current.takePictureAsync({ quality: 0.4 });
-        if (!photo?.uri) return;
+        // VisionCamera takePhoto for lesion detection frame
+        const photo = await cameraRef.current.takePhoto();
+        if (!photo?.path) return;
+        const photoUri = `file://${photo.path}`;
 
-        // Try on-device first (pass URI for native preprocessing)
-        let lesions = await detectOnDevice(photo.uri);
+        // Try on-device first
+        let lesions = await detectOnDevice(photoUri);
         let source: 'on_device' | 'server' | 'none' = lesions.length > 0 ? 'on_device' : 'none';
 
         // Fall back to server if on-device returned nothing
         if (lesions.length === 0 && env.API_BASE_URL) {
           try {
-            const base64 = await FileSystemLegacy.readAsStringAsync(photo.uri, {
+            const base64 = await FileSystemLegacy.readAsStringAsync(photoUri, {
               encoding: FileSystemLegacy.EncodingType.Base64,
             });
             lesions = await detectViaServer(base64);
@@ -217,9 +253,9 @@ export default function CameraScreen() {
         }
 
         // Clean up the detection frame
-        FileSystemLegacy.deleteAsync(photo.uri, { idempotent: true }).catch(() => {});
+        FileSystemLegacy.deleteAsync(photoUri, { idempotent: true }).catch(() => {});
 
-        // Apply temporal smoothing — only show stable detections
+        // Apply temporal smoothing
         const stable = lesionTrackerRef.current.update(lesions);
         setDetectedLesions(stable);
 
@@ -237,7 +273,6 @@ export default function CameraScreen() {
       }
     };
 
-    // Run immediately, then every 600ms (2× faster than before, with temporal smoothing)
     detect();
     detectionTimerRef.current = setInterval(detect, 600);
 
@@ -272,12 +307,12 @@ export default function CameraScreen() {
     opacity: flashOpacity.value,
   }));
 
+  // ─── Capture ───────────────────────────────────────────────────────
   const handleCapture = useCallback(async () => {
     if (capturing || !cameraRef.current) return;
     setCapturing(true);
     setQualityFailed(false);
 
-    // Haptic + flash
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     flashOpacity.value = withSequence(
       withTiming(0.3, { duration: 100 }),
@@ -285,24 +320,23 @@ export default function CameraScreen() {
     );
 
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
-      if (!photo?.uri) {
+      const photo = await cameraRef.current.takePhoto({ flash: 'off' });
+      if (!photo?.path) {
         setCapturing(false);
         return;
       }
+      const photoUri = `file://${photo.path}`;
 
-      // Quality check — use photo's native dimensions, not screen dimensions
-      const quality = await checkPhotoQuality(photo.uri, photo.width, photo.height);
+      // Quality check (passthrough — real detection handled by frame processor)
+      const quality = await checkPhotoQuality(photoUri, photo.width, photo.height);
       if (quality.overallPass || quality.issues.length === 0) {
-        // Persist camera-detected lesions for results screen (use ref to avoid stale closure)
         const currentLesions = detectedLesionsRef.current;
         if (currentLesions.length > 0) {
           useStore.getState().setPendingLesions(currentLesions);
         }
-        // Navigate directly to analyzing (skip processing screen)
         router.push({
           pathname: '/scan/analyzing',
-          params: { photoUri: photo.uri },
+          params: { photoUri },
         });
       } else {
         setQualityFailed(true);
@@ -317,8 +351,8 @@ export default function CameraScreen() {
   const handleCaptureRef = useRef(handleCapture);
   useEffect(() => { handleCaptureRef.current = handleCapture; }, [handleCapture]);
 
-  // Permission not yet granted
-  if (!permission?.granted) {
+  // ─── Permission not yet granted ───────────────────────────────────
+  if (!hasPermission) {
     return (
       <View style={styles.permissionContainer}>
         <View style={styles.permissionContent}>
@@ -336,13 +370,35 @@ export default function CameraScreen() {
     );
   }
 
+  // Device not available (rare — no front camera)
+  if (!device) {
+    return (
+      <View style={styles.permissionContainer}>
+        <View style={styles.permissionContent}>
+          <Feather name="alert-circle" size={48} color={Colors.error} />
+          <Text style={styles.permissionTitle}>No Camera</Text>
+          <Text style={styles.permissionText}>
+            No front camera detected on this device.
+          </Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
+            <Text style={styles.backLinkText}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <CameraView
+      <Camera
         ref={cameraRef}
+        device={device}
+        isActive={!paywallVisible}
+        photo={true}
+        frameProcessor={frameProcessor}
         style={StyleSheet.absoluteFill}
-        facing="front"
-        onCameraReady={() => setCameraReady(true)}
+        onInitialized={() => setCameraReady(true)}
+        onError={(e) => { if (__DEV__) console.warn('[Camera] Error:', e); }}
       />
 
       {/* Face mesh overlay */}
@@ -352,7 +408,7 @@ export default function CameraScreen() {
         height={SCREEN_H}
       />
 
-      {/* Real-time lesion bounding boxes — only render once we have valid frame dimensions */}
+      {/* Real-time lesion bounding boxes */}
       {detectedLesions.length > 0 && lastFrameWidth > 0 && lastFrameHeight > 0 && (
         <LesionOverlay
           lesions={detectedLesions}
@@ -379,7 +435,6 @@ export default function CameraScreen() {
           <Feather name="chevron-left" size={28} color={Colors.textOnDark} />
         </TouchableOpacity>
 
-        {/* Region pill */}
         {protocol?.scan_region && (
           <View style={styles.regionPill}>
             <Text style={styles.regionText}>
@@ -388,7 +443,6 @@ export default function CameraScreen() {
           </View>
         )}
 
-        {/* Lighting indicator */}
         <View style={[
           styles.lightingPill,
           {
