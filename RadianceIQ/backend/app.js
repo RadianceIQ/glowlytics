@@ -2,13 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
-const { randomUUID: uuidv4 } = require('crypto');
+const { randomUUID: uuidv4, timingSafeEqual } = require('crypto');
 const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-rsa');
 const OpenAI = require('openai');
 const { seedGuidelines, queryGuidelines, queryGuidelinesMulti } = require('./rag');
 const imageProcessing = require('./image-processing');
 const signalModels = require('./signal-models');
+const { searchCuratedProducts, lookupCuratedBarcode, enrichIngredients } = require('./curated-products');
 
 const app = express();
 
@@ -97,7 +98,8 @@ const authMiddleware = (req, res, next) => {
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     if (process.env.NODE_ENV === 'development') {
-      req.auth = null;
+      // Dev mode passthrough — synthetic user so routes that need userId still work
+      req.auth = { userId: 'dev-user' };
       return next();
     }
     return res.status(401).json({ error: 'Authentication required' });
@@ -106,7 +108,8 @@ const authMiddleware = (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   if (!client) {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV !== 'development') {
+      // Deny access when JWKS is not configured and we're not explicitly in dev mode
       return res.status(503).json({ error: 'Auth service not configured' });
     }
     // No JWKS configured -- dev mode passthrough with a synthetic user
@@ -142,6 +145,34 @@ function safeErrorMessage(err) {
 }
 
 // ==================== INPUT VALIDATION ====================
+
+/** Valid values for user profile fields */
+const VALID_AGE_RANGES = ['13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+'];
+const VALID_PERIOD_APPLICABLE = ['yes', 'no', 'prefer_not'];
+const VALID_DRINK_FREQUENCIES = ['none', '1-2', '3-5', '6+'];
+
+/** Validate POST /api/users input. Returns error string or null if valid. */
+function validateUserInput(body) {
+  if (!body.age_range || !VALID_AGE_RANGES.includes(body.age_range)) {
+    return `age_range must be one of: ${VALID_AGE_RANGES.join(', ')}`;
+  }
+  if (!body.location_coarse || typeof body.location_coarse !== 'string' || body.location_coarse.length < 1 || body.location_coarse.length > 100) {
+    return 'location_coarse is required (1-100 characters)';
+  }
+  if (body.period_applicable && !VALID_PERIOD_APPLICABLE.includes(body.period_applicable)) {
+    return `period_applicable must be one of: ${VALID_PERIOD_APPLICABLE.join(', ')}`;
+  }
+  if (body.cycle_length_days != null) {
+    const days = Number(body.cycle_length_days);
+    if (!Number.isInteger(days) || days < 15 || days > 60) {
+      return 'cycle_length_days must be an integer between 15 and 60';
+    }
+  }
+  if (body.drink_baseline_frequency && !VALID_DRINK_FREQUENCIES.includes(body.drink_baseline_frequency)) {
+    return `drink_baseline_frequency must be one of: ${VALID_DRINK_FREQUENCIES.join(', ')}`;
+  }
+  return null;
+}
 
 /** Whitelist of columns that may be updated via PATCH /api/users/:id */
 const ALLOWED_USER_FIELDS = [
@@ -182,6 +213,25 @@ function detectRateLimit(req, res, next) {
   entry.count++;
   if (entry.count > DETECT_RATE_MAX) {
     return res.status(429).json({ error: 'Rate limit exceeded' });
+  }
+  next();
+}
+
+// Per-user rate limiter for expensive authenticated endpoints (vision/analyze)
+const analyzeRateMap = new Map();
+const ANALYZE_RATE_WINDOW = 60000; // 1 minute
+const ANALYZE_RATE_MAX = 10; // max 10 scans per minute per user/IP
+function analyzeRateLimit(req, res, next) {
+  const key = (req.auth && req.auth.userId) || req.ip || req.socket.remoteAddress;
+  const now = Date.now();
+  const entry = analyzeRateMap.get(key);
+  if (!entry || now - entry.start > ANALYZE_RATE_WINDOW) {
+    analyzeRateMap.set(key, { start: now, count: 1 });
+    return next();
+  }
+  entry.count++;
+  if (entry.count > ANALYZE_RATE_MAX) {
+    return res.status(429).json({ error: 'Scan rate limit exceeded. Please wait before scanning again.' });
   }
   next();
 }
@@ -276,8 +326,21 @@ async function lookupNIHDailyMed(barcode) {
 // Barcode product lookup (public -- called before the user has an account)
 app.get('/api/products/lookup/:barcode', async (req, res) => {
   const barcode = req.params.barcode;
-  const sources = [lookupOpenBeautyFacts, lookupOpenFoodFacts, lookupUPCitemdb, lookupNIHDailyMed];
 
+  // Check curated DB first (instant, local)
+  const curated = lookupCuratedBarcode(barcode);
+  if (curated) {
+    return res.json({
+      name: curated.name,
+      brands: curated.brand,
+      ingredients: curated.ingredients.join(', '),
+      image_url: null,
+      source: 'curated',
+    });
+  }
+
+  // Waterfall through external sources
+  const sources = [lookupOpenBeautyFacts, lookupOpenFoodFacts, lookupUPCitemdb, lookupNIHDailyMed];
   let bestResult = null;
   for (const lookup of sources) {
     try {
@@ -292,13 +355,21 @@ app.get('/api/products/lookup/:barcode', async (req, res) => {
   }
 
   if (bestResult) {
+    // Enrich missing ingredients from curated DB
+    const existingIngredients = bestResult.ingredients
+      ? bestResult.ingredients.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    const enriched = enrichIngredients(bestResult.name, existingIngredients);
+    if (enriched.length > existingIngredients.length) {
+      bestResult.ingredients = enriched.join(', ');
+    }
     return res.json(bestResult);
   }
 
   res.status(404).json({ error: 'Product not found in any database' });
 });
 
-// Product text search (public)
+// Product text search — multi-source (public)
 app.get('/api/products/search', async (req, res) => {
   const query = req.query.q;
   if (!query || typeof query !== 'string' || query.length < 2) {
@@ -306,25 +377,165 @@ app.get('/api/products/search', async (req, res) => {
   }
 
   try {
-    const searchRes = await fetch(
-      `https://world.openbeautyfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=10`
-    );
-    if (!searchRes.ok) {
-      return res.json([]);
+    // 1. Curated DB (instant)
+    const curatedResults = searchCuratedProducts(query).map(p => ({
+      name: p.name,
+      brands: p.brand,
+      ingredients: p.ingredients.join(', '),
+      image_url: null,
+      source: 'curated',
+    }));
+
+    // 2. Open Beauty Facts + Open Food Facts in parallel
+    const [obfResults, offResults] = await Promise.all([
+      fetch(`https://world.openbeautyfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=10`)
+        .then(r => r.ok ? r.json() : { products: [] })
+        .then(data => (data.products || []).filter(p => p.product_name).map(p => ({
+          name: p.product_name,
+          brands: p.brands || '',
+          ingredients: p.ingredients_text || '',
+          image_url: p.image_url || null,
+          source: 'Open Beauty Facts',
+        })))
+        .catch(() => []),
+      fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=5`)
+        .then(r => r.ok ? r.json() : { products: [] })
+        .then(data => (data.products || []).filter(p => p.product_name).map(p => ({
+          name: p.product_name,
+          brands: p.brands || '',
+          ingredients: p.ingredients_text || '',
+          image_url: p.image_url || null,
+          source: 'Open Food Facts',
+        })))
+        .catch(() => []),
+    ]);
+
+    // 3. Merge: curated first, then external, deduplicated by normalized name
+    const seen = new Set();
+    const merged = [];
+    for (const result of [...curatedResults, ...obfResults, ...offResults]) {
+      const key = result.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(result);
+      if (merged.length >= 15) break;
     }
-    const data = await searchRes.json();
-    const results = (data.products || [])
-      .filter((p) => p.product_name)
-      .map((p) => ({
-        name: p.product_name,
-        brands: p.brands || '',
-        ingredients: p.ingredients_text || '',
-        image_url: p.image_url || null,
-        source: 'Open Beauty Facts',
-      }));
-    res.json(results);
+
+    res.json(merged);
   } catch {
-    res.json([]);
+    // Fallback to curated-only on total failure
+    const fallback = searchCuratedProducts(query).slice(0, 15).map(p => ({
+      name: p.name,
+      brands: p.brand,
+      ingredients: p.ingredients.join(', '),
+      image_url: null,
+      source: 'curated',
+    }));
+    res.json(fallback);
+  }
+});
+
+// Photo-based product identification (public, rate-limited)
+const photoRateMap = new Map();
+const PHOTO_RATE_WINDOW = 10000;
+const PHOTO_RATE_MAX = 5;
+function photoRateLimit(req, res, next) {
+  const ip = req.ip || req.socket.remoteAddress;
+  const now = Date.now();
+  const entry = photoRateMap.get(ip);
+  if (!entry || now - entry.start > PHOTO_RATE_WINDOW) {
+    photoRateMap.set(ip, { start: now, count: 1 });
+    return next();
+  }
+  entry.count++;
+  if (entry.count > PHOTO_RATE_MAX) {
+    return res.status(429).json({ error: 'Rate limit exceeded' });
+  }
+  next();
+}
+
+app.post('/api/products/identify-photo', photoRateLimit, async (req, res) => {
+  try {
+    const { image_base64 } = req.body;
+    if (!image_base64 || typeof image_base64 !== 'string') {
+      return res.status(400).json({ error: 'image_base64 is required' });
+    }
+    // Limit payload to ~10MB base64 (prevents abuse)
+    if (image_base64.length > 10 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Image too large (max 10MB)' });
+    }
+    if (!openaiKey) {
+      return res.status(503).json({ error: 'Product identification unavailable' });
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a skincare product identification assistant. Identify the product in this photo and return its full name, brand, and complete ingredient list (INCI format). If you can read the ingredients from the packaging, list them exactly. If you can identify the product but cannot read ingredients, provide the known ingredients for that product. If you cannot identify the product with confidence, return identified: false. Return ONLY valid JSON matching this schema: { "identified": boolean, "name": string, "brand": string, "ingredients": string[], "confidence": "low" | "med" | "high" }`,
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:image/jpeg;base64,${image_base64}`, detail: 'low' },
+            },
+            { type: 'text', text: 'Identify this skincare product. Return the product name, brand, and full ingredient list as JSON.' },
+          ],
+        },
+      ],
+      max_tokens: 800,
+      temperature: 0.1,
+    });
+
+    const raw = (completion.choices?.[0]?.message?.content || '').trim();
+
+    // Parse JSON: try direct parse first, then extract from code fences
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Try extracting from ```json ... ``` code fences
+      const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fenceMatch) {
+        try { parsed = JSON.parse(fenceMatch[1].trim()); } catch { /* fall through */ }
+      }
+      // Last resort: find first { and matching closing }
+      if (!parsed) {
+        const start = raw.indexOf('{');
+        if (start >= 0) {
+          try { parsed = JSON.parse(raw.slice(start)); } catch { /* fall through */ }
+        }
+      }
+    }
+
+    if (!parsed) {
+      return res.json({ identified: false, error: 'Could not parse response' });
+    }
+    if (!parsed.identified) {
+      return res.json({ identified: false, error: 'Could not identify product' });
+    }
+
+    // Enrich/verify ingredients from curated DB
+    const curatedMatch = searchCuratedProducts(parsed.name);
+    if (curatedMatch.length > 0 && curatedMatch[0].ingredients.length > (parsed.ingredients || []).length) {
+      parsed.ingredients = curatedMatch[0].ingredients;
+      parsed.brand = parsed.brand || curatedMatch[0].brand;
+    }
+
+    res.json({
+      identified: true,
+      name: parsed.name || '',
+      brand: parsed.brand || '',
+      ingredients: parsed.ingredients || [],
+      confidence: parsed.confidence || 'med',
+      source: 'gpt4o_vision',
+    });
+  } catch (err) {
+    console.warn('[identify-photo] Error:', err.message);
+    res.json({ identified: false, error: 'Product identification failed' });
   }
 });
 
@@ -346,7 +557,7 @@ function authorizeUser(req, res, userId) {
 
 // ==================== VISION API PROXY ====================
 
-app.post('/api/vision/analyze', async (req, res) => {
+app.post('/api/vision/analyze', analyzeRateLimit, async (req, res) => {
   try {
     const { image_base64, context } = req.body;
 
@@ -729,6 +940,18 @@ app.post('/api/vision/generate-insights', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
+    // Issue #14: Validate input before touching the database
+    const validationError = validateUserInput(req.body);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
+
+    // Issue #4: Use Clerk user_id (from auth token) as the primary key
+    const userId = (req.auth && req.auth.userId) || null;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required to create user profile' });
+    }
+
     const {
       age_range, location_coarse, period_applicable,
       period_last_start_date, cycle_length_days,
@@ -737,17 +960,56 @@ app.post('/api/users', async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO user_profiles
-       (age_range, location_coarse, period_applicable, period_last_start_date,
+       (user_id, age_range, location_coarse, period_applicable, period_last_start_date,
         cycle_length_days, smoker_status, drink_baseline_frequency)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [age_range, location_coarse, period_applicable,
+      [userId, age_range, location_coarse, period_applicable || 'prefer_not',
        period_last_start_date, cycle_length_days || 28,
        smoker_status, drink_baseline_frequency]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    // Issue #4: Handle duplicate user_id (idempotent creation)
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'User profile already exists' });
+    }
     res.status(500).json({ error: safeErrorMessage(err) });
+  }
+});
+
+// Issue #2: Account deletion (Apple App Store Guideline 5.1.1(v))
+app.delete('/api/users/:id', async (req, res) => {
+  if (!authorizeUser(req, res, req.params.id)) return;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Cascading delete inside transaction for atomicity
+    await client.query(
+      `DELETE FROM model_outputs WHERE daily_id IN
+       (SELECT daily_id FROM daily_records WHERE user_id = $1)`,
+      [req.params.id]
+    );
+    await client.query('DELETE FROM daily_records WHERE user_id = $1', [req.params.id]);
+    await client.query('DELETE FROM product_catalog WHERE user_id = $1', [req.params.id]);
+    await client.query('DELETE FROM scan_protocols WHERE user_id = $1', [req.params.id]);
+    await client.query('DELETE FROM report_artifacts WHERE user_id = $1', [req.params.id]);
+    const result = await client.query(
+      'DELETE FROM user_profiles WHERE user_id = $1 RETURNING user_id',
+      [req.params.id]
+    );
+    await client.query('COMMIT');
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ success: true, message: 'Account and all associated data deleted' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: safeErrorMessage(err) });
+  } finally {
+    client.release();
   }
 });
 
@@ -810,11 +1072,14 @@ app.patch('/api/users/:id', async (req, res) => {
 
 app.post('/api/protocols', async (req, res) => {
   try {
-    const { user_id, primary_goal, scan_region, baseline_date } = req.body;
+    // SECURITY: Use authenticated user ID, never trust body.user_id
+    const userId = req.auth?.userId;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const { primary_goal, scan_region, baseline_date } = req.body;
     const result = await pool.query(
       `INSERT INTO scan_protocols (user_id, primary_goal, scan_region, baseline_date)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [user_id, primary_goal, scan_region, baseline_date || new Date().toISOString().split('T')[0]]
+      [userId, primary_goal, scan_region, baseline_date || new Date().toISOString().split('T')[0]]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -839,17 +1104,20 @@ app.get('/api/protocols/:userId', async (req, res) => {
 
 app.post('/api/products', async (req, res) => {
   try {
+    // SECURITY: Use authenticated user ID, never trust body.user_id
+    const userId = req.auth?.userId;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const {
-      user_id, product_name, product_capture_method,
+      product_name, brand, product_capture_method,
       ingredients_list, usage_schedule, start_date, notes,
     } = req.body;
 
     const result = await pool.query(
       `INSERT INTO product_catalog
-       (user_id, product_name, product_capture_method, ingredients_list,
+       (user_id, product_name, brand, product_capture_method, ingredients_list,
         usage_schedule, start_date, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [user_id, product_name, product_capture_method,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [userId, product_name, brand || null, product_capture_method,
        ingredients_list, usage_schedule,
        start_date || new Date().toISOString().split('T')[0], notes]
     );
@@ -874,10 +1142,16 @@ app.get('/api/products/:userId', async (req, res) => {
 
 app.delete('/api/products/:id', async (req, res) => {
   try {
-    await pool.query(
-      'UPDATE product_catalog SET end_date = CURRENT_DATE WHERE user_product_id = $1',
-      [req.params.id]
+    // SECURITY: Only allow deleting products owned by the authenticated user
+    const userId = req.auth?.userId;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const result = await pool.query(
+      'UPDATE product_catalog SET end_date = CURRENT_DATE WHERE user_product_id = $1 AND user_id = $2',
+      [req.params.id, userId]
     );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Product not found or access denied' });
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: safeErrorMessage(err) });
@@ -888,8 +1162,11 @@ app.delete('/api/products/:id', async (req, res) => {
 
 app.post('/api/daily-records', async (req, res) => {
   try {
+    // SECURITY: Use authenticated user ID, never trust body.user_id
+    const userId = req.auth?.userId;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const {
-      user_id, date, scanner_reading_id, scanner_indices,
+      date, scanner_reading_id, scanner_indices,
       scanner_quality_flag, scan_region, photo_uri,
       photo_quality_flag, sunscreen_used, new_product_added,
       period_status_confirmed, cycle_day_estimated,
@@ -914,7 +1191,7 @@ app.post('/api/daily-records', async (req, res) => {
         stress_level = EXCLUDED.stress_level,
         drinks_yesterday = EXCLUDED.drinks_yesterday
        RETURNING *`,
-      [user_id, date || new Date().toISOString().split('T')[0],
+      [userId, date || new Date().toISOString().split('T')[0],
        scanner_reading_id, JSON.stringify(scanner_indices),
        scanner_quality_flag || 'pass', scan_region,
        photo_uri, photo_quality_flag,
@@ -1003,11 +1280,14 @@ app.get('/api/model-outputs/:userId', async (req, res) => {
 
 app.post('/api/reports', async (req, res) => {
   try {
-    const { user_id, date_range, included_fields } = req.body;
+    // SECURITY: Use authenticated user ID, never trust body.user_id
+    const userId = req.auth?.userId;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const { date_range, included_fields } = req.body;
     const result = await pool.query(
       `INSERT INTO report_artifacts (user_id, date_range, included_fields, report_uri)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [user_id, date_range, included_fields || [],
+      [userId, date_range, included_fields || [],
        `report_${Date.now()}.pdf`]
     );
     res.status(201).json(result.rows[0]);
@@ -1031,11 +1311,16 @@ app.get('/api/reports/:userId', async (req, res) => {
 
 // ==================== RAG PIPELINE ====================
 
-// Seed guidelines into Pinecone (dev/admin only)
+// Seed guidelines into Pinecone (admin only — requires ADMIN_SECRET)
 app.post('/api/rag/seed', async (req, res) => {
   try {
-    if (process.env.NODE_ENV !== 'development') {
-      return res.status(403).json({ error: 'Seeding is only available in development mode' });
+    // Issue #13: Require ADMIN_SECRET header instead of relying on NODE_ENV
+    const adminSecret = process.env.ADMIN_SECRET;
+    const providedSecret = req.headers['x-admin-secret'];
+    if (!adminSecret || !providedSecret ||
+        adminSecret.length !== providedSecret.length ||
+        !timingSafeEqual(Buffer.from(providedSecret), Buffer.from(adminSecret))) {
+      return res.status(403).json({ error: 'Admin access required' });
     }
 
     if (!process.env.PINECONE_API_KEY) {
@@ -1079,5 +1364,26 @@ app.post('/api/rag/query', async (req, res) => {
     res.status(500).json({ error: safeErrorMessage(err) });
   }
 });
+
+// Reset rate limiters — exposed for test cleanup
+app._resetRateLimiters = () => {
+  detectRateMap.clear();
+  analyzeRateMap.clear();
+  photoRateMap.clear();
+};
+
+// Periodic cleanup of stale rate limiter entries (production memory hygiene)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of detectRateMap) {
+    if (now - entry.start > DETECT_RATE_WINDOW * 2) detectRateMap.delete(ip);
+  }
+  for (const [ip, entry] of photoRateMap) {
+    if (now - entry.start > PHOTO_RATE_WINDOW * 2) photoRateMap.delete(ip);
+  }
+  for (const [ip, entry] of analyzeRateMap) {
+    if (now - entry.start > ANALYZE_RATE_WINDOW * 2) analyzeRateMap.delete(ip);
+  }
+}, 60000).unref(); // unref so the timer doesn't prevent process exit
 
 module.exports = app;

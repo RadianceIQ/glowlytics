@@ -166,14 +166,16 @@ export default function ProfileTab() {
           <Feather name="trash-2" size={16} color={Colors.error} />
           <Text style={[styles.modeButtonText, { color: Colors.error }]}>Reset all data</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.modeButton}
-          onPress={handleLoadDemo}
-          activeOpacity={0.7}
-        >
-          <Feather name="database" size={16} color={Colors.primary} />
-          <Text style={[styles.modeButtonText, { color: Colors.primary }]}>Load demo data</Text>
-        </TouchableOpacity>
+        {__DEV__ && (
+          <TouchableOpacity
+            style={styles.modeButton}
+            onPress={handleLoadDemo}
+            activeOpacity={0.7}
+          >
+            <Feather name="database" size={16} color={Colors.primary} />
+            <Text style={[styles.modeButtonText, { color: Colors.primary }]}>Load demo data</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Subscription */}

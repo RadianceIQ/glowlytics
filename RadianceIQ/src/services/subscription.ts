@@ -25,15 +25,17 @@ export const defaultSubscription = (): SubscriptionState => ({
 });
 
 const TAG = '[RevenueCat]';
+const log = (...args: unknown[]) => { if (__DEV__) console.log(...args); };
+const warn = (...args: unknown[]) => { if (__DEV__) console.warn(...args); };
 let revenueCatConfigured = false;
 
 export async function initRevenueCat(): Promise<void> {
   if (!env.REVENUECAT_API_KEY) {
-    console.log(TAG, 'No API key — skipping init');
+    log(TAG, 'No API key — skipping init');
     return;
   }
   if (revenueCatConfigured) {
-    console.log(TAG, 'Already configured — skipping');
+    log(TAG, 'Already configured — skipping');
     return;
   }
   try {
@@ -41,22 +43,22 @@ export async function initRevenueCat(): Promise<void> {
     await Purchases.getCustomerInfo();
     // If that didn't throw, SDK is already configured
     revenueCatConfigured = true;
-    console.log(TAG, 'SDK was already configured (hot reload or double mount)');
+    log(TAG, 'SDK was already configured (hot reload or double mount)');
     return;
   } catch {
     // Not configured yet — proceed
   }
-  console.log(TAG, 'Configuring SDK...');
+  log(TAG, 'Configuring SDK...');
   Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
   Purchases.configure({ apiKey: env.REVENUECAT_API_KEY });
   revenueCatConfigured = true;
-  console.log(TAG, 'SDK configured successfully');
+  log(TAG, 'SDK configured successfully');
 
   // Check offerings to validate paywall readiness
   try {
     const offerings = await Purchases.getOfferings();
     const current = offerings.current;
-    console.log(TAG, 'Offerings loaded:', {
+    log(TAG, 'Offerings loaded:', {
       hasCurrent: !!current,
       currentId: current?.identifier ?? 'NONE',
       packageCount: current?.availablePackages?.length ?? 0,
@@ -64,20 +66,20 @@ export async function initRevenueCat(): Promise<void> {
     });
     if (current && current.availablePackages.length > 0) {
       _paywallReady = true;
-      console.log(TAG, 'Paywall READY — offerings available');
+      log(TAG, 'Paywall READY — offerings available');
     } else {
-      console.warn(TAG, 'Paywall NOT READY — no current offering or no packages. Check RevenueCat dashboard → Offerings.');
+      warn(TAG, 'Paywall NOT READY — no current offering or no packages. Check RevenueCat dashboard → Offerings.');
     }
   } catch (e: any) {
-    console.warn(TAG, 'Failed to fetch offerings:', e?.message || e);
+    warn(TAG, 'Failed to fetch offerings:', e?.message || e);
   }
 }
 
 export async function identifyUser(userId: string): Promise<void> {
   if (!env.REVENUECAT_API_KEY) return;
-  console.log(TAG, 'Identifying user:', userId);
+  log(TAG, 'Identifying user:', userId);
   await Purchases.logIn(userId);
-  console.log(TAG, 'User identified');
+  log(TAG, 'User identified');
 }
 
 export function subscriptionFromCustomerInfo(
@@ -109,10 +111,10 @@ export async function checkSubscriptionStatus(
   current: SubscriptionState,
 ): Promise<SubscriptionState> {
   if (!env.REVENUECAT_API_KEY) return current;
-  console.log(TAG, 'Checking subscription status...');
+  log(TAG, 'Checking subscription status...');
   const info = await Purchases.getCustomerInfo();
   const result = subscriptionFromCustomerInfo(info, current);
-  console.log(TAG, 'Subscription status:', result.tier, result.is_active ? '(active)' : '(inactive)');
+  log(TAG, 'Subscription status:', result.tier, result.is_active ? '(active)' : '(inactive)');
   return result;
 }
 
@@ -123,11 +125,11 @@ export async function checkSubscriptionStatus(
  */
 export async function presentPaywall(): Promise<boolean> {
   if (!env.REVENUECAT_API_KEY) return false;
-  console.log(TAG, 'Presenting paywall...');
+  log(TAG, 'Presenting paywall...');
   const result = await RevenueCatUI.presentPaywallIfNeeded({
     requiredEntitlementIdentifier: ENTITLEMENT_ID,
   });
-  console.log(TAG, 'Paywall result:', result);
+  log(TAG, 'Paywall result:', result);
   return result === PAYWALL_RESULT.PURCHASED || result === PAYWALL_RESULT.RESTORED;
 }
 
@@ -143,10 +145,10 @@ export async function restorePurchases(
   current: SubscriptionState,
 ): Promise<SubscriptionState> {
   if (!env.REVENUECAT_API_KEY) return current;
-  console.log(TAG, 'Restoring purchases...');
+  log(TAG, 'Restoring purchases...');
   const info = await Purchases.restorePurchases();
   const result = subscriptionFromCustomerInfo(info, current);
-  console.log(TAG, 'Restore result:', result.tier, result.is_active ? '(active)' : '(inactive)');
+  log(TAG, 'Restore result:', result.tier, result.is_active ? '(active)' : '(inactive)');
   return result;
 }
 
@@ -155,7 +157,7 @@ export function startTrial(): Partial<SubscriptionState> {
   const now = new Date();
   const end = new Date(now);
   end.setDate(end.getDate() + TRIAL_DAYS);
-  console.log(TAG, 'Starting trial — expires:', end.toISOString());
+  log(TAG, 'Starting trial — expires:', end.toISOString());
   return {
     trial_start_date: now.toISOString(),
     trial_end_date: end.toISOString(),

@@ -6,7 +6,9 @@ import type {
   ModelOutput, PrimaryGoal, ScanRegion,
 } from '../types';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+import { env } from '../config/env';
+
+const API_BASE = env.API_BASE_URL;
 
 let getAuthToken: (() => Promise<string | null>) | null = null;
 
@@ -91,3 +93,19 @@ export const lookupBarcode = (barcode: string) =>
 
 export const searchProducts = (query: string) =>
   request<Array<{ name: string; brands: string; ingredients: string; image_url: string | null; source: string }>>(`/api/products/search?q=${encodeURIComponent(query)}`);
+
+export interface PhotoIdentifyResult {
+  identified: boolean;
+  name: string;
+  brand: string;
+  ingredients: string[];
+  confidence: 'low' | 'med' | 'high';
+  source?: string;
+  error?: string;
+}
+
+export const identifyProductPhoto = (image_base64: string) =>
+  request<PhotoIdentifyResult>('/api/products/identify-photo', {
+    method: 'POST',
+    body: JSON.stringify({ image_base64 }),
+  });

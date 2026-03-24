@@ -77,6 +77,8 @@ function mockVisionResponse(jsonObj) {
 describe('POST /api/vision/analyze', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset rate limiters so tests don't interfere with each other
+    if (app._resetRateLimiters) app._resetRateLimiters();
     // By default, PINECONE_API_KEY is not set so RAG is skipped
     delete process.env.PINECONE_API_KEY;
   });
