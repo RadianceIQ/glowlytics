@@ -1,115 +1,280 @@
-import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withRepeat,
   withSequence,
+  withDelay,
+  withSpring,
   Easing,
+  type SharedValue,
 } from 'react-native-reanimated';
 import Svg, { G, Line, Rect, Text as SvgText, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { Colors } from '../constants/theme';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../constants/theme';
 import { LESION_INFO } from '../constants/lesions';
 import type { DetectedLesion, LesionClass } from '../types';
 
-// Use app's primary teal palette instead of Matrix green
-const PRIMARY = Colors.primary; // #7DE7E1
-const PRIMARY_DIM = 'rgba(125, 231, 225, 0.30)';
-const PRIMARY_GLOW = 'rgba(125, 231, 225, 0.08)';
-const PRIMARY_BRIGHT = 'rgba(125, 231, 225, 0.95)';
-const BG_DARK = 'rgba(6, 11, 18, 0.65)';
+// ─── Theme ───────────────────────────────────────────────────────────
+const PRIMARY = '#7DE7E1';
+const PRIMARY_DIM = 'rgba(125, 231, 225, 0.25)';
+const BG_DARK = 'rgba(6, 11, 18, 0.78)';
+const GRID_COLOR = 'rgba(125, 231, 225, 0.04)';
+const SWEEP_COLOR = PRIMARY;
 
-/** Get color for lesion type — inflammatory=red, non-inflammatory=teal, pigmented=amber */
+const CORNER_FRAC = 0.22;
+const STROKE_W = 1.8;
+const LABEL_H = 20;
+const GRID_SPACING = 55;
+
+/** Get color for lesion type */
 function lesionColor(cls: LesionClass): string {
   return LESION_INFO[cls]?.color || PRIMARY;
 }
 
-/** Determine display tier from confidence or tier field */
+/** Determine opacity from confidence tier */
 function getLesionOpacity(lesion: DetectedLesion): number {
-  if (lesion.tier === 'possible' || lesion.confidence < 0.30) return 0.4;
+  if (lesion.tier === 'possible' || lesion.confidence < 0.30) return 0.45;
   return 1.0;
 }
 
-const CORNER_FRAC = 0.22;
-const STROKE_W = 1.5;
-const LABEL_H = 18;
+// ─── Rotating Reticle ────────────────────────────────────────────────
+interface ReticleProps {
+  cx: number;
+  cy: number;
+  radius: number;
+  color: string;
+  rotation: SharedValue<number>;
+}
 
+function ReticleRing({ cx, cy, radius, color, rotation }: ReticleProps) {
+  const style = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  return (
+    <Animated.View
+      style={[{
+        position: 'absolute',
+        left: cx - radius,
+        top: cy - radius,
+        width: radius * 2,
+        height: radius * 2,
+      }, style]}
+    >
+      <Svg width={radius * 2} height={radius * 2} viewBox={`0 0 ${radius * 2} ${radius * 2}`}>
+        <Circle
+          cx={radius}
+          cy={radius}
+          r={radius - 1}
+          fill="none"
+          stroke={color}
+          strokeWidth={0.7}
+          strokeOpacity={0.5}
+          strokeDasharray="3 7"
+        />
+        {/* Tick marks at cardinal points */}
+        <Line x1={radius} y1={1} x2={radius} y2={4} stroke={color} strokeWidth={1} strokeOpacity={0.6} />
+        <Line x1={radius * 2 - 1} y1={radius} x2={radius * 2 - 4} y2={radius} stroke={color} strokeWidth={1} strokeOpacity={0.6} />
+        <Line x1={radius} y1={radius * 2 - 1} x2={radius} y2={radius * 2 - 4} stroke={color} strokeWidth={1} strokeOpacity={0.6} />
+        <Line x1={1} y1={radius} x2={4} y2={radius} stroke={color} strokeWidth={1} strokeOpacity={0.6} />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+// ─── Ring Burst Effect ───────────────────────────────────────────────
+function RingBurst({ cx, cy, color, trigger }: { cx: number; cy: number; color: string; trigger: number }) {
+  const scale = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (trigger > 0) {
+      scale.value = 0;
+      opacity.value = 0.8;
+      scale.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
+      opacity.value = withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) });
+    }
+  }, [trigger]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[{
+        position: 'absolute',
+        left: cx - 40,
+        top: cy - 40,
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        borderWidth: 1.5,
+        borderColor: color,
+      }, style]}
+    />
+  );
+}
+
+// ─── Main Overlay ────────────────────────────────────────────────────
 interface Props {
   lesions: DetectedLesion[];
   width: number;
   height: number;
-  /** Width of the source camera frame in pixels — used to correct for CameraView center-crop. */
   sourceWidth?: number;
-  /** Height of the source camera frame in pixels. */
   sourceHeight?: number;
-  /** Normalized face bounding box (0-1) — lesions outside this region are hidden. */
   faceRect?: { x: number; y: number; width: number; height: number };
   mirrored?: boolean;
+  detectionSource?: 'on_device' | 'server' | null;
+  /** Show scan infrastructure (grid, sweep, telemetry) even when no lesions detected */
+  scanActive?: boolean;
 }
 
-/** Animated lesion bounding box overlay — teal sci-fi theme with pulsing corners and sweep line. */
-export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceWidth, sourceHeight, faceRect, mirrored }) => {
+export const LesionOverlay: React.FC<Props> = ({
+  lesions, width, height, sourceWidth, sourceHeight, faceRect, mirrored,
+  detectionSource, scanActive = false,
+}) => {
+  // ─── Global Animations ──────────────────────────────────────────
   const fadeIn = useSharedValue(0);
-  const scanLineY = useSharedValue(0);
-  const cornerPulse = useSharedValue(0);
-  const glowBreath = useSharedValue(0);
-  const prevCount = useRef(0);
+  const sweepLine1 = useSharedValue(0);
+  const sweepLine2 = useSharedValue(0.5); // offset by 50%
+  const gridPulse = useSharedValue(0.5);
+  const crosshairPulse = useSharedValue(2);
+  const glowBreath = useSharedValue(0.05);
+  const reticleRotation = useSharedValue(0);
+  const flashOpacity = useSharedValue(0);
+  const telemetryDotPulse = useSharedValue(0.4);
 
-  // Fade in/out when lesions appear/disappear
+  const prevCount = useRef(0);
+  const [burstCenter, setBurstCenter] = useState<{ x: number; y: number; color: string } | null>(null);
+  const [burstTrigger, setBurstTrigger] = useState(0);
+
+  // Start global loops
   useEffect(() => {
-    fadeIn.value = withTiming(lesions.length > 0 ? 1 : 0, {
+    // Dual sweep lines
+    sweepLine1.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+      ), -1,
+    );
+    sweepLine2.value = withDelay(2000, withRepeat(
+      withSequence(
+        withTiming(0, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+      ), -1,
+    ));
+
+    // Grid opacity pulse
+    gridPulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.4, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+      ), -1,
+    );
+
+    // Crosshair size pulse
+    crosshairPulse.value = withRepeat(
+      withSequence(
+        withTiming(4, { duration: 1000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(2, { duration: 1000, easing: Easing.inOut(Easing.sin) }),
+      ), -1,
+    );
+
+    // Glow breathing
+    glowBreath.value = withRepeat(
+      withSequence(
+        withTiming(0.14, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.05, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+      ), -1,
+    );
+
+    // Reticle rotation
+    reticleRotation.value = withRepeat(
+      withTiming(360, { duration: 30000, easing: Easing.linear }),
+      -1, false,
+    );
+
+    // Telemetry dot
+    telemetryDotPulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.3, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+      ), -1,
+    );
+  }, []);
+
+  // Fade in/out & detection flash
+  useEffect(() => {
+    fadeIn.value = withTiming((lesions.length > 0 || scanActive) ? 1 : 0, {
       duration: 400,
       easing: Easing.out(Easing.cubic),
     });
 
-    // Flash effect when new detections appear
-    if (lesions.length > 0 && lesions.length !== prevCount.current) {
-      glowBreath.value = 0;
-      glowBreath.value = withSequence(
-        withTiming(1, { duration: 200 }),
-        withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) }),
+    if (lesions.length > 0 && lesions.length > prevCount.current) {
+      // Flash on new detection
+      flashOpacity.value = 0;
+      flashOpacity.value = withSequence(
+        withTiming(0.22, { duration: 150 }),
+        withTiming(0, { duration: 650, easing: Easing.out(Easing.cubic) }),
       );
+
+      // Ring burst at first new lesion's center
+      const newLesion = lesions[lesions.length - 1];
+      if (newLesion) {
+        const [bx, by, bw, bh] = newLesion.bbox;
+        const srcW = sourceWidth || width;
+        const srcH = sourceHeight || height;
+        const coverScale = Math.max(width / srcW, height / srcH);
+        const displayedW = srcW * coverScale;
+        const displayedH = srcH * coverScale;
+        const cropOffsetX = (width - displayedW) / 2;
+        const cropOffsetY = (height - displayedH) / 2;
+        let cx = (bx + bw / 2) * displayedW + cropOffsetX;
+        const cy = (by + bh / 2) * displayedH + cropOffsetY;
+        if (mirrored) cx = width - cx;
+
+        setBurstCenter({ x: cx, y: cy, color: lesionColor(newLesion.class) });
+        setBurstTrigger((t) => t + 1);
+      }
     }
     prevCount.current = lesions.length;
   }, [lesions.length]);
 
-  useEffect(() => {
-    // Sweep line — smooth vertical scan
-    scanLineY.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-    );
-    // Corner brightness pulse
-    cornerPulse.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.4, { duration: 1200, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-    );
-  }, []);
-
-  const containerAnim = useAnimatedStyle(() => ({
+  // ─── Animated Styles ────────────────────────────────────────────
+  const containerStyle = useAnimatedStyle(() => ({
     opacity: fadeIn.value,
   }));
 
-  const scanLineAnim = useAnimatedStyle(() => ({
-    top: `${scanLineY.value * 100}%` as any,
-    opacity: 0.5 + cornerPulse.value * 0.3,
+  const sweep1Style = useAnimatedStyle(() => ({
+    top: `${sweepLine1.value * 100}%` as any,
+    opacity: 0.6,
   }));
 
-  const flashAnim = useAnimatedStyle(() => ({
-    opacity: glowBreath.value * 0.15,
+  const sweep2Style = useAnimatedStyle(() => ({
+    top: `${sweepLine2.value * 100}%` as any,
+    opacity: 0.35,
   }));
 
-  if (lesions.length === 0) return null;
+  const gridStyle = useAnimatedStyle(() => ({
+    opacity: gridPulse.value * 0.08,
+  }));
 
-  // CameraView fills the screen using "cover" mode — compute the crop transform
-  // so bounding boxes align with the visible (cropped) preview, not the full sensor frame.
+  const flashStyle = useAnimatedStyle(() => ({
+    opacity: flashOpacity.value,
+  }));
+
+  const telemetryDotStyle = useAnimatedStyle(() => ({
+    opacity: telemetryDotPulse.value,
+  }));
+
+  if (lesions.length === 0 && !scanActive) return null;
+  const hasLesions = lesions.length > 0;
+
+  // ─── Coordinate Mapping ─────────────────────────────────────────
   const srcW = sourceWidth || width;
   const srcH = sourceHeight || height;
   const coverScale = Math.max(width / srcW, height / srcH);
@@ -118,127 +283,151 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceW
   const cropOffsetX = (width - displayedW) / 2;
   const cropOffsetY = (height - displayedH) / 2;
 
+  // ─── Build Grid Lines ───────────────────────────────────────────
+  const gridLines: React.ReactNode[] = [];
+  for (let gx = GRID_SPACING; gx < width; gx += GRID_SPACING) {
+    gridLines.push(
+      <Line key={`gv-${gx}`} x1={gx} y1={0} x2={gx} y2={height}
+        stroke={PRIMARY} strokeWidth={0.5} strokeOpacity={1} strokeDasharray="2 12" />
+    );
+  }
+  for (let gy = GRID_SPACING; gy < height; gy += GRID_SPACING) {
+    gridLines.push(
+      <Line key={`gh-${gy}`} x1={0} y1={gy} x2={width} y2={gy}
+        stroke={PRIMARY} strokeWidth={0.5} strokeOpacity={1} strokeDasharray="2 12" />
+    );
+  }
+
+  // ─── Map Lesions to Screen Coords ───────────────────────────────
+  const mappedLesions = lesions.map((lesion, i) => {
+    const [bx, by, bw, bh] = lesion.bbox;
+
+    // Face rect filter
+    if (faceRect && faceRect.width > 0.05 && faceRect.height > 0.05) {
+      const cx = bx + bw / 2;
+      const cy = by + bh / 2;
+      const padW = faceRect.width * 0.15;
+      const padH = faceRect.height * 0.15;
+      if (cx < faceRect.x - padW || cx > faceRect.x + faceRect.width + padW ||
+          cy < faceRect.y - padH || cy > faceRect.y + faceRect.height + padH) return null;
+    }
+
+    const w = bw * displayedW;
+    const h = bh * displayedH;
+    let x = bx * displayedW + cropOffsetX;
+    const y = by * displayedH + cropOffsetY;
+    if (mirrored) x = width - x - w;
+    if (x + w < 0 || x > width || y + h < 0 || y > height) return null;
+
+    return { lesion, x, y, w, h, i };
+  }).filter(Boolean) as Array<{ lesion: DetectedLesion; x: number; y: number; w: number; h: number; i: number }>;
+
   return (
     <View style={[styles.container, { width, height }]} pointerEvents="none">
-      {/* Full-screen flash on new detection */}
-      <Animated.View style={[styles.flash, flashAnim]} />
+      {/* ── Detection Flash ──────────────────────────────────── */}
+      <Animated.View style={[styles.flash, flashStyle]} />
 
-      <Animated.View style={[StyleSheet.absoluteFill, containerAnim]}>
-        {/* Sweep line */}
-        <Animated.View style={[styles.scanLine, scanLineAnim]} />
+      <Animated.View style={[StyleSheet.absoluteFill, containerStyle]}>
+        {/* ── Scanning Grid ────────────────────────────────────── */}
+        <Animated.View style={[StyleSheet.absoluteFill, gridStyle]}>
+          <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+            {gridLines}
+          </Svg>
+        </Animated.View>
 
-        <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {/* ── Dual Sweep Lines ─────────────────────────────────── */}
+        <Animated.View style={[styles.sweepLine, styles.sweepLinePrimary, sweep1Style]} />
+        <Animated.View style={[styles.sweepLine, styles.sweepLineSecondary, sweep2Style]} />
+
+        {/* ── SVG: Bounding Boxes & Labels (only when lesions detected) ── */}
+        {hasLesions && <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
           <Defs>
-            <LinearGradient id="boxGlow" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={PRIMARY} stopOpacity={0.12} />
-              <Stop offset="0.5" stopColor={PRIMARY} stopOpacity={0.04} />
-              <Stop offset="1" stopColor={PRIMARY} stopOpacity={0.12} />
+            <LinearGradient id="boxGlowGrad" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={PRIMARY} stopOpacity={0.1} />
+              <Stop offset="0.5" stopColor={PRIMARY} stopOpacity={0.03} />
+              <Stop offset="1" stopColor={PRIMARY} stopOpacity={0.1} />
             </LinearGradient>
           </Defs>
 
-          {lesions.map((lesion, i) => {
-            const stableKey = lesion.trackId || `lesion-${i}`;
-            const [bx, by, bw, bh] = lesion.bbox;
-
-            // Only show lesions whose center falls within the detected face (+ 15% margin)
-            // Skip filter if face rect is implausibly small (bad detection or wrong coordinate space)
-            if (faceRect && faceRect.width > 0.05 && faceRect.height > 0.05) {
-              const cx = bx + bw / 2;
-              const cy = by + bh / 2;
-              const padW = faceRect.width * 0.15;
-              const padH = faceRect.height * 0.15;
-              if (
-                cx < faceRect.x - padW ||
-                cx > faceRect.x + faceRect.width + padW ||
-                cy < faceRect.y - padH ||
-                cy > faceRect.y + faceRect.height + padH
-              ) return null;
-            }
-
-            // Map normalized frame coords → screen pixels with crop correction
-            const w = bw * displayedW;
-            const h = bh * displayedH;
-            let x = bx * displayedW + cropOffsetX;
-            const y = by * displayedH + cropOffsetY;
-
-            if (mirrored) x = width - x - w;
-
-            // Skip boxes fully outside the visible crop
-            if (x + w < 0 || x > width || y + h < 0 || y > height) return null;
-
+          {mappedLesions.map(({ lesion, x, y, w, h, i }) => {
+            const stableKey = lesion.trackId || `l-${i}`;
             const conf = Math.round(lesion.confidence * 100);
             const tierOpacity = getLesionOpacity(lesion);
             const isConfirmed = tierOpacity >= 1.0;
             const typeColor = lesionColor(lesion.class);
-            const typeColorBright = typeColor + (isConfirmed ? '' : '66'); // dim for possible
-            const typeColorDim = typeColor + '4D'; // 30% opacity
+            const typeColorBright = typeColor + (isConfirmed ? '' : '77');
+            const typeColorDim = typeColor + '40';
             const label = `${lesion.class.toUpperCase()} ${conf}%`;
 
-            // Corner bracket lengths
-            const cx = Math.min(w * CORNER_FRAC, 16);
-            const cy = Math.min(h * CORNER_FRAC, 16);
-
-            const x1 = x, y1 = y;
-            const x2 = x + w, y2 = y + h;
-
-            // Center point for target indicator
+            const cornerLen = Math.min(w * CORNER_FRAC, 18);
+            const cornerLenY = Math.min(h * CORNER_FRAC, 18);
+            const x1 = x, y1 = y, x2 = x + w, y2 = y + h;
             const centerX = x + w / 2;
             const centerY = y + h / 2;
 
             return (
               <G key={stableKey} opacity={tierOpacity}>
-                {/* Subtle fill */}
-                <Rect
-                  x={x} y={y} width={w} height={h}
-                  fill="url(#boxGlow)"
-                  rx={4}
-                />
+                {/* Edge glow fill */}
+                <Rect x={x} y={y} width={w} height={h} fill="url(#boxGlowGrad)" rx={3} />
 
-                {/* Corner brackets — type-colored */}
+                {/* ── Corner Brackets ── */}
                 {/* Top-left */}
-                <Line x1={x1} y1={y1 + 4} x2={x1} y2={y1 + cy} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
-                <Line x1={x1 + 4} y1={y1} x2={x1 + cx} y2={y1} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
-
+                <Line x1={x1} y1={y1 + 3} x2={x1} y2={y1 + cornerLenY} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x1 + 3} y1={y1} x2={x1 + cornerLen} y2={y1} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
                 {/* Top-right */}
-                <Line x1={x2 - cx} y1={y1} x2={x2 - 4} y2={y1} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
-                <Line x1={x2} y1={y1 + 4} x2={x2} y2={y1 + cy} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
-
+                <Line x1={x2 - cornerLen} y1={y1} x2={x2 - 3} y2={y1} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x2} y1={y1 + 3} x2={x2} y2={y1 + cornerLenY} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
                 {/* Bottom-left */}
-                <Line x1={x1} y1={y2 - cy} x2={x1} y2={y2 - 4} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
-                <Line x1={x1 + 4} y1={y2} x2={x1 + cx} y2={y2} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
-
+                <Line x1={x1} y1={y2 - cornerLenY} x2={x1} y2={y2 - 3} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x1 + 3} y1={y2} x2={x1 + cornerLen} y2={y2} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
                 {/* Bottom-right */}
-                <Line x1={x2 - cx} y1={y2} x2={x2 - 4} y2={y2} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
-                <Line x1={x2} y1={y2 - cy} x2={x2} y2={y2 - 4} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x2 - cornerLen} y1={y2} x2={x2 - 3} y2={y2} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
+                <Line x1={x2} y1={y2 - cornerLenY} x2={x2} y2={y2 - 3} stroke={typeColorBright} strokeWidth={STROKE_W} strokeLinecap="round" />
 
-                {/* Thin edge connectors — dashed */}
-                <Line x1={x1 + cx} y1={y1} x2={x2 - cx} y2={y1} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 6" />
-                <Line x1={x1 + cx} y1={y2} x2={x2 - cx} y2={y2} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 6" />
-                <Line x1={x1} y1={y1 + cy} x2={x1} y2={y2 - cy} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 6" />
-                <Line x1={x2} y1={y1 + cy} x2={x2} y2={y2 - cy} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 6" />
+                {/* ── Dashed Edge Connectors ── */}
+                <Line x1={x1 + cornerLen} y1={y1} x2={x2 - cornerLen} y2={y1} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 8" />
+                <Line x1={x1 + cornerLen} y1={y2} x2={x2 - cornerLen} y2={y2} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 8" />
+                <Line x1={x1} y1={y1 + cornerLenY} x2={x1} y2={y2 - cornerLenY} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 8" />
+                <Line x1={x2} y1={y1 + cornerLenY} x2={x2} y2={y2 - cornerLenY} stroke={typeColorDim} strokeWidth={0.5} strokeDasharray="2 8" />
 
-                {/* Center crosshair dot — type-colored */}
-                <Circle cx={centerX} cy={centerY} r={2} fill={typeColor} fillOpacity={0.6} />
-                <Circle cx={centerX} cy={centerY} r={6} fill="none" stroke={typeColorDim} strokeWidth={0.5} />
+                {/* ── Center Crosshair ── */}
+                {/* Static outer ring */}
+                <Circle cx={centerX} cy={centerY} r={7} fill="none" stroke={typeColorDim} strokeWidth={0.6} />
+                {/* Crosshair lines */}
+                <Line x1={centerX - 10} y1={centerY} x2={centerX - 4} y2={centerY} stroke={typeColor} strokeWidth={0.6} strokeOpacity={0.5} />
+                <Line x1={centerX + 4} y1={centerY} x2={centerX + 10} y2={centerY} stroke={typeColor} strokeWidth={0.6} strokeOpacity={0.5} />
+                <Line x1={centerX} y1={centerY - 10} x2={centerX} y2={centerY - 4} stroke={typeColor} strokeWidth={0.6} strokeOpacity={0.5} />
+                <Line x1={centerX} y1={centerY + 4} x2={centerX} y2={centerY + 10} stroke={typeColor} strokeWidth={0.6} strokeOpacity={0.5} />
+                {/* Center dot (size animated via parent pulse — visual only, static in SVG) */}
+                <Circle cx={centerX} cy={centerY} r={2.5} fill={typeColor} fillOpacity={0.7} />
 
-                {/* Label pill — only for confirmed detections */}
+                {/* ── Label Pill ── */}
                 {isConfirmed && (
                   <>
                     <Rect
                       x={x}
-                      y={Math.max(0, y - LABEL_H - 4)}
-                      width={Math.max(w, 72)}
+                      y={Math.max(0, y - LABEL_H - 5)}
+                      width={Math.max(w, 78)}
                       height={LABEL_H}
                       fill={BG_DARK}
-                      rx={9}
+                      rx={10}
+                    />
+                    {/* Colored accent bar on label */}
+                    <Rect
+                      x={x}
+                      y={Math.max(0, y - LABEL_H - 5)}
+                      width={3}
+                      height={LABEL_H}
+                      fill={typeColor}
+                      rx={1.5}
                     />
                     <SvgText
-                      x={x + 8}
-                      y={Math.max(LABEL_H - 5, y - 8)}
+                      x={x + 10}
+                      y={Math.max(LABEL_H - 5, y - 9)}
                       fill={typeColor}
-                      fontSize={9}
-                      fontWeight="600"
-                      letterSpacing={0.8}
+                      fontSize={9.5}
+                      fontWeight="700"
+                      letterSpacing={1}
                     >
                       {label}
                     </SvgText>
@@ -247,31 +436,155 @@ export const LesionOverlay: React.FC<Props> = ({ lesions, width, height, sourceW
               </G>
             );
           })}
-        </Svg>
+        </Svg>}
+
+        {/* ── Rotating Reticles (View layer above SVG) ───────── */}
+        {hasLesions && mappedLesions.map(({ lesion, x, y, w, h, i }) => {
+          const centerX = x + w / 2;
+          const centerY = y + h / 2;
+          const reticleR = Math.max(Math.min(w, h) * 0.35, 14);
+          const typeColor = lesionColor(lesion.class);
+          return (
+            <ReticleRing
+              key={`ret-${lesion.trackId || i}`}
+              cx={centerX}
+              cy={centerY}
+              radius={reticleR}
+              color={typeColor}
+              rotation={reticleRotation}
+            />
+          );
+        })}
+
+        {/* ── Ring Burst on New Detection ─────────────────────── */}
+        {burstCenter && (
+          <RingBurst
+            cx={burstCenter.x}
+            cy={burstCenter.y}
+            color={burstCenter.color}
+            trigger={burstTrigger}
+          />
+        )}
+      </Animated.View>
+
+      {/* ── Telemetry Bar ──────────────────────────────────────── */}
+      <Animated.View style={[styles.telemetryBar, containerStyle]}>
+        <View style={styles.telemetryLeft}>
+          <Animated.View style={[styles.telemetryDot, telemetryDotStyle]} />
+          <Text style={styles.telemetryLabel}>{hasLesions ? 'SCANNING' : 'ANALYZING'}</Text>
+        </View>
+        <View style={styles.telemetryCenter}>
+          <Text style={styles.telemetryCount}>{hasLesions ? lesions.length : '—'}</Text>
+          <Text style={styles.telemetryCountLabel}>{hasLesions ? 'DETECTED' : 'CLEAR'}</Text>
+        </View>
+        {detectionSource ? (
+          <View style={styles.telemetryRight}>
+            <Text style={styles.telemetrySource}>
+              {detectionSource === 'on_device' ? 'ON-DEVICE' : 'SERVER'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.telemetryRight}>
+            <Text style={styles.telemetrySource}>AI VISION</Text>
+          </View>
+        )}
       </Animated.View>
     </View>
   );
 };
 
+// ─── Styles ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     top: 0,
     left: 0,
   },
-  scanLine: {
+  flash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: PRIMARY,
+  },
+  sweepLine: {
     position: 'absolute',
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary,
+  },
+  sweepLinePrimary: {
+    backgroundColor: SWEEP_COLOR,
+    shadowColor: SWEEP_COLOR,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  sweepLineSecondary: {
+    backgroundColor: 'rgba(125, 231, 225, 0.5)',
+    shadowColor: SWEEP_COLOR,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
     shadowRadius: 12,
   },
-  flash: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.primary,
+
+  // Telemetry bar
+  telemetryBar: {
+    position: 'absolute',
+    bottom: 140,
+    left: Spacing.md,
+    right: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(6, 11, 18, 0.65)',
+    borderRadius: BorderRadius.full,
+    paddingVertical: 8,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 0.5,
+    borderColor: 'rgba(125, 231, 225, 0.12)',
+  },
+  telemetryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  telemetryDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: PRIMARY,
+  },
+  telemetryLabel: {
+    color: PRIMARY,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 9,
+    letterSpacing: 1.5,
+  },
+  telemetryCenter: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  telemetryCount: {
+    color: '#FFFFFF',
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.lg,
+  },
+  telemetryCountLabel: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+  telemetryRight: {
+    backgroundColor: 'rgba(125, 231, 225, 0.1)',
+    borderRadius: BorderRadius.full,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  telemetrySource: {
+    color: PRIMARY,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 8,
+    letterSpacing: 1.2,
   },
 });

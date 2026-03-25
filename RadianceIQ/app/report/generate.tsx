@@ -5,6 +5,8 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
+import Animated, { FadeIn, FadeInDown, FadeInRight } from 'react-native-reanimated';
+import { Feather } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { Button } from '../../src/components/Button';
 import { ScoreTile } from '../../src/components/ScoreTile';
@@ -14,6 +16,7 @@ import {
   FontFamily,
   FontSize,
   Spacing,
+  Surfaces,
 } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import { gateWithPaywall } from '../../src/services/subscription';
@@ -29,13 +32,6 @@ const average = (values: number[]) =>
 
 const trend = (values: number[]) =>
   values.length < 2 ? 0 : values[values.length - 1] - values[0];
-
-const ReportSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <View style={styles.reportSection}>
-    <Text style={styles.reportSectionTitle}>{title}</Text>
-    {children}
-  </View>
-);
 
 export default function GenerateReport() {
   const router = useRouter();
@@ -102,7 +98,7 @@ export default function GenerateReport() {
         const base64 = await FileSystemLegacy.readAsStringAsync(record.photo_uri!, { encoding: FileSystemLegacy.EncodingType.Base64 });
         photos.push({ date: record.date, base64 });
       } catch {
-        // Skip photos that can't be read (stale/missing files)
+        // Skip photos that can't be read
       }
     }
 
@@ -190,7 +186,7 @@ export default function GenerateReport() {
     return (
       <AtmosphereScreen scroll={false} contentContainerStyle={styles.emptyLayout}>
         <View style={styles.emptyContent}>
-          <Text style={styles.eyebrow}>Clinician report</Text>
+          <Text style={styles.eyebrow}>SHARE REPORT</Text>
           <Text style={styles.title}>No scans yet.</Text>
           <Text style={styles.emptySubtitle}>
             Take a few scans first so the report has enough signal to be credible.
@@ -203,11 +199,13 @@ export default function GenerateReport() {
 
   return (
     <AtmosphereScreen>
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.eyebrow}>Clinician report</Text>
-          <Text style={styles.title}>Trend summary</Text>
-        </View>
+      {/* ── Header + Time Range ── */}
+      <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
+        <Text style={styles.eyebrow}>SHARE REPORT</Text>
+        <Text style={styles.title}>Package your trend story.</Text>
+        <Text style={styles.subtitle}>
+          Choose a time window, review the summary, and generate a clinician-facing preview.
+        </Text>
         <View style={styles.segmentedControl}>
           {([7, 14, 30] as TimeRange[]).map((range) => (
             <TouchableOpacity
@@ -221,16 +219,50 @@ export default function GenerateReport() {
             </TouchableOpacity>
           ))}
         </View>
-      </View>
+      </Animated.View>
 
-      <View style={styles.reportHero}>
-        <Text style={styles.reportHeroTitle}>{cutoffStr} — {dateTo}</Text>
-        <Text style={styles.reportHeroCopy}>
-          {totalScans} scans · {confidenceRate}% quality · {sunscreenRate}% sunscreen adherence
+      {/* ── Export Snapshot — hero card ── */}
+      <Animated.View entering={FadeInDown.duration(400).delay(100)} style={styles.snapshotCard}>
+        <Text style={styles.snapshotEyebrow}>EXPORT SNAPSHOT</Text>
+        <Text style={styles.snapshotHeadline}>
+          {totalScans} scan{totalScans !== 1 ? 's' : ''} ready to summarize.
         </Text>
-      </View>
+        <Text style={styles.snapshotBody}>
+          Sunscreen adherence is {sunscreenRate}% and capture quality passed {confidenceRate}% of the time.
+        </Text>
+        <View style={styles.snapshotStats}>
+          <View style={[styles.snapshotStat, { backgroundColor: 'rgba(52, 167, 123, 0.08)' }]}>
+            <Text style={[styles.snapshotStatValue, { color: Colors.success }]}>{sunscreenRate}%</Text>
+            <Text style={[styles.snapshotStatLabel, { color: Colors.success }]}>ADHERENCE</Text>
+          </View>
+          <View style={[styles.snapshotStat, { backgroundColor: 'rgba(90, 170, 230, 0.08)' }]}>
+            <Text style={[styles.snapshotStatValue, { color: '#5AAAE6' }]}>{confidenceRate}%</Text>
+            <Text style={[styles.snapshotStatLabel, { color: '#5AAAE6' }]}>QUALITY</Text>
+          </View>
+          <View style={styles.snapshotStat}>
+            <Text style={styles.snapshotStatValue}>{timeRange}d</Text>
+            <Text style={styles.snapshotStatLabel}>WINDOW</Text>
+          </View>
+        </View>
+      </Animated.View>
 
-      <ReportSection title="Trend snapshot">
+      {/* ── Generate button — prominent, early ── */}
+      <Animated.View entering={FadeInDown.duration(400).delay(200)} style={styles.generateAction}>
+        <Button
+          title="Generate preview"
+          onPress={handleExportPdf}
+          loading={isGeneratingPdf}
+          disabled={isGeneratingPdf}
+          size="lg"
+        />
+      </Animated.View>
+
+      {/* ── Trend Snapshot ── */}
+      <Animated.View entering={FadeInDown.duration(400).delay(300)}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
+          <Text style={styles.sectionTitle}>Trend snapshot</Text>
+        </View>
         <View style={styles.metricStack}>
           <ScoreTile
             label="Acne trend"
@@ -263,13 +295,18 @@ export default function GenerateReport() {
             highLabel="Now"
           />
         </View>
-      </ReportSection>
+      </Animated.View>
 
-      <ReportSection title="Representative photos">
+      {/* ── Photos ── */}
+      <Animated.View entering={FadeInDown.duration(400).delay(400)}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionAccent, { backgroundColor: '#5AAAE6' }]} />
+          <Text style={styles.sectionTitle}>Representative photos</Text>
+        </View>
         {(() => {
           const recordsWithPhotos = filteredRecords.filter((r) => r.photo_uri);
           if (recordsWithPhotos.length === 0) {
-            return <Text style={styles.reportText}>No photos captured in this period.</Text>;
+            return <Text style={styles.bodyText}>No photos captured in this period.</Text>;
           }
           const selected: typeof recordsWithPhotos = [];
           selected.push(recordsWithPhotos[0]);
@@ -290,56 +327,73 @@ export default function GenerateReport() {
             </ScrollView>
           );
         })()}
-      </ReportSection>
+      </Animated.View>
 
-      <ReportSection title="Products used">
+      {/* ── Products ── */}
+      <Animated.View entering={FadeInDown.duration(400).delay(500)}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionAccent, { backgroundColor: '#9B7FDB' }]} />
+          <Text style={styles.sectionTitle}>Products used</Text>
+        </View>
         {products.length > 0 ? (
-          products.map((product) => (
-            <View key={product.user_product_id} style={styles.productRow}>
-              <Text style={styles.productName}>{product.product_name}</Text>
-              <Text style={styles.productDetail}>
-                {product.ingredients_list.join(', ')} | {product.usage_schedule} | Since {product.start_date}
-              </Text>
-            </View>
-          ))
+          <View style={styles.productList}>
+            {products.map((product) => (
+              <View key={product.user_product_id} style={styles.productRow}>
+                <Text style={styles.productName}>{product.product_name}</Text>
+                <Text style={styles.productDetail}>
+                  {product.usage_schedule} · Since {product.start_date}
+                </Text>
+              </View>
+            ))}
+          </View>
         ) : (
-          <Text style={styles.reportText}>No products logged.</Text>
+          <Text style={styles.bodyText}>No products logged.</Text>
         )}
-      </ReportSection>
+      </Animated.View>
 
-      <ReportSection title="Context">
-        <Text style={styles.reportText}>Age range: {user?.age_range || 'N/A'}</Text>
-        <Text style={styles.reportText}>Location: {user?.location_coarse || 'N/A'}</Text>
-        <Text style={styles.reportText}>Region: {protocol?.scan_region?.replace(/_/g, ' ') || 'N/A'}</Text>
-        {user?.period_applicable === 'yes' ? (
-          <Text style={styles.reportText}>Menstrual cycle: {user.cycle_length_days} day cycle</Text>
-        ) : null}
-        {filteredRecords.some((record) => record.sleep_quality) ? (
-          <Text style={styles.reportText}>Sleep context: self-reported</Text>
-        ) : null}
-      </ReportSection>
+      {/* ── Context ── */}
+      <Animated.View entering={FadeIn.duration(300).delay(600)} style={styles.contextSection}>
+        <Text style={styles.contextTitle}>Patient context</Text>
+        <View style={styles.contextGrid}>
+          {user?.age_range && (
+            <View style={styles.contextItem}>
+              <Feather name="user" size={12} color={Colors.primary} />
+              <Text style={styles.contextText}>{user.age_range}</Text>
+            </View>
+          )}
+          {user?.location_coarse && (
+            <View style={styles.contextItem}>
+              <Feather name="map-pin" size={12} color={Colors.primary} />
+              <Text style={styles.contextText}>{user.location_coarse}</Text>
+            </View>
+          )}
+          {protocol?.scan_region && (
+            <View style={styles.contextItem}>
+              <Feather name="target" size={12} color={Colors.primary} />
+              <Text style={styles.contextText}>{protocol.scan_region.replace(/_/g, ' ')}</Text>
+            </View>
+          )}
+          {user?.period_applicable === 'yes' && user.cycle_length_days && (
+            <View style={styles.contextItem}>
+              <Feather name="calendar" size={12} color={Colors.primary} />
+              <Text style={styles.contextText}>{user.cycle_length_days}d cycle</Text>
+            </View>
+          )}
+        </View>
+      </Animated.View>
 
-      <View style={styles.disclaimer}>
-        <Text style={styles.disclaimerText}>
-          Non-diagnostic metrics for clinician interpretation. Generated by Glowlytics on {dateTo}.
-        </Text>
-      </View>
+      {/* ── Secondary actions ── */}
+      <Animated.View entering={FadeIn.duration(300).delay(700)} style={styles.secondaryActions}>
+        <TouchableOpacity style={styles.emailButton} onPress={handleShareEmail} disabled={isGeneratingPdf}>
+          <Feather name="mail" size={16} color={Colors.primaryLight} />
+          <Text style={styles.emailButtonText}>Share via email</Text>
+        </TouchableOpacity>
+      </Animated.View>
 
-      <View style={styles.shareActions}>
-        <Button
-          title="Export PDF"
-          onPress={handleExportPdf}
-          loading={isGeneratingPdf}
-          disabled={isGeneratingPdf}
-        />
-        <Button
-          title="Share via email"
-          variant="secondary"
-          onPress={handleShareEmail}
-          loading={isGeneratingPdf}
-          disabled={isGeneratingPdf}
-        />
-      </View>
+      {/* ── Disclaimer ── */}
+      <Text style={styles.disclaimer}>
+        Non-diagnostic metrics for clinician interpretation. Generated by Glowlytics on {dateTo}.
+      </Text>
     </AtmosphereScreen>
   );
 }
@@ -358,25 +412,30 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     maxWidth: '85%',
   },
+
+  // Header
   header: {
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  headerText: {
-    gap: Spacing.xs,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
   },
   eyebrow: {
     color: Colors.primaryLight,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.xs,
     textTransform: 'uppercase',
-    letterSpacing: 1.1,
+    letterSpacing: 1.4,
   },
   title: {
     color: Colors.text,
-    fontFamily: FontFamily.serifBold,
+    fontFamily: FontFamily.sansBold,
     fontSize: FontSize.hero,
-    lineHeight: 42,
+    lineHeight: 44,
+  },
+  subtitle: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+    lineHeight: 22,
   },
   segmentedControl: {
     flexDirection: 'row',
@@ -386,6 +445,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.xs,
+    marginTop: Spacing.xs,
   },
   segmentButton: {
     flex: 1,
@@ -394,7 +454,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   segmentButtonActive: {
-    backgroundColor: Colors.surfaceHighlight,
+    backgroundColor: Colors.primary,
   },
   segmentText: {
     color: Colors.textMuted,
@@ -402,55 +462,99 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   segmentTextActive: {
-    color: Colors.primaryLight,
+    color: Colors.backgroundRaised,
   },
-  reportHero: {
-    backgroundColor: Colors.glassStrong,
-    borderRadius: BorderRadius.xxl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-    gap: Spacing.xs,
-    marginBottom: Spacing.lg,
-  },
-  reportHeroTitle: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.lg,
-  },
-  reportHeroCopy: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.sm,
-  },
-  reportSection: {
-    backgroundColor: Colors.glass,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
+
+  // Snapshot hero card
+  snapshotCard: {
+    ...Surfaces.hero,
+    padding: Spacing.xl,
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  reportSectionTitle: {
+  snapshotEyebrow: {
     color: Colors.primaryLight,
     fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
+    fontSize: FontSize.xxs,
+    letterSpacing: 1.4,
   },
-  reportText: {
+  snapshotHeadline: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xxl,
+    lineHeight: 34,
+  },
+  snapshotBody: {
     color: Colors.textSecondary,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
     lineHeight: 20,
   },
+  snapshotStats: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  snapshotStat: {
+    flex: 1,
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    alignItems: 'center',
+    gap: 2,
+  },
+  snapshotStatValue: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xl,
+  },
+  snapshotStatLabel: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 8,
+    letterSpacing: 1,
+  },
+
+  // Generate action
+  generateAction: {
+    marginBottom: Spacing.xl,
+  },
+
+  // Section headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  sectionAccent: {
+    width: 3,
+    height: 18,
+    borderRadius: 2,
+  },
+  sectionTitle: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.lg,
+  },
+  bodyText: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+  },
+
+  // Metrics
   metricStack: {
     gap: Spacing.sm,
+    marginBottom: Spacing.md,
   },
+
+  // Photos
   photoRow: {
     flexDirection: 'row',
-    marginTop: Spacing.xs,
   },
   photoCard: {
     alignItems: 'center',
@@ -460,46 +564,98 @@ const styles = StyleSheet.create({
   photoImage: {
     width: 100,
     height: 130,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
     backgroundColor: Colors.surfaceHighlight,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   photoDate: {
     color: Colors.textMuted,
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.xs,
-    marginTop: Spacing.xxs,
+  },
+
+  // Products — clean list, no card
+  productList: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   productRow: {
-    gap: Spacing.xs,
-    paddingTop: Spacing.xs,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.divider,
   },
   productName: {
+    flex: 1,
     color: Colors.text,
     fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.md,
+    fontSize: FontSize.sm,
   },
   productDetail: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.sm,
-    lineHeight: 20,
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xs,
   },
-  disclaimer: {
+
+  // Context — recessed, compact
+  contextSection: {
     backgroundColor: Colors.surfaceOverlay,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
-    marginTop: Spacing.sm,
-  },
-  disclaimerText: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.sm,
-    lineHeight: 20,
-  },
-  shareActions: {
-    gap: Spacing.md,
+    gap: Spacing.sm,
     marginTop: Spacing.lg,
+  },
+  contextTitle: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  contextGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  contextItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  contextText: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.sm,
+  },
+
+  // Secondary actions
+  secondaryActions: {
+    alignItems: 'center',
+    marginTop: Spacing.lg,
+  },
+  emailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+  },
+  emailButtonText: {
+    color: Colors.primaryLight,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+  },
+
+  // Disclaimer
+  disclaimer: {
+    color: Colors.textDim,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.xs,
+    lineHeight: 16,
+    textAlign: 'center',
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
   },
 });

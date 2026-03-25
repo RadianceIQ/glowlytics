@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router as globalRouter } from 'expo-router';
+import Animated, { FadeIn, FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { AtmosphereScreen } from '../src/components/AtmosphereScreen';
 import { Button } from '../src/components/Button';
 import { SkinScoreHero } from '../src/components/SkinScoreHero';
@@ -14,13 +15,14 @@ import {
   Surfaces,
   Spacing,
 } from '../src/constants/theme';
-import { signalColorByRouteKey } from '../src/constants/signals';
+import { signalColorByRouteKey, SIGNAL_LABELS, SIGNAL_GLOWS, toSignalKey } from '../src/constants/signals';
 import {
   buildOverallSkinInsight,
   getLatestDailyForOutput,
 } from '../src/services/skinInsights';
 import { useStore } from '../src/store/useStore';
 import { gateWithPaywall } from '../src/services/subscription';
+import type { CompositeSignals } from '../src/services/skinInsights';
 
 interface TopStat {
   key: string;
@@ -32,10 +34,10 @@ interface TopStat {
 
 const clampScore = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
-const ringSize = 78;
-const ringStroke = 5;
+const ringSize = 72;
+const ringStroke = 4.5;
 
-const TopStatRing: React.FC<{ value: number | null; color: string; icon: string }> = ({ value, color, icon }) => {
+const TopStatRing: React.FC<{ value: number | null; color: string; icon: string; signalKey?: string; delta?: number }> = ({ value, color, icon, signalKey, delta = 0 }) => {
   const hasData = value !== null;
   const displayValue = hasData ? clampScore(value) : 0;
   const radius = (ringSize - ringStroke) / 2;
@@ -46,39 +48,31 @@ const TopStatRing: React.FC<{ value: number | null; color: string; icon: string 
   const center = ringSize / 2;
   const rotation = `rotate(128 ${center} ${center})`;
 
+  const glowColor = signalKey ? SIGNAL_GLOWS[toSignalKey(signalKey) as keyof typeof SIGNAL_GLOWS] : undefined;
+
+  // Number color only: red if dropped 10+, green if gained 5+, otherwise default text
+  const valueColor = delta <= -10 ? Colors.error : delta >= 5 ? Colors.success : Colors.text;
+
   return (
     <View style={styles.statRingWrap}>
       <Svg width={ringSize} height={ringSize}>
         <Circle
-          cx={center}
-          cy={center}
-          r={radius}
-          fill="none"
-          stroke={Colors.borderStrong}
-          strokeWidth={ringStroke}
-          strokeLinecap="round"
-          strokeDasharray={`${ringSpan} ${gap}`}
-          transform={rotation}
+          cx={center} cy={center} r={radius}
+          fill="none" stroke={Colors.borderStrong} strokeWidth={ringStroke}
+          strokeLinecap="round" strokeDasharray={`${ringSpan} ${gap}`} transform={rotation}
         />
         {hasData && (
           <Circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="none"
-            stroke={color}
-            strokeWidth={ringStroke}
-            strokeLinecap="round"
-            strokeDasharray={`${progressSpan} ${circumference}`}
-            transform={rotation}
+            cx={center} cy={center} r={radius}
+            fill="none" stroke={color} strokeWidth={ringStroke}
+            strokeLinecap="round" strokeDasharray={`${progressSpan} ${circumference}`} transform={rotation}
           />
         )}
       </Svg>
       <View style={styles.statRingCenter} pointerEvents="none">
-        <Text style={[styles.statValue, !hasData && { color: Colors.textDim }]}>
+        <Text style={[styles.statValue, { color: hasData ? valueColor : Colors.textDim }]}>
           {hasData ? displayValue : '--'}
         </Text>
-        <MaterialCommunityIcons name={icon as any} size={18} color={hasData ? color : Colors.textDim} />
       </View>
     </View>
   );
@@ -89,7 +83,6 @@ export default function Home() {
   const protocol = useStore((s) => s.protocol);
   const dailyRecords = useStore((s) => s.dailyRecords);
   const modelOutputs = useStore((s) => s.modelOutputs);
-  const canPerformScan = useStore((s) => s.canPerformScan);
 
   const handleScanPress = async (path: string) => {
     if (!(await gateWithPaywall())) return;
@@ -102,7 +95,6 @@ export default function Home() {
 
   const getStreak = useStore((s) => s.getStreak);
   const streak = useMemo(() => getStreak(), [dailyRecords, getStreak]);
-
 
   const overallInsight = useMemo(
     () =>
@@ -129,10 +121,49 @@ export default function Home() {
     ];
   }, [overallInsight]);
 
+  const baselineInsight = useMemo(
+    () =>
+      baseline
+        ? buildOverallSkinInsight({
+            latestOutput: baseline,
+            baselineOutput: baseline,
+            latestDaily: null,
+            serverSignalScores: baseline.signal_scores,
+            serverSignalFeatures: baseline.signal_features,
+            serverSignalConfidence: baseline.signal_confidence,
+            serverLesions: baseline.lesions,
+          })
+        : null,
+    [baseline],
+  );
+
+  const signalMovers = useMemo(() => {
+    if (!overallInsight?.signals || !baselineInsight?.signals) return [];
+    const keys: (keyof CompositeSignals)[] = ['hydration', 'elasticity', 'inflammation', 'sunDamage', 'structure'];
+    const routeKeys: Record<string, string> = { sunDamage: 'sun_damage' };
+    return keys
+      .map((k) => {
+        const current = Math.round(overallInsight.signals[k]);
+        const base = Math.round(baselineInsight.signals[k]);
+        const delta = current - base;
+        const routeKey = routeKeys[k] || k;
+        return {
+          key: routeKey,
+          label: SIGNAL_LABELS[toSignalKey(routeKey) as keyof typeof SIGNAL_LABELS] || k,
+          delta,
+          color: signalColorByRouteKey(routeKey),
+        };
+      })
+      .filter((m) => m.delta !== 0)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, 3);
+  }, [overallInsight, baselineInsight]);
+
   return (
     <AtmosphereScreen>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Today</Text>
+      {/* ── 1. Header ── */}
+      <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
+        <Text style={styles.greeting}>Today</Text>
         <Text style={styles.date}>
           {new Date().toLocaleDateString('en-US', {
             weekday: 'long',
@@ -140,85 +171,123 @@ export default function Home() {
             day: 'numeric',
           })}
         </Text>
-      </View>
+      </Animated.View>
 
-      <View style={styles.summaryRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.summaryRowContent}>
-          {topStats.map((stat) => (
-            <TouchableOpacity
-              key={stat.key}
-              style={styles.summaryStat}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`${stat.label} signal, score ${stat.value ?? 'no data'}`}
-              onPress={() => router.push({ pathname: '/signal/[key]', params: { key: stat.key } })}
-            >
-              <TopStatRing value={stat.value} color={stat.color} icon={stat.icon} />
-              <Text style={styles.summaryLabel}>{stat.label}</Text>
-            </TouchableOpacity>
-          ))}
+      {/* ── 2. Signal Rings (top, no title) ── */}
+      <Animated.View entering={FadeInDown.duration(400).delay(50)} style={styles.signalSection}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.signalRowContent}>
+          {topStats.map((stat) => {
+            const delta = overallInsight && baselineInsight
+              ? Math.round((overallInsight.signals[toSignalKey(stat.key) as keyof CompositeSignals] ?? 0) - (baselineInsight.signals[toSignalKey(stat.key) as keyof CompositeSignals] ?? 0))
+              : 0;
+            return (
+              <TouchableOpacity
+                key={stat.key}
+                style={styles.signalStat}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${stat.label} signal, score ${stat.value ?? 'no data'}${delta <= -10 ? ', declining' : delta >= 5 ? ', improving' : ''}`}
+                onPress={() => router.push({ pathname: '/signal/[key]', params: { key: stat.key } })}
+              >
+                <TopStatRing value={stat.value} color={stat.color} icon={stat.icon} signalKey={stat.key} delta={delta} />
+                <Text style={styles.signalLabel}>{stat.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
-      </View>
+      </Animated.View>
 
+      {/* ── 3. HERO: Overall Score (or empty state) ── */}
       {overallInsight ? (
-        <SkinScoreHero
-          score={overallInsight.score}
-          statusLabel={overallInsight.statusLabel}
-          actionStatement={overallInsight.actionStatement}
-          trendDelta={overallInsight.trendDelta}
-          signals={overallInsight.signals}
-          onViewResults={() => router.push('/scan/results')}
-        />
+        <Animated.View entering={FadeInDown.duration(500).delay(150)}>
+          <SkinScoreHero
+            score={overallInsight.score}
+            statusLabel={overallInsight.statusLabel}
+            actionStatement={overallInsight.actionStatement}
+            trendDelta={overallInsight.trendDelta}
+            onViewResults={() => router.push('/scan/results')}
+          />
+        </Animated.View>
       ) : (
-        <View style={styles.emptyHero}>
+        <Animated.View entering={FadeInDown.duration(500).delay(150)} style={styles.emptyHero}>
           <Text style={styles.emptyHeroTitle}>Build your first baseline</Text>
           <Text style={styles.emptyHeroCopy}>
-            Your overall skin score unlocks after your first scan. Start now to track structure, hydration, inflammation, sun damage, and elasticity.
+            Your skin score appears here after your first scan.
           </Text>
-          <View style={styles.emptyHeroActions}>
-            <Button title="Start first scan" onPress={() => handleScanPress('/scan/camera')} />
-          </View>
-        </View>
+          <Button title="Start first scan" onPress={() => handleScanPress('/scan/camera')} />
+        </Animated.View>
       )}
 
+      {/* ── 4. Streak ── */}
       {streak > 0 && (
         <View style={styles.streakRow}>
-          <Text style={styles.streakValue}>{streak} day streak</Text>
-          <Text style={styles.streakDot}> · </Text>
-          <Text style={styles.streakHint}>
-            {protocol?.scan_region
-              ? `${protocol.scan_region.replace(/_/g, ' ')} region`
-              : 'Keep scanning daily'}
+          <Animated.View entering={ZoomIn.duration(400).springify().damping(14)}>
+            <MaterialCommunityIcons
+              name="fire"
+              size={28}
+              color={streak >= 7 ? Colors.warning : Colors.primary}
+            />
+          </Animated.View>
+          <Text style={[styles.streakValue, {
+            color: streak >= 7 ? Colors.warning : Colors.primary,
+          }]}>
+            {streak}
           </Text>
         </View>
       )}
 
-      {latestOutput ? (
-        <View style={styles.metricRow}>
-          {[
-            { label: 'Acne', score: latestOutput.acne_score, color: Colors.acne },
-            { label: 'Sun Damage', score: latestOutput.sun_damage_score, color: Colors.sunDamage },
-            { label: 'Skin Age', score: latestOutput.skin_age_score, color: Colors.skinAge },
-          ].map((m) => (
-            <TouchableOpacity
-              key={m.label}
-              style={styles.metricPill}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`${m.label} score ${m.score}`}
-              onPress={() => router.push('/skin-metrics')}
-            >
-              <View style={[styles.metricDot, { backgroundColor: m.color }]} />
-              <Text style={styles.metricPillLabel}>{m.label}</Text>
-              <Text style={[styles.metricPillScore, { color: m.color }]}>{m.score}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      ) : (
+      {/* ── 5. Signal Movers ── */}
+      {latestOutput && baseline && signalMovers.length > 0 && (
+        <Animated.View entering={FadeInDown.duration(400).delay(350)} style={styles.moversSection}>
+          <Text style={styles.sectionLabel}>Since your baseline</Text>
+          <View style={styles.moversRow}>
+            {signalMovers.map((m) => {
+              const isUp = m.delta >= 0;
+              return (
+                <TouchableOpacity
+                  key={m.key}
+                  style={[styles.moverCard, { borderColor: m.color + '20' }]}
+                  activeOpacity={0.7}
+                  onPress={() => router.push({ pathname: '/signal/[key]', params: { key: m.key } })}
+                >
+                  <View style={[styles.moverDot, { backgroundColor: m.color }]} />
+                  <Text style={[styles.moverDelta, { color: isUp ? Colors.success : Colors.error }]}>
+                    {isUp ? '+' : ''}{m.delta}
+                  </Text>
+                  <Text style={styles.moverLabel} numberOfLines={1}>{m.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Animated.View>
+      )}
+
+      {/* ── 6. Latest Insight ── */}
+      {latestOutput?.generated_insights?.overall_summary && (
+        <Animated.View entering={FadeIn.duration(400).delay(450)} style={styles.insightCard}>
+          <View style={styles.insightHeader}>
+            <Feather name="message-circle" size={13} color={Colors.primary} />
+            <Text style={styles.insightLabel}>Latest insight</Text>
+          </View>
+          <Text style={styles.insightText} numberOfLines={3}>
+            {latestOutput.generated_insights.overall_summary}
+          </Text>
+          {latestOutput.generated_insights.action_plan?.[0] && (
+            <View style={styles.insightActionRow}>
+              <Feather name="arrow-right" size={11} color={Colors.primaryLight} />
+              <Text style={styles.insightAction} numberOfLines={2}>
+                {latestOutput.generated_insights.action_plan[0]}
+              </Text>
+            </View>
+          )}
+        </Animated.View>
+      )}
+
+      {!latestOutput && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No scan data yet</Text>
           <Text style={styles.emptyCopy}>
-            Your first baseline will unlock trends and the detailed assessment flow.
+            Your first scan will unlock trends and detailed assessments.
           </Text>
         </View>
       )}
@@ -227,15 +296,16 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+  // ── Header ──
   header: {
     marginBottom: Spacing.lg,
   },
-  eyebrow: {
+  greeting: {
     color: Colors.primaryLight,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.xs,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
+    letterSpacing: 1.4,
   },
   date: {
     marginTop: Spacing.xs,
@@ -243,54 +313,17 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xxl,
   },
-  summaryRow: {
-    marginBottom: Spacing.lg,
-    marginHorizontal: -Spacing.lg,
-  },
-  summaryRowContent: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  summaryStat: {
-    width: 86,
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  statRingWrap: {
-    width: ringSize,
-    height: ringSize,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statRingCenter: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 1,
-  },
-  statValue: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.xl,
-    lineHeight: 24,
-    marginBottom: 1,
-  },
-  summaryLabel: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.xs,
-    letterSpacing: 0.4,
-    textAlign: 'center',
-  },
+
+  // ── Empty hero ──
   emptyHero: {
     ...Surfaces.hero,
-    padding: Spacing.lg,
+    padding: Spacing.xl,
     gap: Spacing.md,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   emptyHeroTitle: {
     color: Colors.text,
-    fontFamily: FontFamily.serifBold,
+    fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xxl,
   },
   emptyHeroCopy: {
@@ -299,61 +332,152 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     lineHeight: 24,
   },
-  emptyHeroActions: {
-    gap: Spacing.sm,
-  },
-  streakRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.xs,
-  },
-  streakValue: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
-  },
-  streakDot: {
-    color: Colors.textDim,
-    fontSize: FontSize.sm,
-  },
-  streakHint: {
+
+  // ── Section label (shared) ──
+  sectionLabel: {
     color: Colors.textMuted,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.sm,
-    textTransform: 'capitalize',
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xxs,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: Spacing.sm,
   },
-  metricRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
+
+  // ── Signal rings ──
+  // Break out of AtmosphereScreen's paddingHorizontal so the scroll goes edge-to-edge
+  signalSection: {
+    marginBottom: Spacing.xl,
+    marginHorizontal: -Spacing.lg,
   },
-  metricPill: {
-    flex: 1,
-    ...Surfaces.recessed,
-    flexDirection: 'row',
+  signalRowContent: {
+    gap: Spacing.md,
+    paddingLeft: Spacing.lg,   // align first ring with screen content margin
+    paddingRight: Spacing.lg,  // breathing room after last ring
+  },
+  signalStat: {
+    width: 84,
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.sm + 2,
-    gap: Spacing.xs,
+    gap: Spacing.xxs,
   },
-  metricDot: {
-    width: 6,
-    height: 6,
-    borderRadius: BorderRadius.xs,
+  statRingWrap: {
+    width: ringSize,
+    height: ringSize,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  metricPillLabel: {
-    flex: 1,
+  ringGlow: {
+    position: 'absolute',
+    width: Math.round(ringSize * 0.85),
+    height: Math.round(ringSize * 0.85),
+    borderRadius: Math.round(ringSize * 0.85) / 2,
+  },
+  statRingCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statValue: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xxl,
+    lineHeight: 30,
+  },
+  signalLabel: {
     color: Colors.textSecondary,
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.xxs,
+    letterSpacing: 0.3,
+    textAlign: 'center',
   },
-  metricPillScore: {
+
+  // ── Streak (compact inline row) ──
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.xl,
+    paddingVertical: Spacing.sm,
+  },
+  streakValue: {
     fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xxl,
   },
+
+  // ── Signal movers ──
+  moversSection: {
+    marginBottom: Spacing.xl,
+  },
+  moversRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  moverCard: {
+    flex: 1,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    backgroundColor: Colors.surfaceOverlay,
+    padding: Spacing.md,
+    alignItems: 'center',
+    gap: 4,
+  },
+  moverDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginBottom: 2,
+  },
+  moverDelta: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xl,
+    letterSpacing: -0.5,
+  },
+  moverLabel: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xxs,
+  },
+
+  // ── Insight card ──
+  insightCard: {
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  insightLabel: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xxs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  insightText: {
+    color: Colors.text,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+  },
+  insightActionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xs,
+  },
+  insightAction: {
+    flex: 1,
+    color: Colors.primaryLight,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    lineHeight: 18,
+  },
+
+  // ── Empty state ──
   emptyState: {
-    ...Surfaces.standard,
     padding: Spacing.lg,
     gap: Spacing.sm,
     marginBottom: Spacing.lg,

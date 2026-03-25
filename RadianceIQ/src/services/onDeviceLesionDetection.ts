@@ -417,6 +417,19 @@ export async function detectLesions(frameInput: string): Promise<DetectedLesion[
       }
     }
 
+    // Diagnostic: log top scores per class (even below threshold)
+    if (__DEV__) {
+      const classMaxScores: number[] = new Array(NUM_CLASSES).fill(0);
+      for (let d = 0; d < numDetections; d++) {
+        for (let c = 0; c < NUM_CLASSES; c++) {
+          const score = data[(4 + c) * numDetections + d];
+          if (score > classMaxScores[c]) classMaxScores[c] = score;
+        }
+      }
+      const classReport = LESION_CLASSES.map((cls, i) => `${cls}: ${(classMaxScores[i] * 100).toFixed(1)}%`).join(', ');
+      console.log(TAG, `Candidates above ${CONF_THRESHOLD}: ${candidates.length} | Max scores → ${classReport}`);
+    }
+
     // Per-class NMS
     const kept = perClassNms(candidates);
 

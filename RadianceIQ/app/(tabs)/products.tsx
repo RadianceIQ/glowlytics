@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { ProductCard } from '../../src/components/ProductCard';
 import { AddProductSheet } from '../../src/components/AddProductSheet';
@@ -23,19 +24,50 @@ import {
 } from '../../src/services/skinInsights';
 import { trackEvent } from '../../src/services/analytics';
 
+// ---------------------------------------------------------------------------
+// Schedule color palette — warm/cool temporal rhythm
+// ---------------------------------------------------------------------------
+const SCHEDULE_PALETTE = {
+  AM: {
+    accent: '#C07B2A',       // warm amber
+    iconBg: 'rgba(192, 123, 42, 0.10)',
+    sectionBg: 'rgba(192, 123, 42, 0.04)',
+    sectionBorder: 'rgba(192, 123, 42, 0.08)',
+  },
+  PM: {
+    accent: '#6366B5',       // cool indigo
+    iconBg: 'rgba(99, 102, 181, 0.10)',
+    sectionBg: 'rgba(99, 102, 181, 0.04)',
+    sectionBorder: 'rgba(99, 102, 181, 0.08)',
+  },
+  both: {
+    accent: Colors.primary,  // teal
+    iconBg: Colors.surfaceOverlay,
+    sectionBg: 'rgba(58, 158, 143, 0.03)',
+    sectionBorder: 'rgba(58, 158, 143, 0.06)',
+  },
+} as const;
+
+// ---------------------------------------------------------------------------
+// Score ring
+// ---------------------------------------------------------------------------
 const RING_SIZE = 72;
 const RING_STROKE = 5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
+function scoreColor(score: number): string {
+  if (score >= 75) return Colors.success;
+  if (score >= 55) return Colors.primary;
+  if (score >= 35) return Colors.warning;
+  return Colors.error;
+}
+
 function RoutineScoreRing({ score }: { score: number }) {
-  const progress = Math.min(score, 100) / 100;
+  const safe = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
+  const progress = safe / 100;
   const strokeDashoffset = RING_CIRCUMFERENCE * (1 - progress);
-  const color =
-    score >= 75 ? Colors.success :
-    score >= 55 ? Colors.primary :
-    score >= 35 ? Colors.warning :
-    Colors.error;
+  const color = scoreColor(safe);
 
   return (
     <View style={ringStyles.container}>
@@ -62,7 +94,7 @@ function RoutineScoreRing({ score }: { score: number }) {
           origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
         />
       </Svg>
-      <Text style={[ringStyles.text, { color }]}>{score}</Text>
+      <Text style={[ringStyles.text, { color }]}>{safe}</Text>
     </View>
   );
 }
@@ -81,6 +113,61 @@ const ringStyles = StyleSheet.create({
   },
 });
 
+// ---------------------------------------------------------------------------
+// Grouping helpers
+// ---------------------------------------------------------------------------
+type ScheduleGroup = 'AM' | 'PM' | 'both';
+
+interface ProductDatum {
+  product: ReturnType<typeof useStore.getState>['products'][number];
+  score: number;
+  topContributor?: string;
+}
+
+const SCHEDULE_ORDER: ScheduleGroup[] = ['AM', 'PM', 'both'];
+const SCHEDULE_LABEL: Record<ScheduleGroup, string> = {
+  AM: 'Morning',
+  PM: 'Evening',
+  both: 'All Day',
+};
+const SCHEDULE_ICON: Record<ScheduleGroup, string> = {
+  AM: 'sunrise',
+  PM: 'moon',
+  both: 'repeat',
+};
+
+function groupBySchedule(data: ProductDatum[]): Map<ScheduleGroup, ProductDatum[]> {
+  const groups = new Map<ScheduleGroup, ProductDatum[]>();
+  for (const d of data) {
+    const key = (d.product.usage_schedule || 'both') as ScheduleGroup;
+    const list = groups.get(key) || [];
+    list.push(d);
+    groups.set(key, list);
+  }
+  return groups;
+}
+
+// ---------------------------------------------------------------------------
+// Routine coaching insight
+// ---------------------------------------------------------------------------
+function buildInsight(data: ProductDatum[], routineScore: number): { text: string; color: string } | null {
+  if (data.length === 0) return null;
+  const weakest = data.reduce((min, d) => (d.score < min.score ? d : min), data[0]);
+  if (weakest.score < 35 && data.length > 1) {
+    const name = weakest.product.product_name.length > 25
+      ? weakest.product.product_name.slice(0, 22) + '...'
+      : weakest.product.product_name;
+    return { text: `${name} is pulling your score down. Consider swapping it.`, color: Colors.warning };
+  }
+  if (routineScore >= 75) return { text: 'Strong routine — your products work well together.', color: Colors.success };
+  if (routineScore >= 55) return { text: 'Solid foundation. A targeted serum could push you higher.', color: Colors.primary };
+  if (routineScore >= 35) return { text: 'Room to improve. Check your ingredient matches.', color: Colors.textSecondary };
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
 export default function ProductsTab() {
   const router = useRouter();
   const products = useStore((s) => s.products);
@@ -105,8 +192,8 @@ export default function ProductsTab() {
     });
   }, [modelOutputs, dailyRecords]);
 
-  const productData = useMemo(() => {
-    if (!protocol?.primary_goal) return [];
+  const productData = useMemo((): ProductDatum[] => {
+    if (!protocol?.primary_goal) return products.map((p) => ({ product: p, score: 0 }));
     return products.map((p) => {
       const result = computeProductEffectiveness(p, protocol.primary_goal, overallInsight?.signals);
       return {
@@ -123,40 +210,128 @@ export default function ProductsTab() {
     return Math.round(sum / productData.length);
   }, [productData]);
 
+  const insight = useMemo(() => buildInsight(productData, routineScore), [productData, routineScore]);
+  const grouped = useMemo(() => groupBySchedule(productData), [productData]);
+
+  const openAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    trackEvent('product_add_sheet_opened', { source: 'products_tab' });
+    setShowAddSheet(true);
+  };
+
   return (
     <AtmosphereScreen>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>Your Products</Text>
-        <Text style={styles.count}>{products.length} product{products.length !== 1 ? 's' : ''}</Text>
+        <View>
+          <Text style={styles.title}>Your Routine</Text>
+          {products.length > 0 && (
+            <Text style={styles.count}>
+              {products.length} product{products.length !== 1 ? 's' : ''}
+            </Text>
+          )}
+        </View>
+        {products.length > 0 && (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={openAdd}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Add product"
+          >
+            <Feather name="plus" size={18} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Routine Score Card */}
       {products.length > 0 && (
         <View style={styles.scoreCard}>
+          {/* Colored left accent bar driven by score */}
+          <View style={[styles.scoreAccent, { backgroundColor: scoreColor(routineScore) }]} />
           <View style={styles.scoreCardContent}>
             <View style={styles.scoreTextCol}>
               <Text style={styles.scoreLabel}>Routine Score</Text>
               <Text style={styles.scoreDesc}>
                 Average effectiveness across your products
               </Text>
+              {insight && (
+                <Text style={[styles.scoreInsight, { color: insight.color }]}>{insight.text}</Text>
+              )}
             </View>
             <RoutineScoreRing score={routineScore} />
           </View>
         </View>
       )}
 
-      {/* Product List */}
+      {/* Grouped product list */}
       {productData.length > 0 ? (
-        <View style={styles.list}>
-          {productData.map((d) => (
-            <ProductCard
-              key={d.product.user_product_id}
-              product={d.product}
-              score={d.score}
-              topContributor={d.topContributor}
-              onPress={() => router.push({ pathname: '/product/[id]', params: { id: d.product.user_product_id } })}
-            />
-          ))}
+        <View style={styles.sections}>
+          {SCHEDULE_ORDER.map((schedule) => {
+            const items = grouped.get(schedule);
+            if (!items || items.length === 0) return null;
+            const palette = SCHEDULE_PALETTE[schedule];
+
+            return (
+              <View
+                key={schedule}
+                style={[
+                  styles.section,
+                  {
+                    backgroundColor: palette.sectionBg,
+                    borderColor: palette.sectionBorder,
+                  },
+                ]}
+              >
+                <View style={styles.sectionHeader}>
+                  <View style={[styles.sectionIconWrap, { backgroundColor: palette.iconBg }]}>
+                    <Feather
+                      name={SCHEDULE_ICON[schedule] as any}
+                      size={13}
+                      color={palette.accent}
+                    />
+                  </View>
+                  <Text style={[styles.sectionLabel, { color: palette.accent }]}>
+                    {SCHEDULE_LABEL[schedule]}
+                  </Text>
+                  <View style={[styles.sectionCountPill, { backgroundColor: palette.iconBg }]}>
+                    <Text style={[styles.sectionCount, { color: palette.accent }]}>{items.length}</Text>
+                  </View>
+                </View>
+                <View style={styles.sectionList}>
+                  {items.map((d) => (
+                    <ProductCard
+                      key={d.product.user_product_id}
+                      product={d.product}
+                      score={d.score}
+                      topContributor={d.topContributor}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/product/[id]',
+                          params: { id: d.product.user_product_id },
+                        })
+                      }
+                    />
+                  ))}
+                </View>
+              </View>
+            );
+          })}
+
+          {/* Inline add row */}
+          <TouchableOpacity
+            style={styles.addRow}
+            onPress={openAdd}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Add another product"
+          >
+            <View style={styles.addRowIcon}>
+              <Feather name="plus" size={16} color={Colors.primary} />
+            </View>
+            <Text style={styles.addRowText}>Add product</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.emptyState}>
@@ -169,7 +344,7 @@ export default function ProductsTab() {
           </Text>
           <TouchableOpacity
             style={styles.emptyButton}
-            onPress={() => setShowAddSheet(true)}
+            onPress={openAdd}
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Add your first product"
@@ -182,19 +357,6 @@ export default function ProductsTab() {
 
       <View style={styles.footerSpacer} />
 
-      {/* FAB */}
-      {products.length > 0 && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setShowAddSheet(true)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Add product"
-        >
-          <Feather name="plus" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      )}
-
       <AddProductSheet visible={showAddSheet} onClose={() => setShowAddSheet(false)} />
     </AtmosphereScreen>
   );
@@ -204,10 +366,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'flex-start',
     marginBottom: Spacing.lg,
   },
-  eyebrow: {
+  title: {
     color: Colors.text,
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xxl,
@@ -216,14 +378,36 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.sm,
+    marginTop: 2,
   },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surfaceOverlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  // Score card
   scoreCard: {
     ...Surfaces.hero,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
+    paddingLeft: 0,
     marginBottom: Spacing.lg,
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  scoreAccent: {
+    width: 4,
+    alignSelf: 'stretch',
+    borderTopLeftRadius: BorderRadius.xl,
+    borderBottomLeftRadius: BorderRadius.xl,
+    marginRight: Spacing.md,
   },
   scoreCardContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -244,9 +428,82 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     lineHeight: 20,
   },
-  list: {
+  scoreInsight: {
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xs,
+    lineHeight: 18,
+    marginTop: Spacing.xxs,
+  },
+  // Sections
+  sections: {
+    gap: Spacing.md,
+  },
+  section: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    padding: Spacing.md,
     gap: Spacing.sm,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xxs,
+  },
+  sectionIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionLabel: {
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    flex: 1,
+  },
+  sectionCountPill: {
+    width: 22,
+    height: 22,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionCount: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xxs,
+  },
+  sectionList: {
+    gap: Spacing.sm,
+  },
+  // Add row
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+  },
+  addRowIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surfaceOverlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addRowText: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+  },
+  // Empty state
   emptyState: {
     alignItems: 'center',
     paddingVertical: Spacing.xxl,
@@ -290,19 +547,7 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.md,
   },
-  fab: {
-    position: 'absolute',
-    bottom: Spacing.lg,
-    right: Spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.glow,
-  },
   footerSpacer: {
-    height: Spacing.xxl + 40,
+    height: 100,
   },
 });

@@ -75,7 +75,17 @@ export default function CameraScreen() {
   const [autoCountdown, setAutoCountdown] = useState(0);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [detectedLesions, setDetectedLesions] = useState<DetectedLesion[]>([]);
+  const [detectionSource, setDetectionSource] = useState<'on_device' | 'server' | null>(null);
   const detectedLesionsRef = useRef<DetectedLesion[]>([]);
+
+  // ─── Debug: mock lesions to preview overlay UI ──────────────────
+  const DEBUG_LESION_OVERLAY = __DEV__ && false; // flip to true to test overlay visuals
+  const debugLesions: DetectedLesion[] = DEBUG_LESION_OVERLAY ? [
+    { class: 'papule', confidence: 0.82, bbox: [0.35, 0.30, 0.08, 0.06], zone: 'forehead', tier: 'confirmed' as const, trackId: 'dbg-1' },
+    { class: 'comedone', confidence: 0.65, bbox: [0.52, 0.42, 0.06, 0.05], zone: 'nose', tier: 'confirmed' as const, trackId: 'dbg-2' },
+    { class: 'pustule', confidence: 0.74, bbox: [0.28, 0.50, 0.07, 0.06], zone: 'left_cheek', tier: 'confirmed' as const, trackId: 'dbg-3' },
+    { class: 'macule', confidence: 0.45, bbox: [0.60, 0.55, 0.09, 0.07], zone: 'right_cheek', tier: 'possible' as const, trackId: 'dbg-4' },
+  ] : [];
   const detectingRef = useRef(false);
   const detectionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const alignedStartRef = useRef<number | null>(null);
@@ -144,12 +154,13 @@ export default function CameraScreen() {
     if (trackingState.status === 'aligned' && trackingState.lightingOk && !capturing) {
       if (!alignedStartRef.current) {
         alignedStartRef.current = Date.now();
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       const elapsed = Date.now() - alignedStartRef.current;
-      if (elapsed >= 2000) {
+      if (elapsed >= 4000) {
         handleCaptureRef.current();
       } else {
-        setAutoCountdown(Math.ceil((2000 - elapsed) / 1000));
+        setAutoCountdown(Math.ceil((4000 - elapsed) / 1000));
       }
     } else {
       alignedStartRef.current = null;
@@ -175,9 +186,9 @@ export default function CameraScreen() {
     };
   }, []);
 
-  // Lesion detection when face is aligned
+  // Lesion detection — starts as soon as a face is visible (not just aligned)
   useEffect(() => {
-    if (trackingState.status !== 'aligned' || capturing) {
+    if (trackingState.status === 'no_face' || capturing) {
       if (detectionTimerRef.current) {
         clearInterval(detectionTimerRef.current);
         detectionTimerRef.current = null;
@@ -248,6 +259,7 @@ export default function CameraScreen() {
         // Apply temporal smoothing
         const stable = lesionTrackerRef.current.update(lesions);
         setDetectedLesions(stable);
+        if (source !== 'none') setDetectionSource(source);
 
         if (stable.length > 0) {
           trackEvent('realtime_lesions_detected', {
@@ -264,7 +276,7 @@ export default function CameraScreen() {
     };
 
     detect();
-    detectionTimerRef.current = setInterval(detect, 600);
+    detectionTimerRef.current = setInterval(detect, 350);
 
     return () => {
       if (detectionTimerRef.current) {
@@ -398,16 +410,17 @@ export default function CameraScreen() {
         height={SCREEN_H}
       />
 
-      {/* Real-time lesion bounding boxes */}
-      {detectedLesions.length > 0 && lastFrameWidth > 0 && lastFrameHeight > 0 && (
+      {/* Real-time lesion detection overlay — scan UI shows whenever face is visible */}
+      {(trackingState.status !== 'no_face' || detectedLesions.length > 0 || DEBUG_LESION_OVERLAY) && (
         <LesionOverlay
-          lesions={detectedLesions}
+          lesions={DEBUG_LESION_OVERLAY ? debugLesions : detectedLesions}
           width={SCREEN_W}
           height={SCREEN_H}
-          sourceWidth={lastFrameWidth}
-          sourceHeight={lastFrameHeight}
-          faceRect={normalizedFaceRect}
-          mirrored
+          sourceWidth={DEBUG_LESION_OVERLAY ? SCREEN_W : lastFrameWidth}
+          sourceHeight={DEBUG_LESION_OVERLAY ? SCREEN_H : lastFrameHeight}
+          mirrored={!DEBUG_LESION_OVERLAY}
+          detectionSource={DEBUG_LESION_OVERLAY ? 'on_device' : detectionSource}
+          scanActive={trackingState.status !== 'no_face'}
         />
       )}
 
@@ -419,70 +432,54 @@ export default function CameraScreen() {
       {/* Flash overlay */}
       <Animated.View style={[styles.flashOverlay, flashStyle]} pointerEvents="none" />
 
-      {/* Top bar */}
+      {/* Top bar — distilled: back button + lighting only */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
           <Feather name="chevron-left" size={28} color={Colors.textOnDark} />
         </TouchableOpacity>
 
-        {protocol?.scan_region && (
-          <View style={styles.regionPill}>
-            <Text style={styles.regionText}>
-              {protocol.scan_region.replace(/_/g, ' ').toUpperCase()}
+        {!trackingState.lightingUnavailable && (
+          <View style={[
+            styles.lightingPill,
+            {
+              backgroundColor: trackingState.lightingOk
+                ? 'rgba(95, 211, 172, 0.2)'
+                : 'rgba(242, 181, 106, 0.2)',
+            },
+          ]}>
+            <View style={[
+              styles.lightingDot,
+              {
+                backgroundColor: trackingState.lightingOk
+                  ? Colors.success
+                  : Colors.warning,
+              },
+            ]} />
+            <Text style={[
+              styles.lightingText,
+              {
+                color: trackingState.lightingOk
+                  ? Colors.success
+                  : Colors.warning,
+              },
+            ]}>
+              {trackingState.lightingOk ? 'Good light' : 'Low light'}
             </Text>
           </View>
         )}
-
-        <View style={[
-          styles.lightingPill,
-          {
-            backgroundColor: trackingState.lightingUnavailable
-              ? 'rgba(134, 199, 255, 0.2)'
-              : trackingState.lightingOk
-                ? 'rgba(95, 211, 172, 0.2)'
-                : 'rgba(242, 181, 106, 0.2)',
-          },
-        ]}>
-          <View style={[
-            styles.lightingDot,
-            {
-              backgroundColor: trackingState.lightingUnavailable
-                ? Colors.info
-                : trackingState.lightingOk
-                  ? Colors.success
-                  : Colors.warning,
-            },
-          ]} />
-          <Text style={[
-            styles.lightingText,
-            {
-              color: trackingState.lightingUnavailable
-                ? Colors.info
-                : trackingState.lightingOk
-                  ? Colors.success
-                  : Colors.warning,
-            },
-          ]}>
-            {trackingState.lightingUnavailable
-              ? 'Light N/A'
-              : trackingState.lightingOk
-                ? 'Good light'
-                : 'Low light'}
-          </Text>
-        </View>
       </View>
 
-      {/* Status text */}
+      {/* Status text — larger, more prominent */}
       <View style={styles.statusContainer}>
         <Text style={styles.statusText}>
           {trackingState.status === 'no_face'
             ? 'Position your face in the frame'
             : !trackingState.lightingOk && !trackingState.lightingUnavailable
-              ? 'Find better lighting — face a window or lamp'
+              ? 'Find better lighting'
               : trackingState.status === 'misaligned'
                 ? trackingState.issues[0] || 'Adjust position'
                 : autoCountdown > 0
-                  ? `Hold steady...`
+                  ? `Hold steady · ${autoCountdown}`
                   : 'Ready to capture'}
         </Text>
       </View>
@@ -560,18 +557,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  regionPill: {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: BorderRadius.full,
-    paddingVertical: 6,
-    paddingHorizontal: Spacing.md,
-  },
-  regionText: {
-    color: Colors.textOnDark,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    letterSpacing: 1.2,
-  },
   lightingPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -598,13 +583,14 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: Colors.textOnDark,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.md,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    paddingVertical: 8,
-    paddingHorizontal: Spacing.md,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.lg,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
+    letterSpacing: 0.3,
   },
   bottomControls: {
     position: 'absolute',

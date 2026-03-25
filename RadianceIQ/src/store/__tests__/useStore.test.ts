@@ -1,4 +1,5 @@
 import { useStore } from '../useStore';
+import { localDateStr } from '../../utils/localDate';
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -134,7 +135,7 @@ describe('useStore', () => {
         period_applicable: 'no',
       });
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = localDateStr();
 
       // Add a record for today
       const record1 = useStore.getState().addDailyRecord({
@@ -180,7 +181,7 @@ describe('useStore', () => {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
         useStore.getState().addDailyRecord({
-          date: d.toISOString().split('T')[0],
+          date: localDateStr(d),
           scanner_reading_id: `scan-${i}`,
           scanner_indices: { inflammation_index: 40, pigmentation_index: 30, texture_index: 35 },
           scanner_quality_flag: 'pass',

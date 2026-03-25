@@ -30,9 +30,9 @@ export const Colors = {
   error: '#D14343',
   info: '#3B7FC4',
 
-  acne: '#D15A57',
-  sunDamage: '#B88C3E',
-  skinAge: '#4B7FCC',
+  acne: '#E87474',      // aligned with signal inflammation (soft coral)
+  sunDamage: '#E8A64C',  // aligned with signal sunDamage (warm amber)
+  skinAge: '#9B7FDB',    // aligned with signal elasticity (soft lavender)
 
   border: 'rgba(0, 0, 0, 0.08)',
   borderStrong: 'rgba(0, 0, 0, 0.14)',
@@ -55,9 +55,16 @@ export const Colors = {
   // Warm glass variant
   glassWarm: 'rgba(255, 248, 240, 0.82)',
 
-  // Gradient endpoints (processing / analyzing screens)
+  // Gradient palette (scan / analyzing dark screens)
+  gradientStart: '#3D5A6E',
+  gradientEarly: '#4A6B80',
   gradientMid: '#6B8799',
+  gradientLate: '#2A4A5E',
   gradientEnd: '#081522',
+
+  // Ring accent (progress rings on dark backgrounds)
+  ringAccent: '#7DE7E1',
+  ringAccentDim: 'rgba(125, 231, 225, 0.12)',
 
   // Text on dark gradients
   textOnDark: '#FFFFFF',

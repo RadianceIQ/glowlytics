@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BackHandler, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import Animated, {
+  type SharedValue,
   useSharedValue,
   useAnimatedStyle,
   useAnimatedProps,
@@ -17,7 +18,8 @@ import Animated, {
   FadeIn,
   FadeOut,
 } from 'react-native-reanimated';
-import { Colors, FontFamily, FontSize, BorderRadius, Spacing } from '../../src/constants/theme';
+import { Colors, FontFamily, FontSize, Spacing } from '../../src/constants/theme';
+import { Button } from '../../src/components/Button';
 import { localDateStr } from '../../src/utils/localDate';
 import { useStore } from '../../src/store/useStore';
 import { analyzeWithFallback } from '../../src/services/skinAnalysis';
@@ -27,9 +29,72 @@ import { trackEvent } from '../../src/services/analytics';
 import { env } from '../../src/config/env';
 
 // ---------------------------------------------------------------------------
-// Animated SVG circle for Reanimated
+// Animated SVG path for Reanimated
 // ---------------------------------------------------------------------------
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+// ---------------------------------------------------------------------------
+// Infinity loop — round figure-8, just fluid trails, no outline
+// ---------------------------------------------------------------------------
+const INF_W = 280;
+const INF_H = 220;
+// Round loops with control points at y=25/195 for near-circular curvature.
+// Path length computed to 785px for seamless dash wrap (no jump on loop).
+const INF_PATH =
+  'M 20,110 C 20,25 140,25 140,110 C 140,195 260,195 260,110 C 260,25 140,25 140,110 C 140,195 20,195 20,110';
+const INF_LEN = 785;
+
+function InfinityLoop({ progress }: { progress: SharedValue<number> }) {
+  const phaseA = useSharedValue(0);
+  const phaseB = useSharedValue(0);
+
+  useEffect(() => {
+    phaseA.value = withRepeat(
+      withTiming(INF_LEN, { duration: 3500, easing: Easing.linear }),
+      -1,
+    );
+    phaseB.value = withDelay(600, withRepeat(
+      withTiming(INF_LEN, { duration: 5000, easing: Easing.linear }),
+      -1,
+    ));
+  }, []);
+
+  const fluidAProps = useAnimatedProps(() => ({
+    strokeDashoffset: -phaseA.value,
+    strokeOpacity: 0.5 + progress.value * 0.5,
+  }));
+
+  const fluidBProps = useAnimatedProps(() => ({
+    strokeDashoffset: -phaseB.value,
+    strokeOpacity: 0.3 + progress.value * 0.4,
+  }));
+
+  return (
+    <Svg width={INF_W} height={INF_H} viewBox={`0 0 ${INF_W} ${INF_H}`}>
+      {/* Fluid A — primary trail */}
+      <AnimatedPath
+        d={INF_PATH}
+        stroke={Colors.ringAccent}
+        strokeWidth={4}
+        fill="none"
+        strokeLinecap="round"
+        strokeDasharray={`${INF_LEN * 0.3} ${INF_LEN * 0.7}`}
+        animatedProps={fluidAProps}
+      />
+
+      {/* Fluid B — secondary trail, offset timing */}
+      <AnimatedPath
+        d={INF_PATH}
+        stroke={Colors.primary}
+        strokeWidth={2.5}
+        fill="none"
+        strokeLinecap="round"
+        strokeDasharray={`${INF_LEN * 0.2} ${INF_LEN * 0.8}`}
+        animatedProps={fluidBProps}
+      />
+    </Svg>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Stage durations (internal timer track -- unchanged from original)
@@ -50,122 +115,24 @@ const STAGES: Stage[] = [
   { duration: 600 },
 ];
 
-// Calm rotating messages mapped to stage ranges
-const CALM_MESSAGES = [
-  'Analyzing your skin...',
-  'Mapping conditions...',
-  'Generating insights...',
-  'Almost ready...',
+// Status messages — specific to the 3-layer analysis pipeline
+const STAGE_MESSAGES = [
+  'Measuring skin signals...',
+  'Mapping dermal structure...',
+  'Checking hydration levels...',
+  'Detecting inflammation markers...',
+  'Scanning for lesions...',
+  'Comparing with AAD guidelines...',
+  'Building your analysis...',
+  'Scoring your signals...',
+  'Preparing your results...',
 ];
 
-const calmMessageForStage = (stage: number): string => {
-  if (stage <= 1) return CALM_MESSAGES[0];
-  if (stage <= 4) return CALM_MESSAGES[1];
-  if (stage <= 6) return CALM_MESSAGES[2];
-  return CALM_MESSAGES[3];
-};
+const messageForStage = (stage: number): string =>
+  STAGE_MESSAGES[Math.min(stage, STAGE_MESSAGES.length - 1)];
 
 const CALM_EASING = Easing.out(Easing.cubic);
 const API_STAGE = 6;
-
-// ---------------------------------------------------------------------------
-// Progress ring constants
-// ---------------------------------------------------------------------------
-const RING_RADIUS = 60;
-const RING_STROKE = 3;
-const RING_SIZE = (RING_RADIUS + RING_STROKE) * 2;
-const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-// ---------------------------------------------------------------------------
-// Particle configuration
-// ---------------------------------------------------------------------------
-interface ParticleConfig {
-  size: number;
-  startX: number;
-  startY: number;
-  driftX: number;
-  driftY: number;
-  durationX: number;
-  durationY: number;
-  opacityDuration: number;
-  delay: number;
-}
-
-const PARTICLES: ParticleConfig[] = [
-  { size: 6, startX: -80, startY: -160, driftX: 30, driftY: -20, durationX: 6000, durationY: 5000, opacityDuration: 4000, delay: 0 },
-  { size: 4, startX: 90, startY: -100, driftX: -20, driftY: 25, durationX: 7000, durationY: 6000, opacityDuration: 5000, delay: 800 },
-  { size: 5, startX: -60, startY: 120, driftX: 25, driftY: -15, durationX: 5500, durationY: 7000, opacityDuration: 4500, delay: 400 },
-  { size: 3, startX: 70, startY: 140, driftX: -15, driftY: -25, durationX: 6500, durationY: 5500, opacityDuration: 5500, delay: 1200 },
-];
-
-// ---------------------------------------------------------------------------
-// Floating particle component
-// ---------------------------------------------------------------------------
-function FloatingParticle({ config }: { config: ParticleConfig }) {
-  const translateX = useSharedValue(config.startX);
-  const translateY = useSharedValue(config.startY);
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    // Fade in after delay, then pulse
-    opacity.value = withDelay(
-      config.delay,
-      withRepeat(
-        withSequence(
-          withTiming(0.35, { duration: config.opacityDuration / 2, easing: CALM_EASING }),
-          withTiming(0.1, { duration: config.opacityDuration / 2, easing: CALM_EASING }),
-        ),
-        -1,
-      ),
-    );
-
-    // Gentle drift loops
-    translateX.value = withDelay(
-      config.delay,
-      withRepeat(
-        withSequence(
-          withTiming(config.startX + config.driftX, { duration: config.durationX, easing: Easing.inOut(Easing.ease) }),
-          withTiming(config.startX, { duration: config.durationX, easing: Easing.inOut(Easing.ease) }),
-        ),
-        -1,
-      ),
-    );
-
-    translateY.value = withDelay(
-      config.delay,
-      withRepeat(
-        withSequence(
-          withTiming(config.startY + config.driftY, { duration: config.durationY, easing: Easing.inOut(Easing.ease) }),
-          withTiming(config.startY, { duration: config.durationY, easing: Easing.inOut(Easing.ease) }),
-        ),
-        -1,
-      ),
-    );
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-    ],
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        {
-          position: 'absolute',
-          width: config.size,
-          height: config.size,
-          borderRadius: config.size / 2,
-          backgroundColor: Colors.primary,
-        },
-        animStyle,
-      ]}
-    />
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -208,13 +175,11 @@ export default function AnalyzingScreen() {
   // ---------------------------------------------------------------------------
   // Animations
   // ---------------------------------------------------------------------------
-  const logoScale = useSharedValue(0.9);
   const logoOpacity = useSharedValue(0);
-  const glowPulse = useSharedValue(0.3);
   const ringProgress = useSharedValue(0);
 
   // Message index derived from stage for cross-fade key
-  const [displayedMessage, setDisplayedMessage] = useState(CALM_MESSAGES[0]);
+  const [displayedMessage, setDisplayedMessage] = useState(STAGE_MESSAGES[0]);
 
   const progressForStage = (stage: number) => {
     if (stage <= 5) return (stage + 1) / STAGES.length;
@@ -225,7 +190,7 @@ export default function AnalyzingScreen() {
 
   const advanceStage = (stage: number) => {
     setCurrentStage(stage);
-    setDisplayedMessage(calmMessageForStage(stage));
+    setDisplayedMessage(messageForStage(stage));
     const target = progressForStage(stage);
     ringProgress.value = withTiming(target, { duration: 400, easing: CALM_EASING });
   };
@@ -426,26 +391,8 @@ export default function AnalyzingScreen() {
   // Start animations + cleanup
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    // Fade logo in
-    logoOpacity.value = withTiming(1, { duration: 600, easing: CALM_EASING });
-
-    // Gentle breathing pulse on logo (continuous)
-    logoScale.value = withRepeat(
-      withSequence(
-        withTiming(1.05, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.95, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-    );
-
-    // Background glow pulse
-    glowPulse.value = withRepeat(
-      withSequence(
-        withTiming(0.7, { duration: 1200 }),
-        withTiming(0.3, { duration: 1200 }),
-      ),
-      -1,
-    );
+    // Fade infinity in
+    logoOpacity.value = withTiming(1, { duration: 800, easing: CALM_EASING });
 
     return () => {
       timers.current.forEach(clearTimeout);
@@ -628,18 +575,8 @@ export default function AnalyzingScreen() {
   // ---------------------------------------------------------------------------
   // Animated styles
   // ---------------------------------------------------------------------------
-  const logoAnimStyle = useAnimatedStyle(() => ({
+  const infinityAnimStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
-    transform: [{ scale: logoScale.value }],
-  }));
-
-  const glowAnimStyle = useAnimatedStyle(() => ({
-    opacity: glowPulse.value,
-  }));
-
-  // Progress ring: strokeDashoffset animated
-  const ringAnimatedProps = useAnimatedProps(() => ({
-    strokeDashoffset: CIRCUMFERENCE * (1 - ringProgress.value),
   }));
 
   // ---------------------------------------------------------------------------
@@ -649,7 +586,7 @@ export default function AnalyzingScreen() {
     setError(null);
     setSlowWarning(false);
     setCurrentStage(0);
-    setDisplayedMessage(CALM_MESSAGES[0]);
+    setDisplayedMessage(STAGE_MESSAGES[0]);
     setXpFeedback(null);
     setStreamedText('');
     setIsStreaming(false);
@@ -663,21 +600,7 @@ export default function AnalyzingScreen() {
     timers.current.forEach(clearTimeout);
     timers.current = [];
     ringProgress.value = 0;
-    logoOpacity.value = withTiming(1, { duration: 600, easing: CALM_EASING });
-    logoScale.value = withRepeat(
-      withSequence(
-        withTiming(1.05, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.95, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-    );
-    glowPulse.value = withRepeat(
-      withSequence(
-        withTiming(0.7, { duration: 1200 }),
-        withTiming(0.3, { duration: 1200 }),
-      ),
-      -1,
-    );
+    logoOpacity.value = withTiming(1, { duration: 800, easing: CALM_EASING });
     setRetryCount((c) => c + 1);
   };
 
@@ -688,7 +611,8 @@ export default function AnalyzingScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient
-          colors={[Colors.backgroundDeep, Colors.gradientMid, Colors.gradientEnd]}
+          colors={[Colors.gradientStart, Colors.gradientEarly, Colors.gradientMid, Colors.gradientLate, Colors.gradientEnd]}
+          locations={[0, 0.25, 0.45, 0.7, 1]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -698,21 +622,15 @@ export default function AnalyzingScreen() {
           <Text style={styles.errorTitle}>Analysis failed</Text>
           <Text style={styles.errorSubtitle}>{error}</Text>
           <View style={styles.errorButtons}>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={handleRetry}
-            >
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.goBackButton}
+            <Button title="Retry" onPress={handleRetry} />
+            <Button
+              title="Go back"
+              variant="ghost"
               onPress={() => {
                 useStore.getState().clearPendingPhotoBase64();
                 router.replace('/(tabs)/today');
               }}
-            >
-              <Text style={styles.goBackText}>Go back</Text>
-            </TouchableOpacity>
+            />
           </View>
         </View>
       </View>
@@ -745,79 +663,20 @@ export default function AnalyzingScreen() {
       <View style={styles.container}>
         {/* Background gradient — smooth 5-stop to avoid visible banding */}
         <LinearGradient
-          colors={['#3D5A6E', '#4A6B80', Colors.gradientMid, '#2A4A5E', Colors.gradientEnd]}
+          colors={[Colors.gradientStart, Colors.gradientEarly, Colors.gradientMid, Colors.gradientLate, Colors.gradientEnd]}
           locations={[0, 0.25, 0.45, 0.7, 1]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
 
-        {/* Background glow */}
-        <Animated.View style={[styles.bgGlow, glowAnimStyle]}>
-          <LinearGradient
-            colors={[Colors.glowPrimary, 'transparent']}
-            start={{ x: 0.5, y: 0.3 }}
-            end={{ x: 0.5, y: 0.8 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-
-        {/* Floating particles */}
-        <View style={styles.particlesContainer}>
-          {PARTICLES.map((p, i) => (
-            <FloatingParticle key={i} config={p} />
-          ))}
-        </View>
-
         <View style={styles.content}>
-          {/* Progress ring + logo */}
-          <View style={styles.ringContainer}>
-            <Animated.View style={logoAnimStyle}>
-              <Svg
-                width={RING_SIZE}
-                height={RING_SIZE}
-                viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-              >
-                <Defs>
-                  <SvgGradient id="ringGlow" x1="0" y1="0" x2="1" y2="1">
-                    <Stop offset="0" stopColor="#7DE7E1" stopOpacity={1} />
-                    <Stop offset="1" stopColor="#3A9E8F" stopOpacity={0.8} />
-                  </SvgGradient>
-                </Defs>
-                {/* Background ring */}
-                <Circle
-                  cx={RING_SIZE / 2}
-                  cy={RING_SIZE / 2}
-                  r={RING_RADIUS}
-                  stroke="rgba(125, 231, 225, 0.12)"
-                  strokeWidth={RING_STROKE}
-                  fill="none"
-                />
-                {/* Animated progress ring with gradient glow */}
-                <AnimatedCircle
-                  cx={RING_SIZE / 2}
-                  cy={RING_SIZE / 2}
-                  r={RING_RADIUS}
-                  stroke="url(#ringGlow)"
-                  strokeWidth={RING_STROKE + 1}
-                  fill="none"
-                  strokeDasharray={`${CIRCUMFERENCE}`}
-                  strokeLinecap="round"
-                  rotation="-90"
-                  origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
-                  animatedProps={ringAnimatedProps}
-                />
-              </Svg>
-              {/* Logo emblem centered inside ring */}
-              <Image
-                source={require('../../assets/logo-emblem.png')}
-                style={styles.logoEmblem}
-                resizeMode="contain"
-              />
-            </Animated.View>
-          </View>
+          {/* Fluid infinity loop */}
+          <Animated.View style={[styles.infinityContainer, infinityAnimStyle]}>
+            <InfinityLoop progress={ringProgress} />
+          </Animated.View>
 
-          {/* Rotating calm message */}
+          {/* Status message */}
           <View style={styles.messageContainer}>
             <Animated.Text
               key={displayedMessage}
@@ -836,7 +695,7 @@ export default function AnalyzingScreen() {
               style={styles.streamContainer}
             >
               <Text style={styles.streamText} numberOfLines={4}>
-                {streamedText.slice(-200)}
+                {streamedText.slice(-200).replace(/^\S*\s/, '')}
               </Text>
             </Animated.View>
           )}
@@ -864,58 +723,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  bgGlow: {
-    position: 'absolute',
-    top: '20%',
-    left: -50,
-    right: -50,
-    height: 300,
-    borderRadius: BorderRadius.full,
-  },
-  particlesContainer: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.xl,
+    gap: Spacing.lg,
     paddingHorizontal: Spacing.xl,
   },
-  ringContainer: {
-    width: RING_SIZE,
-    height: RING_SIZE,
+  infinityContainer: {
+    width: INF_W,
+    height: INF_H,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-  },
-  logoEmblem: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    top: (RING_SIZE - 56) / 2,
-    left: (RING_SIZE - 56) / 2,
   },
   messageContainer: {
-    height: 30,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   statusMessage: {
+    position: 'absolute',
     color: Colors.textOnDark,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.lg,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xl,
     textAlign: 'center',
-    letterSpacing: 0.3,
   },
   streamContainer: {
-    paddingHorizontal: Spacing.xl,
-    maxWidth: 320,
+    paddingHorizontal: Spacing.xxl,
     alignItems: 'center',
   },
   streamText: {
@@ -924,51 +759,32 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     lineHeight: 20,
     textAlign: 'center',
-    opacity: 0.7,
   },
   slowWarning: {
     color: Colors.warning,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.md,
   },
   // Error screen
   errorTitle: {
     color: Colors.textOnDark,
     fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xl,
+    textAlign: 'center',
     marginTop: Spacing.lg,
   },
   errorSubtitle: {
     color: Colors.textOnDarkDim,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
+    textAlign: 'center',
     marginTop: Spacing.sm,
   },
   errorButtons: {
     marginTop: Spacing.xl,
     gap: Spacing.md,
-    alignItems: 'center',
-  },
-  retryButton: {
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl,
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-  },
-  retryText: {
-    color: Colors.textOnDark,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.md,
-  },
-  goBackButton: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.xl,
-  },
-  goBackText: {
-    color: Colors.textOnDarkMuted,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.sm,
+    width: '100%',
   },
   // XP overlay
   xpOverlay: {
@@ -978,7 +794,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 100,
-    backgroundColor: 'rgba(6, 11, 18, 0.85)',
+    backgroundColor: Colors.overlay,
     alignItems: 'center',
     justifyContent: 'center',
   },

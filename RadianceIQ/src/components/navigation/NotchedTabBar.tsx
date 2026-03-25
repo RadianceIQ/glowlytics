@@ -1,19 +1,35 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Feather } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Dimensions, Pressable, StyleSheet, Text, View, Keyboard, Platform } from 'react-native';
+import { Pressable, StyleSheet, Text, View, Keyboard, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  withRepeat,
+  useReducedMotion,
+  Easing,
+} from 'react-native-reanimated';
 import { BorderRadius, Colors, FontFamily, FontSize, Spacing } from '../../constants/theme';
 
-const TAB_VISUAL_HEIGHT = 74;
-const CAMERA_SIZE = 68;
-const NOTCH_WIDTH = 74;
-const NOTCH_DEPTH = 10;
-const NOTCH_CURVE = 12;
-const BAR_RADIUS = 22;
-const CAMERA_LIFT = 22; // how far camera center sits above bar top edge
+// ─── Layout ──────────────────────────────────────────────────────────
+const CALM_EASING = Easing.out(Easing.cubic);
+const TAB_HEIGHT = 64;
+const CAMERA_SIZE = 56;
+const BAR_RADIUS = 20;
+const CAMERA_OVERLAP = 20; // how far the camera button extends above the bar
 
+/** Bottom content inset for screens behind the tab bar. */
+export const DOCKED_TAB_SPACE = TAB_HEIGHT + Spacing.sm;
+
+// Safe area adjustment — the bar's built-in padding partially covers the safe area
+const SAFE_AREA_OVERLAP = 2;
+const BOTTOM_INSET_MIN = 8;
+
+// ─── Tab config ──────────────────────────────────────────────────────
 type TabConfig = {
   name: string;
   label: string;
@@ -27,40 +43,160 @@ const SIDE_TABS: TabConfig[] = [
   { name: 'profile', label: 'Profile', icon: 'user' },
 ];
 
-export const DOCKED_TAB_SPACE = TAB_VISUAL_HEIGHT + 10;
-
-/**
- * SVG path: rounded rect with a shallow smooth notch at top center.
- * Bottom edge is continuous (bridge).
- */
-function buildNotchPath(barWidth: number, barHeight: number): string {
-  const cx = barWidth / 2;
-  const halfNotch = NOTCH_WIDTH / 2;
-  const r = BAR_RADIUS;
-  const c = NOTCH_CURVE;
-  const d = NOTCH_DEPTH;
-
-  const notchLeft = cx - halfNotch - c;
-  const notchRight = cx + halfNotch + c;
-
-  return [
-    `M ${r} 0`,
-    `L ${notchLeft} 0`,
-    `C ${notchLeft + c} 0, ${cx - halfNotch} ${d}, ${cx - halfNotch + 2} ${d}`,
-    `A ${halfNotch - 2} ${halfNotch - 2} 0 0 0 ${cx + halfNotch - 2} ${d}`,
-    `C ${cx + halfNotch} ${d}, ${notchRight - c} 0, ${notchRight} 0`,
-    `L ${barWidth - r} 0`,
-    `Q ${barWidth} 0, ${barWidth} ${r}`,
-    `L ${barWidth} ${barHeight - r}`,
-    `Q ${barWidth} ${barHeight}, ${barWidth - r} ${barHeight}`,
-    `L ${r} ${barHeight}`,
-    `Q 0 ${barHeight}, 0 ${barHeight - r}`,
-    `L 0 ${r}`,
-    `Q 0 0, ${r} 0`,
-    'Z',
-  ].join(' ');
+// ─── Animated Tab ────────────────────────────────────────────────────
+interface AnimatedTabProps {
+  tab: TabConfig;
+  isFocused: boolean;
+  accessibilityLabel?: string;
+  testID?: string;
+  onPress: () => void;
+  onLongPress: () => void;
 }
 
+function AnimatedTab({ tab, isFocused, accessibilityLabel, testID, onPress, onLongPress }: AnimatedTabProps) {
+  const reducedMotion = useReducedMotion();
+  const pressScale = useSharedValue(1);
+  const activeProgress = useSharedValue(isFocused ? 1 : 0);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      activeProgress.value = isFocused ? 1 : 0;
+      return;
+    }
+    activeProgress.value = withTiming(isFocused ? 1 : 0, {
+      duration: 200,
+      easing: CALM_EASING,
+    });
+  }, [isFocused, reducedMotion]);
+
+  const handlePressIn = () => {
+    if (reducedMotion) return;
+    pressScale.value = withSpring(0.94, { damping: 18, stiffness: 280 });
+  };
+
+  const handlePressOut = () => {
+    if (reducedMotion) return;
+    pressScale.value = withSpring(1, { damping: 14, stiffness: 200 });
+  };
+
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value }],
+  }));
+
+  // Active icon lifts 1px — subtle elevated feel above the pill
+  const iconLiftStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -activeProgress.value }],
+  }));
+
+  const pillStyle = useAnimatedStyle(() => ({
+    opacity: activeProgress.value,
+    transform: [{ scale: 0.8 + activeProgress.value * 0.2 }],
+  }));
+
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isFocused }}
+      accessibilityLabel={accessibilityLabel ?? tab.label}
+      testID={testID}
+      hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={styles.tabSlot}
+    >
+      <Animated.View style={[styles.tabInner, containerStyle]}>
+        <Animated.View style={[styles.iconWrap, iconLiftStyle]}>
+          <Animated.View style={[styles.iconBgPill, pillStyle]} />
+          <Feather
+            name={tab.icon}
+            size={20}
+            color={isFocused ? Colors.primary : Colors.textMuted}
+            style={styles.tabIcon}
+          />
+        </Animated.View>
+        <Text
+          numberOfLines={1}
+          style={[styles.tabLabel, { color: isFocused ? Colors.text : Colors.textMuted }]}
+        >
+          {tab.label}
+        </Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+// ─── Camera Button ───────────────────────────────────────────────────
+const GRADIENT_COLORS = ['#34A898', '#3A9E8F'] as const;
+
+interface AnimatedCameraProps {
+  onPress: () => void;
+  pulseCamera: boolean;
+  accessibilityLabel?: string;
+  isFocused: boolean;
+}
+
+function AnimatedCameraButton({ onPress, pulseCamera, accessibilityLabel, isFocused }: AnimatedCameraProps) {
+  const reducedMotion = useReducedMotion();
+  const pressScale = useSharedValue(1);
+  const pulseScale = useSharedValue(1);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    if (pulseCamera) {
+      pulseScale.value = withRepeat(
+        withTiming(1.05, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true,
+      );
+    } else {
+      pulseScale.value = withTiming(1, { duration: 300, easing: CALM_EASING });
+    }
+  }, [pulseCamera, reducedMotion]);
+
+  const handlePressIn = () => {
+    if (reducedMotion) return;
+    pressScale.value = withSpring(0.93, { damping: 18, stiffness: 280 });
+  };
+
+  const handlePressOut = () => {
+    if (reducedMotion) return;
+    pressScale.value = withSpring(1, { damping: 12, stiffness: 180 });
+  };
+
+  const outerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value * pulseScale.value }],
+  }));
+
+  return (
+    <View style={styles.cameraAnchor}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? 'Open camera'}
+        accessibilityState={{ selected: isFocused }}
+        hitSlop={{ top: 12, bottom: 16, left: 12, right: 12 }}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+      >
+        <Animated.View style={[styles.cameraOuter, outerStyle]}>
+          <View style={styles.gradientClip}>
+            <LinearGradient
+              colors={[...GRADIENT_COLORS]}
+              start={{ x: 0.3, y: 0 }}
+              end={{ x: 0.7, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+          </View>
+          <Feather name="camera" size={22} color={Colors.backgroundRaised} />
+        </Animated.View>
+      </Pressable>
+    </View>
+  );
+}
+
+// ─── Main Tab Bar ────────────────────────────────────────────────────
 type NotchedTabBarProps = BottomTabBarProps & {
   onCameraPress: () => void;
   pulseCamera?: boolean;
@@ -74,35 +210,36 @@ export function NotchedTabBar({
   pulseCamera = false,
 }: NotchedTabBarProps) {
   const insets = useSafeAreaInsets();
-  const [isKeyboardOpen, setKeyboardOpen] = useState(false);
-  const screenWidth = Dimensions.get('window').width;
+  const reducedMotion = useReducedMotion();
+  const keyboardVisible = useSharedValue(0); // 0 = visible bar, 1 = hidden
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvent, () => setKeyboardOpen(true));
-    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardOpen(false));
+    const showSub = Keyboard.addListener(showEvent, () => {
+      keyboardVisible.value = reducedMotion
+        ? 1
+        : withTiming(1, { duration: 200, easing: CALM_EASING });
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      keyboardVisible.value = reducedMotion
+        ? 0
+        : withTiming(0, { duration: 250, easing: CALM_EASING });
+    });
     return () => {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [reducedMotion]);
 
-  const focusedRouteKey = state.routes[state.index]?.key;
-  const focusedOptions = focusedRouteKey ? descriptors[focusedRouteKey]?.options : undefined;
-  const hideOnKeyboard = focusedOptions?.tabBarHideOnKeyboard ?? true;
+  const barAnimStyle = useAnimatedStyle(() => ({
+    opacity: 1 - keyboardVisible.value,
+    transform: [{ translateY: keyboardVisible.value * 24 }],
+  }));
 
   const indexByName = useMemo(() => {
     return new Map(state.routes.map((route, index) => [route.name, index]));
   }, [state.routes]);
-
-  const barHPadding = Spacing.md;
-  const barWidth = screenWidth - barHPadding * 2;
-  const svgHeight = TAB_VISUAL_HEIGHT + NOTCH_DEPTH;
-
-  const notchPath = useMemo(() => buildNotchPath(barWidth, TAB_VISUAL_HEIGHT), [barWidth]);
-
-  if (hideOnKeyboard && isKeyboardOpen) return null;
 
   const renderSideTab = (tab: TabConfig) => {
     const index = indexByName.get(tab.name);
@@ -114,99 +251,65 @@ export function NotchedTabBar({
     const isFocused = state.index === index;
     const options = descriptors[route.key]?.options;
 
-    const onPress = () => {
-      const event = navigation.emit({
-        type: 'tabPress',
-        target: route.key,
-        canPreventDefault: true,
-      });
-      if (!isFocused && !event.defaultPrevented) {
-        navigation.navigate(route.name, route.params);
-      }
-    };
-
-    const onLongPress = () => {
-      navigation.emit({ type: 'tabLongPress', target: route.key });
-    };
-
     return (
-      <Pressable
+      <AnimatedTab
         key={tab.name}
-        accessibilityRole="button"
-        accessibilityState={{ selected: isFocused }}
+        tab={tab}
+        isFocused={isFocused}
         accessibilityLabel={options?.tabBarAccessibilityLabel}
         testID={options?.tabBarButtonTestID}
-        onPress={onPress}
-        onLongPress={onLongPress}
-        style={styles.tabSlot}
-      >
-        <View style={[styles.iconWrap, isFocused && styles.iconWrapActive]}>
-          <Feather name={tab.icon} size={20} color={isFocused ? Colors.text : Colors.textMuted} />
-        </View>
-        <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>{tab.label}</Text>
-        <View style={[styles.activeDot, { opacity: isFocused ? 1 : 0 }]} />
-      </Pressable>
+        onPress={() => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name, route.params);
+          }
+        }}
+        onLongPress={() => {
+          navigation.emit({ type: 'tabLongPress', target: route.key });
+        }}
+      />
     );
   };
 
-  // Camera route info
   const cameraIndex = indexByName.get('camera');
   const cameraRoute = typeof cameraIndex === 'number' ? state.routes[cameraIndex] : undefined;
   const cameraOptions = cameraRoute ? descriptors[cameraRoute.key]?.options : undefined;
   const isCameraFocused = typeof cameraIndex === 'number' && state.index === cameraIndex;
 
+  const bottomPad = Math.max(insets.bottom - SAFE_AREA_OVERLAP, BOTTOM_INSET_MIN);
+
   return (
     <View pointerEvents="box-none" style={styles.root}>
-      <View style={[styles.dockedWrap, { paddingBottom: Math.max(insets.bottom - 2, 8) }]}>
+      <Animated.View style={[styles.dockedWrap, barAnimStyle, { paddingBottom: bottomPad }]}>
         <View style={styles.tabBarContainer}>
-          {/* SVG background — notched pill */}
-          <View style={styles.svgShadow}>
-            <Svg
-              width={barWidth}
-              height={svgHeight}
-              viewBox={`0 0 ${barWidth} ${TAB_VISUAL_HEIGHT}`}
-              style={styles.svgBackground}
-            >
-              <Path
-                d={notchPath}
-                fill="rgba(255, 255, 255, 0.93)"
-                stroke="rgba(0, 0, 0, 0.04)"
-                strokeWidth={0.5}
-              />
-            </Svg>
-          </View>
+          {/* Bar background — simple rounded pill */}
+          <View style={styles.barBackground} />
 
-          {/* Side tab buttons — 2 left, spacer, 2 right */}
+          {/* Tab buttons — 2 left, spacer for camera, 2 right */}
           <View style={styles.tabsRow}>
             {SIDE_TABS.slice(0, 2).map(renderSideTab)}
             <View style={styles.cameraSpacer} />
             {SIDE_TABS.slice(2).map(renderSideTab)}
           </View>
 
-          {/* Camera button — absolutely positioned, floating above bar */}
-          <View style={styles.cameraAnchor}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={cameraOptions?.tabBarAccessibilityLabel ?? 'Open camera'}
-              accessibilityState={{ selected: isCameraFocused }}
-              onPress={onCameraPress}
-              style={({ pressed }) => [
-                styles.cameraOuter,
-                pulseCamera && styles.cameraOuterPulse,
-                pressed && styles.cameraOuterPressed,
-              ]}
-            >
-              <View style={styles.cameraInner}>
-                <Feather name="camera" size={22} color="#FFFFFF" />
-              </View>
-            </Pressable>
-          </View>
+          {/* Camera button — floats above the bar */}
+          <AnimatedCameraButton
+            onPress={onCameraPress}
+            pulseCamera={pulseCamera}
+            accessibilityLabel={cameraOptions?.tabBarAccessibilityLabel}
+            isFocused={isCameraFocused}
+          />
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: {
     ...StyleSheet.absoluteFillObject,
@@ -216,48 +319,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   tabBarContainer: {
-    height: TAB_VISUAL_HEIGHT,
+    height: TAB_HEIGHT,
     overflow: 'visible',
   },
-
-  // Shadow wrapper
-  svgShadow: {
+  barBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.93)',
+    borderRadius: BAR_RADIUS,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0, 0, 0, 0.04)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  svgBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 8,
   },
 
-  // Tab icons row (4 side tabs + center spacer)
   tabsRow: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: Spacing.sm,
-    paddingBottom: Spacing.sm + 1,
   },
   tabSlot: {
     flex: 1,
-    minWidth: 52,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+  },
+  tabInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xxs,
   },
   cameraSpacer: {
-    width: 82,
+    width: CAMERA_SIZE + Spacing.sm,
   },
 
-  // Camera — absolutely positioned above center of bar
   cameraAnchor: {
     position: 'absolute',
-    top: -(CAMERA_SIZE / 2) + (NOTCH_DEPTH / 2) - 4,
+    top: -CAMERA_OVERLAP,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -267,58 +368,36 @@ const styles = StyleSheet.create({
     width: CAMERA_SIZE,
     height: CAMERA_SIZE,
     borderRadius: CAMERA_SIZE / 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2.5,
-    borderColor: 'rgba(58, 158, 143, 0.10)',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    elevation: 8,
   },
-  cameraOuterPulse: {
-    shadowOpacity: 0.42,
-    shadowRadius: 20,
-  },
-  cameraOuterPressed: {
-    transform: [{ scale: 0.93 }],
-  },
-  cameraInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  gradientClip: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: CAMERA_SIZE / 2,
+    overflow: 'hidden',
   },
 
-  // Tab button internals
   iconWrap: {
-    width: 36,
-    height: 28,
+    width: 40,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BorderRadius.full,
+    position: 'relative',
   },
-  iconWrapActive: {
-    backgroundColor: 'rgba(58, 158, 143, 0.10)',
+  tabIcon: {
+    // Feather icons have inconsistent optical weight — nudge down 0.5px
+    // so icons like 'sun' (top-heavy) look centered with 'user' (bottom-heavy)
+    marginTop: 0.5,
+  },
+  iconBgPill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.glowPrimary,
+    borderRadius: BorderRadius.full,
   },
   tabLabel: {
-    color: Colors.textMuted,
     fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.xxs,
-    letterSpacing: 0.3,
-  },
-  tabLabelActive: {
-    color: Colors.text,
-  },
-  activeDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
-    marginTop: 1,
+    fontSize: FontSize.xs,
+    letterSpacing: 0.2,
   },
 });

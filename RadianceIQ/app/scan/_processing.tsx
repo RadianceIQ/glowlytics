@@ -118,7 +118,7 @@ export default function ProcessingScreen() {
     <View style={styles.container}>
       {/* Same seamless gradient as analyzing screen */}
       <LinearGradient
-        colors={['#3D5A6E', '#4A6B80', Colors.gradientMid, '#2A4A5E', Colors.gradientEnd]}
+        colors={[Colors.gradientStart, Colors.gradientEarly, Colors.gradientMid, Colors.gradientLate, Colors.gradientEnd]}
         locations={[0, 0.25, 0.45, 0.7, 1]}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -162,7 +162,7 @@ export default function ProcessingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#3D5A6E',
+    backgroundColor: Colors.gradientStart,
   },
   bgGlow: {
     position: 'absolute',

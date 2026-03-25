@@ -29,7 +29,6 @@ interface Props {
   signalConfidence?: SignalConfidence;
 }
 
-// Condition-level colors (distinct from lesion-level colors in constants/lesions.ts)
 const CONDITION_COLORS: Record<string, string> = {
   acne: '#FF4444',
   hyperpigmentation: '#F2B56A',
@@ -46,7 +45,6 @@ const LESION_COLORS: Record<string, string> = Object.fromEntries(
   Object.entries(LESION_INFO).map(([k, v]) => [k, v.color]),
 );
 
-// SVG viewBox dimensions for coordinate mapping
 const SVG_WIDTH = 310;
 const SVG_HEIGHT = 320;
 
@@ -55,12 +53,9 @@ const severityColor = (severity: HotZone['severity'], conditionName?: string) =>
     return CONDITION_COLORS[conditionName];
   }
   switch (severity) {
-    case 'elevated':
-      return Colors.error;
-    case 'moderate':
-      return Colors.warning;
-    case 'low':
-      return Colors.success;
+    case 'elevated': return Colors.error;
+    case 'moderate': return Colors.warning;
+    case 'low': return Colors.success;
   }
 };
 
@@ -78,7 +73,6 @@ const regionCenter: Record<HotZone['region'], { cx: number; cy: number }> = {
 };
 
 function deriveHotZones(acne: number, sun: number, age: number, conditions?: DetectedCondition[]): HotZone[] {
-  // When conditions are provided, use them for precise zone mapping
   if (conditions && conditions.length > 0) {
     const zones: HotZone[] = [];
     for (const condition of conditions) {
@@ -100,7 +94,6 @@ function deriveHotZones(acne: number, sun: number, age: number, conditions?: Det
     return zones;
   }
 
-  // Fallback: threshold-based logic when no conditions data available
   const zones: HotZone[] = [];
   if (acne > 40)
     zones.push({ label: 'Acne activity', severity: acne > 70 ? 'elevated' : 'moderate', region: 'left_cheek' });
@@ -129,96 +122,82 @@ export const FacialMesh: React.FC<Props> = ({ acneScore, sunDamageScore, skinAge
           <Defs>
             {hotZones.map((zone, i) => {
               const c = regionCenter[zone.region];
+              const cx = 150 + (c.cx - 150) * 0.86;
               const color = severityColor(zone.severity, zone.conditionName);
               return (
-                <RadialGradient key={`g${i}`} id={`hz${i}`} cx={c.cx} cy={c.cy} r="50" gradientUnits="userSpaceOnUse">
-                  <Stop offset="0%" stopColor={color} stopOpacity="0.55" />
-                  <Stop offset="55%" stopColor={color} stopOpacity="0.18" />
+                <RadialGradient key={`g${i}`} id={`hz${i}`} cx={cx} cy={c.cy} r="48" gradientUnits="userSpaceOnUse">
+                  <Stop offset="0%" stopColor={color} stopOpacity="0.5" />
+                  <Stop offset="45%" stopColor={color} stopOpacity="0.15" />
                   <Stop offset="100%" stopColor={color} stopOpacity="0" />
                 </RadialGradient>
               );
             })}
           </Defs>
 
-          {/* Wireframe edges */}
-          <G opacity={0.32}>
+          {/* Face mesh — horizontally compressed for realistic proportions */}
+          <G transform="translate(150, 0) scale(0.86, 1) translate(-150, 0)" opacity={0.35}>
             {edges.map(([a, b], i) => (
               <Line key={i} x1={V[a][0]} y1={V[a][1]} x2={V[b][0]} y2={V[b][1]}
-                stroke={Colors.primaryLight} strokeWidth={0.6} />
+                stroke={Colors.primary} strokeWidth={0.6} />
             ))}
           </G>
 
-          {/* Vertices — brighter at key landmarks */}
-          <G>
-            {V.map(([x, y], i) => {
-              // Key landmark vertices get brighter dots
-              const isContour = i <= 23;
-              const isEye = (i >= 50 && i <= 69);
-              const isNose = (i >= 70 && i <= 83);
-              const isLip = (i >= 111 && i <= 127);
-              const bright = isContour || isEye || isNose || isLip;
-              return (
-                <Circle key={i} cx={x} cy={y}
-                  r={bright ? 1.5 : 1.0}
-                  fill={Colors.primaryLight}
-                  opacity={bright ? 0.6 : 0.3}
-                />
-              );
-            })}
-          </G>
-
-          {/* Left pupil */}
-          <Circle cx={V[59][0]} cy={V[59][1]} r={6} fill="none" stroke={Colors.primaryLight} strokeWidth={0.5} opacity={0.2} />
-          <Circle cx={V[59][0]} cy={V[59][1]} r={2.5} fill={Colors.primaryLight} opacity={0.15} />
-          {/* Right pupil */}
-          <Circle cx={V[69][0]} cy={V[69][1]} r={6} fill="none" stroke={Colors.primaryLight} strokeWidth={0.5} opacity={0.2} />
-          <Circle cx={V[69][0]} cy={V[69][1]} r={2.5} fill={Colors.primaryLight} opacity={0.15} />
-
-          {/* Hot zone overlays */}
+          {/* Hot zone overlays — compressed to match narrowed mesh */}
           {hotZones.map((zone, i) => {
             const c = regionCenter[zone.region];
+            const cx = 150 + (c.cx - 150) * 0.86; // match mesh compression
             const color = severityColor(zone.severity, zone.conditionName);
             return (
               <G key={`hz-${i}`}>
-                <Circle cx={c.cx} cy={c.cy} r={50} fill={`url(#hz${i})`} />
-                <Circle cx={c.cx} cy={c.cy} r={5} fill={color} opacity={0.9} />
-                <Circle cx={c.cx} cy={c.cy} r={11} fill="none" stroke={color} strokeWidth={1} opacity={0.5} />
-                <Circle cx={c.cx} cy={c.cy} r={22} fill="none" stroke={color} strokeWidth={0.5} opacity={0.2} strokeDasharray="3 4" />
+                <Circle cx={cx} cy={c.cy} r={48} fill={`url(#hz${i})`} />
+                <Circle cx={cx} cy={c.cy} r={5} fill={color} opacity={0.85} />
+                <Circle cx={cx} cy={c.cy} r={12} fill="none" stroke={color} strokeWidth={1.2} opacity={0.5} />
+                <Circle cx={cx} cy={c.cy} r={24} fill="none" stroke={color} strokeWidth={0.6} opacity={0.25} strokeDasharray="3 5" />
+                {/* Crosshair lines */}
+                <Line x1={cx - 16} y1={c.cy} x2={cx - 8} y2={c.cy} stroke={color} strokeWidth={0.6} opacity={0.4} />
+                <Line x1={cx + 8} y1={c.cy} x2={cx + 16} y2={c.cy} stroke={color} strokeWidth={0.6} opacity={0.4} />
+                <Line x1={cx} y1={c.cy - 16} x2={cx} y2={c.cy - 8} stroke={color} strokeWidth={0.6} opacity={0.4} />
+                <Line x1={cx} y1={c.cy + 8} x2={cx} y2={c.cy + 16} stroke={color} strokeWidth={0.6} opacity={0.4} />
               </G>
             );
           })}
 
-          {/* Lesion bounding boxes from YOLOv8 detector */}
+          {/* Lesion bounding boxes — corner bracket style, compressed to match mesh */}
           {hasLesions && lesions.map((lesion, i) => {
             const [bx, by, bw, bh] = lesion.bbox;
-            const x = bx * SVG_WIDTH;
+            const rawX = bx * SVG_WIDTH;
+            const x = 150 + (rawX - 150) * 0.86; // match mesh compression
             const y = by * SVG_HEIGHT;
             const w = bw * SVG_WIDTH;
             const h = bh * SVG_HEIGHT;
             const color = LESION_COLORS[lesion.class] || Colors.error;
-            const opacity = Math.max(0.3, Math.min(0.8, lesion.confidence));
+            const opacity = Math.max(0.4, Math.min(0.9, lesion.confidence));
+            const cl = Math.min(w * 0.25, 10);
+            const clY = Math.min(h * 0.25, 10);
+            const x1 = x, y1 = y, x2 = x + w, y2 = y + h;
+            const cx = x + w / 2, cy = y + h / 2;
+
             return (
-              <G key={`lesion-${i}`}>
-                <Rect
-                  x={x} y={y} width={w} height={h}
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={1.2}
-                  opacity={opacity}
-                  strokeDasharray="4 2"
-                />
-                <Circle
-                  cx={x + w / 2} cy={y + h / 2}
-                  r={2}
-                  fill={color}
-                  opacity={opacity}
-                />
+              <G key={`lesion-${i}`} opacity={opacity}>
+                <Line x1={x1} y1={y1 + 2} x2={x1} y2={y1 + clY} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+                <Line x1={x1 + 2} y1={y1} x2={x1 + cl} y2={y1} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+                <Line x1={x2 - cl} y1={y1} x2={x2 - 2} y2={y1} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+                <Line x1={x2} y1={y1 + 2} x2={x2} y2={y1 + clY} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+                <Line x1={x1} y1={y2 - clY} x2={x1} y2={y2 - 2} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+                <Line x1={x1 + 2} y1={y2} x2={x1 + cl} y2={y2} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+                <Line x1={x2 - cl} y1={y2} x2={x2 - 2} y2={y2} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+                <Line x1={x2} y1={y2 - clY} x2={x2} y2={y2 - 2} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+                <Line x1={x1 + cl} y1={y1} x2={x2 - cl} y2={y1} stroke={color} strokeWidth={0.4} strokeDasharray="2 6" opacity={0.5} />
+                <Line x1={x1 + cl} y1={y2} x2={x2 - cl} y2={y2} stroke={color} strokeWidth={0.4} strokeDasharray="2 6" opacity={0.5} />
+                <Circle cx={cx} cy={cy} r={2} fill={color} opacity={0.7} />
+                <Circle cx={cx} cy={cy} r={5} fill="none" stroke={color} strokeWidth={0.5} opacity={0.4} />
               </G>
             );
           })}
         </Svg>
       </View>
 
+      {/* Legend */}
       <View style={styles.legend}>
         {hotZones.map((zone, i) => {
           const color = severityColor(zone.severity, zone.conditionName);

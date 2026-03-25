@@ -12,13 +12,10 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withDelay,
-  withSequence,
-  withRepeat,
 } from 'react-native-reanimated';
 import { tokenCache } from '../src/config/tokenCache';
 import { env } from '../src/config/env';
-import { BorderRadius, Colors, FontFamily, FontSize } from '../src/constants/theme';
-import { CALM_EASING } from '../src/utils/animations';
+import { Colors, FontFamily, FontSize, Spacing } from '../src/constants/theme';
 import { useStore } from '../src/store/useStore';
 import { setAuthTokenProvider } from '../src/services/api';
 import { initRevenueCat, identifyUser, checkSubscriptionStatus, setupCustomerInfoListener } from '../src/services/subscription';
@@ -30,137 +27,54 @@ const initLesionDetection = () =>
 const SPLASH_MIN_MS = 1500;
 
 // ─── Splash Screen ───────────────────────────────────────────────
-const EXPO_OUT = Easing.out(Easing.exp);
+// Logo fade-in, then "Find your glow" in cursive revealed left-to-right
+// with a teal ink glow.
+const TAGLINE_WIDTH = 280;
 
 function SplashScreen() {
-  // Phase 1: Logo materializes
-  const logoScale = useSharedValue(0.55);
   const logoOpacity = useSharedValue(0);
-
-  // Phase 2: Three concentric glow rings bloom outward like a scan pulse
-  const ring1Scale = useSharedValue(0.3);
-  const ring1Opacity = useSharedValue(0);
-  const ring2Scale = useSharedValue(0.3);
-  const ring2Opacity = useSharedValue(0);
-  const ring3Scale = useSharedValue(0.3);
-  const ring3Opacity = useSharedValue(0);
-
-  // Phase 3: Scan line sweeps through the logo
-  const scanY = useSharedValue(-90);
-  const scanOpacity = useSharedValue(0);
-
-  // Phase 4: Wordmark reveals
-  const nameOpacity = useSharedValue(0);
-  const nameY = useSharedValue(22);
+  const revealWidth = useSharedValue(0);
+  const glowOpacity = useSharedValue(0);
 
   useEffect(() => {
-    // ── Phase 1: Logo (0–700ms) ──
-    logoOpacity.value = withTiming(1, { duration: 600, easing: EXPO_OUT });
-    logoScale.value = withTiming(1, { duration: 800, easing: EXPO_OUT });
-
-    // ── Phase 2: Glow rings bloom (staggered 150ms apart) ──
-    // Inner ring — brightest, tightest
-    ring1Scale.value = withDelay(150, withTiming(1, { duration: 900, easing: EXPO_OUT }));
-    ring1Opacity.value = withDelay(150, withSequence(
-      withTiming(0.30, { duration: 400, easing: EXPO_OUT }),
-      withTiming(0.10, { duration: 700 }),
-      // Settle into a gentle breathe
-      withRepeat(withSequence(
-        withTiming(0.14, { duration: 2000 }),
-        withTiming(0.08, { duration: 2000 }),
-      ), -1, true),
-    ));
-
-    // Mid ring
-    ring2Scale.value = withDelay(300, withTiming(1, { duration: 900, easing: EXPO_OUT }));
-    ring2Opacity.value = withDelay(300, withSequence(
-      withTiming(0.20, { duration: 400, easing: EXPO_OUT }),
-      withTiming(0.06, { duration: 700 }),
-      withRepeat(withSequence(
-        withTiming(0.09, { duration: 2200 }),
-        withTiming(0.04, { duration: 2200 }),
-      ), -1, true),
-    ));
-
-    // Outer ring — softest, widest
-    ring3Scale.value = withDelay(450, withTiming(1, { duration: 900, easing: EXPO_OUT }));
-    ring3Opacity.value = withDelay(450, withSequence(
-      withTiming(0.14, { duration: 400, easing: EXPO_OUT }),
-      withTiming(0.03, { duration: 700 }),
-      withRepeat(withSequence(
-        withTiming(0.06, { duration: 2400 }),
-        withTiming(0.02, { duration: 2400 }),
-      ), -1, true),
-    ));
-
-    // ── Phase 3: Scan line (400–950ms) ──
-    scanOpacity.value = withDelay(400, withSequence(
-      withTiming(0.7, { duration: 80 }),
-      withTiming(0.5, { duration: 400 }),
-      withTiming(0, { duration: 70 }),
-    ));
-    scanY.value = withDelay(400, withTiming(90, {
-      duration: 550,
-      easing: Easing.inOut(Easing.cubic),
+    const ease = Easing.out(Easing.cubic);
+    logoOpacity.value = withTiming(1, { duration: 600, easing: ease });
+    revealWidth.value = withDelay(500, withTiming(TAGLINE_WIDTH, {
+      duration: 900,
+      easing: Easing.out(Easing.quad),
     }));
-
-    // ── Phase 4: Wordmark (800ms) ──
-    nameOpacity.value = withDelay(800, withTiming(1, { duration: 500, easing: EXPO_OUT }));
-    nameY.value = withDelay(800, withTiming(0, { duration: 600, easing: EXPO_OUT }));
+    glowOpacity.value = withDelay(800, withTiming(1, { duration: 500, easing: ease }));
   }, []);
 
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
-    transform: [{ scale: logoScale.value }],
   }));
 
-  const ring1Style = useAnimatedStyle(() => ({
-    opacity: ring1Opacity.value,
-    transform: [{ scale: ring1Scale.value }],
+  const revealStyle = useAnimatedStyle(() => ({
+    width: revealWidth.value,
   }));
 
-  const ring2Style = useAnimatedStyle(() => ({
-    opacity: ring2Opacity.value,
-    transform: [{ scale: ring2Scale.value }],
-  }));
-
-  const ring3Style = useAnimatedStyle(() => ({
-    opacity: ring3Opacity.value,
-    transform: [{ scale: ring3Scale.value }],
-  }));
-
-  const scanStyle = useAnimatedStyle(() => ({
-    opacity: scanOpacity.value,
-    transform: [{ translateY: scanY.value }],
-  }));
-
-  const nameStyle = useAnimatedStyle(() => ({
-    opacity: nameOpacity.value,
-    transform: [{ translateY: nameY.value }],
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
   }));
 
   return (
     <View style={splash.container}>
       <StatusBar style="dark" />
-
-      {/* Glow rings — outermost first for z-order */}
-      <Animated.View style={[splash.ring, splash.ring3, ring3Style]} />
-      <Animated.View style={[splash.ring, splash.ring2, ring2Style]} />
-      <Animated.View style={[splash.ring, splash.ring1, ring1Style]} />
-
-      {/* Logo + scan line container */}
-      <View style={splash.logoArea}>
-        <Animated.View style={[splash.scanLine, scanStyle]} />
-        <Animated.View style={logoStyle}>
-          <Image
-            source={require('../assets/logo-emblem.png')}
-            style={splash.logo}
-            resizeMode="contain"
-          />
+      <Animated.View style={logoStyle}>
+        <Image
+          source={require('../assets/logo-emblem.png')}
+          style={splash.logo}
+          resizeMode="contain"
+        />
+      </Animated.View>
+      <View style={splash.taglineWrapper}>
+        <Animated.View style={[splash.taglineReveal, revealStyle]}>
+          <Animated.Text style={[splash.tagline, glowStyle]}>
+            Find your glow
+          </Animated.Text>
         </Animated.View>
       </View>
-
-      <Animated.Text style={[splash.name, nameStyle]}>Glowlytics</Animated.Text>
     </View>
   );
 }
@@ -172,48 +86,31 @@ const splash = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoArea: {
-    width: 180,
-    height: 180,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
   logo: {
-    width: 170,
-    height: 170,
+    width: 120,
+    height: 120,
   },
-  ring: {
-    position: 'absolute',
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primary,
+  taglineWrapper: {
+    marginTop: Spacing.xl,
+    height: 44,
+    width: TAGLINE_WIDTH,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  ring1: {
-    width: 220,
-    height: 220,
+  taglineReveal: {
+    overflow: 'hidden',
+    height: 44,
+    justifyContent: 'center',
   },
-  ring2: {
-    width: 320,
-    height: 320,
-  },
-  ring3: {
-    width: 440,
-    height: 440,
-  },
-  scanLine: {
-    position: 'absolute',
-    width: 160,
-    height: 2,
-    backgroundColor: Colors.primary,
-    borderRadius: 1,
-    zIndex: 10,
-  },
-  name: {
-    marginTop: 28,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.xxl,
-    color: Colors.text,
-    letterSpacing: 2,
+  tagline: {
+    width: TAGLINE_WIDTH,
+    fontFamily: 'DancingScript',
+    fontSize: 32,
+    color: Colors.primary,
+    textAlign: 'center',
+    textShadowColor: 'rgba(58, 158, 143, 0.35)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
 });
 
@@ -260,31 +157,29 @@ function ClerkGatedApp() {
       loaded.current = true;
       setAuthTokenProvider(() => getToken());
 
-      // App init: hydrate store first, then analytics + RevenueCat
       const initApp = async () => {
-        // Hydrate persisted data before anything that reads store state
         await loadPersistedData();
 
         try {
-          console.log('[App] Initializing analytics...');
+          if (__DEV__) console.log('[App] Initializing analytics...');
           await initAnalytics();
           try {
-            console.log('[App] Initializing RevenueCat...');
+            if (__DEV__) console.log('[App] Initializing RevenueCat...');
             await initRevenueCat();
             listenerCleanup.current = setupCustomerInfoListener();
             if (userId) await identifyUser(userId);
             const currentSub = useStore.getState().subscription;
             const sub = await checkSubscriptionStatus(currentSub);
             setSubscription(sub);
-            console.log('[App] RevenueCat ready');
+            if (__DEV__) console.log('[App] RevenueCat ready');
           } catch (e: any) {
-            console.warn('[App] RevenueCat init failed:', e?.message || e);
+            if (__DEV__) console.warn('[App] RevenueCat init failed:', e?.message || e);
           }
         } catch (e: any) {
-          console.warn('[App] Analytics init failed:', e?.message || e);
+          if (__DEV__) console.warn('[App] Analytics init failed:', e?.message || e);
         }
 
-        console.log('[App] Init complete — rendering app');
+        if (__DEV__) console.log('[App] Init complete');
         identifyAnalyticsUser(userId || 'anonymous');
         trackEvent('app_init_complete', {
           has_revenuecat_key: !!env.REVENUECAT_API_KEY,
@@ -292,18 +187,16 @@ function ClerkGatedApp() {
           has_api_url: !!env.API_BASE_URL,
         });
 
-        // Pre-download lesion detection model in background
         initLesionDetection().catch(() => {});
       };
 
-      // Wait for BOTH init and minimum splash display time
       Promise.all([
         initApp(),
         new Promise<void>((r) => setTimeout(r, SPLASH_MIN_MS)),
       ]).then(() => {
         setAppReady(true);
       }).catch((err) => {
-        console.error('[App] Init failed:', err);
+        if (__DEV__) console.error('[App] Init failed:', err);
         setAppReady(true);
       });
     }
@@ -313,7 +206,7 @@ function ClerkGatedApp() {
     };
   }, []);
 
-  // Show animated splash while initializing
+  // Show splash while initializing
   if (!appReady) {
     return <SplashScreen />;
   }
@@ -351,6 +244,7 @@ export default function RootLayout() {
     'Switzer-Regular': require('../assets/fonts/Switzer-Regular.ttf'),
     'Switzer-Medium': require('../assets/fonts/Switzer-Medium.ttf'),
     'Switzer-Bold': require('../assets/fonts/Switzer-Bold.ttf'),
+    'DancingScript': require('../assets/fonts/DancingScript-Medium.ttf'),
   });
 
   if (!fontsLoaded) {

@@ -23,14 +23,19 @@ const RING_STROKE = 3;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
+/** Score to semantic color */
+function scoreColor(score: number): string {
+  if (score >= 75) return '#34A77B';
+  if (score >= 55) return '#3A9E8F';
+  if (score >= 35) return '#C07B2A';
+  return '#D14343';
+}
+
 function ScoreRing({ score }: { score: number }) {
-  const progress = Math.min(score, 100) / 100;
+  const safe = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
+  const progress = safe / 100;
   const strokeDashoffset = RING_CIRCUMFERENCE * (1 - progress);
-  const color =
-    score >= 75 ? Colors.success :
-    score >= 55 ? Colors.primary :
-    score >= 35 ? Colors.warning :
-    Colors.error;
+  const color = scoreColor(safe);
 
   return (
     <View style={styles.ringContainer}>
@@ -57,19 +62,34 @@ function ScoreRing({ score }: { score: number }) {
           origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
         />
       </Svg>
-      <Text style={[styles.ringText, { color }]}>{score}</Text>
+      <Text style={[styles.ringText, { color }]}>{safe}</Text>
     </View>
   );
 }
 
+function AccentBar({ score }: { score: number }) {
+  return (
+    <View style={[styles.accentBar, { backgroundColor: scoreColor(score) }]} />
+  );
+}
+
+function cardBg(score?: number): string {
+  if (score === undefined || !Number.isFinite(score)) return Colors.glass;
+  if (score < 35) return 'rgba(209, 67, 67, 0.05)';
+  if (score >= 75) return 'rgba(52, 167, 123, 0.04)';
+  return Colors.glass;
+}
+
 export const ProductCard: React.FC<Props> = ({ product, score, topContributor, onPress }) => {
-  const usageBadgeColor =
-    product.usage_schedule === 'AM' ? Colors.warning :
-    product.usage_schedule === 'PM' ? Colors.secondary :
-    Colors.primary;
+  const safe = score !== undefined && Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : undefined;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: cardBg(safe) }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {safe !== undefined && <AccentBar score={safe} />}
       <View style={styles.content}>
         <View style={styles.topRow}>
           <View style={styles.nameCol}>
@@ -78,22 +98,22 @@ export const ProductCard: React.FC<Props> = ({ product, score, topContributor, o
               <Text style={styles.brand} numberOfLines={1}>{product.brand}</Text>
             )}
           </View>
-          {score !== undefined && <ScoreRing score={score} />}
+          {safe !== undefined && <ScoreRing score={safe} />}
         </View>
 
         <View style={styles.metaRow}>
-          <View style={[styles.usageBadge, { backgroundColor: usageBadgeColor + '18', borderColor: usageBadgeColor + '30' }]}>
-            <Text style={[styles.usageBadgeText, { color: usageBadgeColor }]}>{product.usage_schedule}</Text>
-          </View>
           <Text style={styles.metaText}>
             {product.ingredients_list.length} ingredient{product.ingredients_list.length !== 1 ? 's' : ''}
           </Text>
           {topContributor && (
-            <Text style={styles.contributorText} numberOfLines={1}>{topContributor}</Text>
+            <>
+              <Text style={styles.dot}>{'\u00B7'}</Text>
+              <Text style={styles.contributorText} numberOfLines={1}>{topContributor}</Text>
+            </>
           )}
         </View>
       </View>
-      <Feather name="chevron-right" size={16} color={Colors.textMuted} />
+      <Feather name="chevron-right" size={16} color={Colors.textDim} />
     </TouchableOpacity>
   );
 };
@@ -101,17 +121,24 @@ export const ProductCard: React.FC<Props> = ({ product, score, topContributor, o
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.glass,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
+    paddingLeft: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    overflow: 'hidden',
+  },
+  accentBar: {
+    width: 3,
+    alignSelf: 'stretch',
+    borderTopLeftRadius: BorderRadius.lg,
+    borderBottomLeftRadius: BorderRadius.lg,
+    marginRight: Spacing.sm,
   },
   content: {
     flex: 1,
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   topRow: {
     flexDirection: 'row',
@@ -136,19 +163,12 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     flexWrap: 'wrap',
   },
-  usageBadge: {
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-  },
-  usageBadgeText: {
-    fontFamily: FontFamily.sansBold,
+  dot: {
+    color: Colors.textDim,
     fontSize: FontSize.xs,
-    letterSpacing: 0.3,
   },
   metaText: {
     color: Colors.textMuted,
