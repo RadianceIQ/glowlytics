@@ -161,14 +161,13 @@ export default function Sex() {
 
 const styles = StyleSheet.create({
   options: {
-    gap: Spacing.sm,
+    gap: Spacing.sm + 4,
   },
   privacy: {
-    color: Colors.textDim,
+    color: Colors.textMuted,
     fontFamily: FontFamily.sans,
-    fontSize: FontSize.xs,
+    fontSize: FontSize.sm,
     textAlign: 'center',
-    marginTop: Spacing.md,
-    lineHeight: 16,
+    lineHeight: 18,
   },
 });

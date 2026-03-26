@@ -10,8 +10,9 @@ import Animated, {
   withTiming,
   withDelay,
   Easing,
+  FadeInDown,
 } from 'react-native-reanimated';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Surfaces } from '../../src/constants/theme';
 import {
   toSignalKey,
   signalColorByRouteKey,
@@ -197,14 +198,13 @@ const RECOMMENDATIONS: Record<SignalKey, Record<Level, string[]>> = {
 // SVG arc gauge helpers
 // ---------------------------------------------------------------------------
 
-const GAUGE_SIZE = 280;
-const GAUGE_STROKE = 14;
+const GAUGE_SIZE = 260;
+const GAUGE_STROKE = 12;
 const GAUGE_RADIUS = (GAUGE_SIZE - GAUGE_STROKE) / 2;
 const GAUGE_CENTER = GAUGE_SIZE / 2;
 
-/** Degrees covered by the arc (270 degrees, gap at the bottom). */
 const ARC_DEGREES = 270;
-const ARC_START_ANGLE = 135; // start from lower-left
+const ARC_START_ANGLE = 135;
 
 const polarToCartesian = (cx: number, cy: number, r: number, angleDeg: number) => {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -217,6 +217,38 @@ const describeArc = (cx: number, cy: number, r: number, startAngle: number, endA
   const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
   return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
 };
+
+// ---------------------------------------------------------------------------
+// Animated factor bar — fills with staggered delay
+// ---------------------------------------------------------------------------
+function FactorBar({ weight, color, delay }: { weight: number; color: string; delay: number }) {
+  const fillWidth = useSharedValue(0);
+
+  useEffect(() => {
+    fillWidth.value = withDelay(
+      delay,
+      withTiming(weight * 100, { duration: 600, easing: Easing.out(Easing.cubic) }),
+    );
+  }, [weight]);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${fillWidth.value}%`,
+    backgroundColor: color,
+  }));
+
+  return (
+    <View style={styles.factorBarBg}>
+      <Animated.View style={[styles.factorBarFill, fillStyle]} />
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Trend chart constants
+// ---------------------------------------------------------------------------
+const CHART_WIDTH = 300;
+const CHART_HEIGHT = 100;
+const CHART_PADDING = 8;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -256,115 +288,80 @@ export default function SignalDetailScreen() {
   const signalValue = hasData ? insight.signals[signalProperty(signalKey)] : 0;
   const level = levelFromScore(signalValue) as Level;
 
-  // ---- Gauge animation ----
-  const animatedSweep = useSharedValue(0);
-
-  useEffect(() => {
-    animatedSweep.value = withDelay(
-      300,
-      withTiming(signalValue, {
-        duration: 1000,
-        easing: Easing.out(Easing.cubic),
-      }),
-    );
-  }, [signalValue]);
-
-  // ---- Trend data (last 14 days) ----
-  const trendData = useMemo(() => {
-    const sorted = [...dailyRecords].sort((a, b) => a.date.localeCompare(b.date));
-    const last14 = sorted.slice(-14);
-
-    return last14.map((record) => {
-      const output = modelOutputs.find((o) => o.daily_id === record.daily_id);
-      if (!output) return null;
-
-      const dayInsight = buildOverallSkinInsight({
-        latestOutput: output,
-        baselineOutput: modelOutputs.length > 0 ? modelOutputs[0] : null,
-        latestDaily: record,
-        serverSignalScores: output?.signal_scores,
-        serverSignalFeatures: output?.signal_features,
-        serverSignalConfidence: output?.signal_confidence,
-        serverLesions: output?.lesions,
-      });
-
-      return dayInsight ? dayInsight.signals[signalProperty(signalKey)] : null;
-    }).filter((v): v is number => v !== null);
-  }, [dailyRecords, modelOutputs, signalKey]);
-
-  // ---- Staggered entrance animations ----
-  const headerAnim = useCalmFadeIn(0);
-  const gaugeAnim = useCalmFadeIn(120);
-  const factorsAnim = useCalmFadeIn(240);
-  const trendAnim = useCalmFadeIn(360);
-  const recsAnim = useCalmFadeIn(480);
-
-  // ---- Gauge arc paths ----
-  const bgArcPath = describeArc(
-    GAUGE_CENTER,
-    GAUGE_CENTER,
-    GAUGE_RADIUS,
-    ARC_START_ANGLE,
-    ARC_START_ANGLE + ARC_DEGREES,
-  );
-
-  // We need to render the filled arc natively via reanimated props.
-  // Since react-native-svg does not directly support Reanimated shared values
-  // on Path 'd', we render a static arc based on signalValue and rely on the
-  // container's opacity animation for the visual entrance. The actual arc fill
-  // is animated by mounting with a useEffect-driven state approach.
+  // ---- Gauge fill (delayed state approach — SVG Path d can't be animated directly) ----
   const [displayValue, setDisplayValue] = React.useState(0);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDisplayValue(signalValue);
-    }, 350);
+    const timeout = setTimeout(() => setDisplayValue(signalValue), 350);
     return () => clearTimeout(timeout);
   }, [signalValue]);
 
   const fillSweep = (displayValue / 100) * ARC_DEGREES;
   const fillArcPath =
     fillSweep > 0.5
-      ? describeArc(
-          GAUGE_CENTER,
-          GAUGE_CENTER,
-          GAUGE_RADIUS,
-          ARC_START_ANGLE,
-          ARC_START_ANGLE + fillSweep,
-        )
+      ? describeArc(GAUGE_CENTER, GAUGE_CENTER, GAUGE_RADIUS, ARC_START_ANGLE, ARC_START_ANGLE + fillSweep)
       : '';
 
-  // ---- Trend chart polyline ----
-  const CHART_WIDTH = 300;
-  const CHART_HEIGHT = 100;
-  const CHART_PADDING = 8;
+  // ---- Background arc ----
+  const bgArcPath = describeArc(GAUGE_CENTER, GAUGE_CENTER, GAUGE_RADIUS, ARC_START_ANGLE, ARC_START_ANGLE + ARC_DEGREES);
 
-  const trendPolyline = useMemo(() => {
-    if (trendData.length < 2) return '';
+  // ---- Trend data (last 14 days) ----
+  const trendData = useMemo(() => {
+    const sorted = [...dailyRecords].sort((a, b) => a.date.localeCompare(b.date));
+    const last14 = sorted.slice(-14);
+
+    return last14
+      .map((record) => {
+        const output = modelOutputs.find((o) => o.daily_id === record.daily_id);
+        if (!output) return null;
+        const dayInsight = buildOverallSkinInsight({
+          latestOutput: output,
+          baselineOutput: modelOutputs.length > 0 ? modelOutputs[0] : null,
+          latestDaily: record,
+          serverSignalScores: output?.signal_scores,
+          serverSignalFeatures: output?.signal_features,
+          serverSignalConfidence: output?.signal_confidence,
+          serverLesions: output?.lesions,
+        });
+        return dayInsight ? dayInsight.signals[signalProperty(signalKey)] : null;
+      })
+      .filter((v): v is number => v !== null);
+  }, [dailyRecords, modelOutputs, signalKey]);
+
+  // ---- Trend chart geometry (computed once, not per-dot) ----
+  const { trendPolyline, trendDots } = useMemo(() => {
+    if (trendData.length < 2) return { trendPolyline: '', trendDots: [] };
+
     const minVal = Math.max(0, Math.min(...trendData) - 10);
     const maxVal = Math.min(100, Math.max(...trendData) + 10);
     const range = maxVal - minVal || 1;
     const stepX = (CHART_WIDTH - CHART_PADDING * 2) / (trendData.length - 1);
 
-    return trendData
+    const dots: { x: number; y: number }[] = [];
+    const polyline = trendData
       .map((val, i) => {
         const x = CHART_PADDING + i * stepX;
         const y = CHART_HEIGHT - CHART_PADDING - ((val - minVal) / range) * (CHART_HEIGHT - CHART_PADDING * 2);
+        dots.push({ x, y });
         return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
       })
       .join(' ');
+
+    return { trendPolyline: polyline, trendDots: dots };
   }, [trendData]);
+
+  // ---- Staggered entrance ----
+  const headerAnim = useCalmFadeIn(0);
+  const gaugeAnim = useCalmFadeIn(120);
 
   // ---- Recommendations ----
   const recommendations = RECOMMENDATIONS[signalKey]?.[level] || [];
+  const generatedInsight = latestOutput?.generated_insights?.signal_insights?.[signalProperty(signalKey)];
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ---- Header ---- */}
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* ── Header ── */}
         <Animated.View style={[styles.headerRow, headerAnim]}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -376,185 +373,166 @@ export default function SignalDetailScreen() {
           <Text style={[styles.eyebrow, { color }]}>
             {label.toUpperCase()} SIGNAL
           </Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerSpacer} />
         </Animated.View>
 
-        {/* ---- Empty state ---- */}
+        {/* ── Empty state ── */}
         {!hasData && (
           <Animated.View style={[styles.card, gaugeAnim]}>
-            <Text style={[styles.cardTitle, { textAlign: 'center', marginBottom: 8 }]}>No data yet</Text>
-            <Text style={[styles.factorLabel, { textAlign: 'center' }]}>
+            <Text style={[styles.cardTitle, styles.centeredText]}>No data yet</Text>
+            <Text style={[styles.factorLabel, styles.centeredText]}>
               Complete your first scan to see your {label.toLowerCase()} signal analysis.
             </Text>
           </Animated.View>
         )}
 
-        {/* ---- Gauge ---- */}
-        {hasData && <Animated.View style={[styles.gaugeContainer, gaugeAnim]}>
-          <Svg width={GAUGE_SIZE} height={GAUGE_SIZE}>
-            {/* Background arc */}
-            <Path
-              d={bgArcPath}
-              fill="none"
-              stroke={Colors.surfaceHighlight}
-              strokeWidth={GAUGE_STROKE}
-              strokeLinecap="round"
-            />
-            {/* Filled arc */}
-            {fillArcPath.length > 0 && (
-              <Path
-                d={fillArcPath}
-                fill="none"
-                stroke={color}
-                strokeWidth={GAUGE_STROKE}
-                strokeLinecap="round"
-              />
-            )}
-          </Svg>
-          <View style={styles.gaugeCenter}>
-            <Text style={[styles.gaugeScore, { color }]}>{signalValue}</Text>
-            <Text style={[styles.gaugeLevel, { color: levelColor(signalValue) }]}>
-              {level}
-            </Text>
-          </View>
-        </Animated.View>}
-
-        {/* ---- Contributing Factors ---- */}
-        <Animated.View style={[styles.card, factorsAnim]}>
-          <Text style={styles.cardTitle}>Contributing Factors</Text>
-          {WEIGHT_FACTORS[signalKey].map((factor, i) => (
-            <View key={factor.label} style={styles.factorRow}>
-              <View style={styles.factorLabelRow}>
-                <Text style={styles.factorLabel}>{factor.label}</Text>
-                <Text style={styles.factorPercent}>
-                  {Math.round(factor.weight * 100)}%
+        {hasData && (
+          <>
+            {/* ── Gauge (standalone hero — no card wrapper) ── */}
+            <Animated.View style={[styles.gaugeContainer, gaugeAnim]}>
+              <Svg width={GAUGE_SIZE} height={GAUGE_SIZE}>
+                <Path
+                  d={bgArcPath}
+                  fill="none"
+                  stroke={Colors.surfaceHighlight}
+                  strokeWidth={GAUGE_STROKE}
+                  strokeLinecap="round"
+                />
+                {fillArcPath.length > 0 && (
+                  <Path
+                    d={fillArcPath}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={GAUGE_STROKE}
+                    strokeLinecap="round"
+                  />
+                )}
+              </Svg>
+              <View style={styles.gaugeCenter}>
+                <Text style={[styles.gaugeScore, { color }]}>{signalValue}</Text>
+                <Text style={[styles.gaugeLevel, { color: levelColor(signalValue) }]}>
+                  {level}
                 </Text>
               </View>
-              <View style={styles.factorBarBg}>
-                <View
-                  style={[
-                    styles.factorBarFill,
-                    {
-                      width: `${Math.round(factor.weight * 100)}%`,
-                      backgroundColor: color,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          ))}
-        </Animated.View>
+            </Animated.View>
 
-        {/* ---- Trend Chart ---- */}
-        <Animated.View style={[styles.card, trendAnim]}>
-          <Text style={styles.cardTitle}>14-Day Trend</Text>
-          {trendData.length >= 2 ? (
-            <View style={styles.chartContainer}>
-              <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-                {/* Horizontal grid lines */}
-                {[0.25, 0.5, 0.75].map((frac) => (
-                  <Line
-                    key={frac}
-                    x1={CHART_PADDING}
-                    y1={CHART_PADDING + frac * (CHART_HEIGHT - CHART_PADDING * 2)}
-                    x2={CHART_WIDTH - CHART_PADDING}
-                    y2={CHART_PADDING + frac * (CHART_HEIGHT - CHART_PADDING * 2)}
-                    stroke={Colors.divider}
-                    strokeWidth={1}
-                  />
-                ))}
-                {/* Signal line */}
-                <Path
-                  d={trendPolyline}
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={2.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                {/* Dots */}
-                {trendData.map((val, i) => {
-                  const minVal = Math.max(0, Math.min(...trendData) - 10);
-                  const maxVal = Math.min(100, Math.max(...trendData) + 10);
-                  const range = maxVal - minVal || 1;
-                  const stepX = (CHART_WIDTH - CHART_PADDING * 2) / (trendData.length - 1);
-                  const x = CHART_PADDING + i * stepX;
-                  const y =
-                    CHART_HEIGHT -
-                    CHART_PADDING -
-                    ((val - minVal) / range) * (CHART_HEIGHT - CHART_PADDING * 2);
-                  return (
-                    <Circle
-                      key={i}
-                      cx={x}
-                      cy={y}
-                      r={3}
-                      fill={color}
+            {/* ── Contributing Factors ── */}
+            <Animated.View
+              entering={FadeInDown.delay(200).duration(400)}
+              style={styles.section}
+            >
+              <Text style={styles.sectionEyebrow}>CONTRIBUTING FACTORS</Text>
+              {WEIGHT_FACTORS[signalKey].map((factor, i) => (
+                <View key={factor.label} style={styles.factorRow}>
+                  <View style={styles.factorLabelRow}>
+                    <Text style={styles.factorLabel}>{factor.label}</Text>
+                    <Text style={[styles.factorPercent, { color }]}>
+                      {Math.round(factor.weight * 100)}%
+                    </Text>
+                  </View>
+                  <FactorBar weight={factor.weight} color={color} delay={300 + i * 100} />
+                </View>
+              ))}
+            </Animated.View>
+
+            {/* ── 14-Day Trend ── */}
+            <Animated.View
+              entering={FadeInDown.delay(350).duration(400)}
+              style={styles.card}
+            >
+              <Text style={styles.cardTitle}>14-Day Trend</Text>
+              {trendData.length >= 2 ? (
+                <View style={styles.chartContainer}>
+                  <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
+                    {[0.25, 0.5, 0.75].map((frac) => (
+                      <Line
+                        key={frac}
+                        x1={CHART_PADDING}
+                        y1={CHART_PADDING + frac * (CHART_HEIGHT - CHART_PADDING * 2)}
+                        x2={CHART_WIDTH - CHART_PADDING}
+                        y2={CHART_PADDING + frac * (CHART_HEIGHT - CHART_PADDING * 2)}
+                        stroke={Colors.divider}
+                        strokeWidth={1}
+                      />
+                    ))}
+                    <Path
+                      d={trendPolyline}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
-                  );
-                })}
-              </Svg>
-            </View>
-          ) : (
-            <Text style={styles.noDataText}>
-              Not enough data yet. Complete at least 2 daily scans to see your trend.
-            </Text>
-          )}
-        </Animated.View>
-
-        {/* ---- Recommendations (generated or fallback) ---- */}
-        <Animated.View style={[styles.card, recsAnim]}>
-          <Text style={styles.cardTitle}>Recommendations</Text>
-          {/* Prefer generated insight for this signal */}
-          {latestOutput?.generated_insights?.signal_insights?.[signalProperty(signalKey)] ? (
-            <>
-              <View style={styles.recRow}>
-                <View style={[styles.recDot, { backgroundColor: color }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.recText, { fontFamily: FontFamily.sansSemiBold, marginBottom: 4 }]}>
-                    {latestOutput.generated_insights.signal_insights[signalProperty(signalKey)].status}
-                  </Text>
-                  <Text style={[styles.recText, { fontSize: FontSize.sm, color: Colors.textMuted, marginBottom: 4 }]}>
-                    Driver: {latestOutput.generated_insights.signal_insights[signalProperty(signalKey)].driver}
-                  </Text>
-                  <Text style={styles.recText}>
-                    {latestOutput.generated_insights.signal_insights[signalProperty(signalKey)].action}
-                  </Text>
+                    {trendDots.map((dot, i) => (
+                      <Circle key={i} cx={dot.x} cy={dot.y} r={3} fill={color} />
+                    ))}
+                  </Svg>
                 </View>
-              </View>
-            </>
-          ) : (
-            recommendations.map((rec, i) => (
-              <View key={i} style={styles.recRow}>
-                <View style={[styles.recDot, { backgroundColor: color }]} />
-                <Text style={styles.recText}>{rec}</Text>
-              </View>
-            ))
-          )}
-          <Text style={styles.disclaimer}>
-            For informational purposes only. Not medical advice. Consult a dermatologist for diagnosis and treatment.
-          </Text>
-        </Animated.View>
+              ) : (
+                <Text style={styles.noDataText}>
+                  Not enough data yet. Complete at least 2 daily scans to see your trend.
+                </Text>
+              )}
+            </Animated.View>
 
-        {/* ---- Clinical Guidelines from RAG ---- */}
-        {latestOutput?.rag_recommendations && latestOutput.rag_recommendations.length > 0 && (
-          <Animated.View style={[styles.card, recsAnim]}>
-            <Text style={styles.cardTitle}>Clinical Guidelines</Text>
-            {latestOutput.rag_recommendations.map((rec, i) => (
-              <View key={i} style={styles.recRow}>
-                <View style={[styles.recDot, { backgroundColor: Colors.primary }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.recText, { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: 2 }]}>
-                    {rec.category.replace(/_/g, ' ').toUpperCase()}
-                  </Text>
-                  <Text style={styles.recText}>{rec.text}</Text>
+            {/* ── Recommendations (visually distinct — colored accent border) ── */}
+            <Animated.View
+              entering={FadeInDown.delay(500).duration(400)}
+              style={[styles.recsCard, { borderLeftColor: color }]}
+            >
+              <Text style={styles.cardTitle}>Recommendations</Text>
+              {generatedInsight ? (
+                <View style={styles.recRow}>
+                  <View style={[styles.recDot, { backgroundColor: color }]} />
+                  <View style={styles.recContent}>
+                    <Text style={styles.recStatus}>
+                      {generatedInsight.status}
+                    </Text>
+                    <Text style={styles.recDriver}>
+                      Driver: {generatedInsight.driver}
+                    </Text>
+                    <Text style={styles.recText}>
+                      {generatedInsight.action}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))}
-          </Animated.View>
+              ) : (
+                recommendations.map((rec, i) => (
+                  <View key={i} style={styles.recRow}>
+                    <View style={[styles.recDot, { backgroundColor: color }]} />
+                    <Text style={styles.recText}>{rec}</Text>
+                  </View>
+                ))
+              )}
+              <Text style={styles.disclaimer}>
+                For informational purposes only. Not medical advice. Consult a dermatologist for diagnosis and treatment.
+              </Text>
+            </Animated.View>
+
+            {/* ── Clinical Guidelines from RAG ── */}
+            {latestOutput?.rag_recommendations && latestOutput.rag_recommendations.length > 0 && (
+              <Animated.View
+                entering={FadeInDown.delay(650).duration(400)}
+                style={[styles.recsCard, { borderLeftColor: Colors.primary }]}
+              >
+                <Text style={styles.cardTitle}>Clinical Guidelines</Text>
+                {latestOutput.rag_recommendations.map((rec, i) => (
+                  <View key={i} style={styles.recRow}>
+                    <View style={[styles.recDot, { backgroundColor: Colors.primary }]} />
+                    <View style={styles.recContent}>
+                      <Text style={styles.ragCategory}>
+                        {rec.category.replace(/_/g, ' ').toUpperCase()}
+                      </Text>
+                      <Text style={styles.recText}>{rec.text}</Text>
+                    </View>
+                  </View>
+                ))}
+              </Animated.View>
+            )}
+          </>
         )}
 
-        <View style={{ height: Spacing.xxl }} />
+        <View style={styles.bottomPad} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -579,7 +557,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   backButton: {
     width: 40,
@@ -594,12 +572,15 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     letterSpacing: 2,
   },
+  headerSpacer: {
+    width: 40,
+  },
 
-  // Gauge
+  // Gauge (standalone hero — no card)
   gaugeContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   gaugeCenter: {
     position: 'absolute',
@@ -617,7 +598,19 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xxs,
   },
 
-  // Cards
+  // Sections — lightweight, no border/bg
+  section: {
+    marginBottom: Spacing.lg,
+  },
+  sectionEyebrow: {
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xxs,
+    color: Colors.textMuted,
+    letterSpacing: 1.4,
+    marginBottom: Spacing.md,
+  },
+
+  // Cards — glass surface
   card: {
     backgroundColor: Colors.glass,
     borderRadius: BorderRadius.lg,
@@ -631,6 +624,9 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
     color: Colors.text,
     marginBottom: Spacing.md,
+  },
+  centeredText: {
+    textAlign: 'center',
   },
 
   // Contributing factors
@@ -648,9 +644,8 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   factorPercent: {
-    fontFamily: FontFamily.sansMedium,
+    fontFamily: FontFamily.sansBold,
     fontSize: FontSize.sm,
-    color: Colors.textMuted,
   },
   factorBarBg: {
     height: 6,
@@ -676,7 +671,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
   },
 
-  // Recommendations
+  // Recommendations — colored left accent border
+  recsCard: {
+    backgroundColor: Colors.glass,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderLeftWidth: 3,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
   recRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -689,12 +693,38 @@ const styles = StyleSheet.create({
     marginTop: 7,
     marginRight: Spacing.sm,
   },
+  recContent: {
+    flex: 1,
+  },
+  recStatus: {
+    flex: 1,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
+    lineHeight: FontSize.md * 1.5,
+    marginBottom: Spacing.xs,
+  },
+  recDriver: {
+    flex: 1,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+    lineHeight: FontSize.sm * 1.5,
+    marginBottom: Spacing.xs,
+  },
   recText: {
     flex: 1,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
     color: Colors.textSecondary,
     lineHeight: FontSize.md * 1.5,
+  },
+  ragCategory: {
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    letterSpacing: 0.8,
+    marginBottom: Spacing.xxs,
   },
   disclaimer: {
     fontFamily: FontFamily.sans,
@@ -703,5 +733,9 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     lineHeight: FontSize.xs * 1.5,
     marginTop: Spacing.sm,
+  },
+
+  bottomPad: {
+    height: Spacing.xxl,
   },
 });

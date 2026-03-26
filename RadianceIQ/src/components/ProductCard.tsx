@@ -9,6 +9,7 @@ import {
   FontFamily,
   FontSize,
   Spacing,
+  scoreColor,
 } from '../constants/theme';
 
 interface Props {
@@ -22,14 +23,6 @@ const RING_SIZE = 40;
 const RING_STROKE = 3;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-/** Score to semantic color */
-function scoreColor(score: number): string {
-  if (score >= 75) return '#34A77B';
-  if (score >= 55) return '#3A9E8F';
-  if (score >= 35) return '#C07B2A';
-  return '#D14343';
-}
 
 function ScoreRing({ score }: { score: number }) {
   const safe = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;

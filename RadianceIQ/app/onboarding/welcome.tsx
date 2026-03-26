@@ -1,12 +1,11 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withTiming,
-  withDelay,
   Easing,
 } from 'react-native-reanimated';
 import { OnboardingTransition } from '../../src/components/OnboardingTransition';
@@ -14,18 +13,10 @@ import { useStore } from '../../src/store/useStore';
 import { buildOnboardingFlow, screenToRoute } from '../../src/services/onboardingFlow';
 import { trackEvent } from '../../src/services/analytics';
 
-const AnimatedSvg = Animated.createAnimatedComponent(Svg);
-
 function WelcomeIllustration() {
-  const rotation = useSharedValue(0);
   const pulseScale = useSharedValue(0.95);
 
   useEffect(() => {
-    rotation.value = withRepeat(
-      withTiming(360, { duration: 30000, easing: Easing.linear }),
-      -1,
-      false,
-    );
     pulseScale.value = withRepeat(
       withTiming(1.06, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
       -1,
@@ -149,7 +140,7 @@ export default function Welcome() {
     <OnboardingTransition
       illustration={<WelcomeIllustration />}
       heading="A few questions to make this yours."
-      subtext="Glowlytics adapts to your skin, your lifestyle, and your goals. This takes about 30 seconds."
+      subtext="Glowlytics adapts to your skin, your lifestyle, and your goals. This takes under a minute."
       primaryLabel="Let's go"
       primaryOnPress={handleStart}
       secondaryLabel="I'll set this up later"

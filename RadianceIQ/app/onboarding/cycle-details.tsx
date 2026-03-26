@@ -108,7 +108,7 @@ export default function CycleDetails() {
     <OnboardingTransition
       illustration={<CycleIllustration />}
       heading="A couple more details about your cycle."
-      subtext="Rough numbers are totally fine. We use this to estimate cycle timing, not to log it precisely."
+      subtext="Rough numbers are fine. We use this to estimate cycle timing, not to log it precisely."
       primaryLabel="Got it"
       primaryOnPress={handleContinue}
       secondaryLabel="Skip details"
@@ -138,6 +138,7 @@ export default function CycleDetails() {
             returnKeyType="done"
             autoCorrect={false}
             maxLength={10}
+            accessibilityLabel="Last period start date"
           />
         </View>
 

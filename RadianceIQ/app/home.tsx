@@ -143,8 +143,10 @@ export default function Home() {
     const routeKeys: Record<string, string> = { sunDamage: 'sun_damage' };
     return keys
       .map((k) => {
-        const current = Math.round(overallInsight.signals[k]);
-        const base = Math.round(baselineInsight.signals[k]);
+        const rawCurrent = overallInsight.signals[k];
+        const rawBase = baselineInsight.signals[k];
+        const current = Number.isFinite(rawCurrent) ? Math.round(rawCurrent) : 0;
+        const base = Number.isFinite(rawBase) ? Math.round(rawBase) : 0;
         const delta = current - base;
         const routeKey = routeKeys[k] || k;
         return {

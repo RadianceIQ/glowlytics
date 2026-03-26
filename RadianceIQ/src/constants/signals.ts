@@ -8,12 +8,24 @@ import type { CompositeSignals, SkinMetricKey } from '../services/skinInsights';
 // For route-param keys (snake_case), use signalColorByRouteKey().
 // ---------------------------------------------------------------------------
 
+// Spa-luminous palette — brighter, softer pastels with warm glow character.
+// Each color is vibrant enough to read on cream (#FAFAF7) but avoids neon.
 export const SIGNAL_COLORS: Record<keyof CompositeSignals, string> = {
-  structure: '#3A9E8F',
-  hydration: '#3B7FC4',
-  inflammation: '#D14343',
-  sunDamage: '#C07B2A',
-  elasticity: '#7B5FC2',
+  structure: '#3BB5A5',   // warm teal — minty, fresh
+  hydration: '#5AAAE6',   // soft sky blue — dewy, aqua
+  inflammation: '#E87474', // soft coral — warm, not aggressive
+  sunDamage: '#E8A64C',   // warm amber — honeyed, luminous
+  elasticity: '#9B7FDB',  // soft lavender — plush, spa-like
+};
+
+// Soft glow behind each ring — same hue at ~15% opacity.
+// Inflammation is dialed to 0.12 (coral is perceptually brighter than cool hues at equal opacity).
+export const SIGNAL_GLOWS: Record<keyof CompositeSignals, string> = {
+  structure: 'rgba(59, 181, 165, 0.15)',
+  hydration: 'rgba(90, 170, 230, 0.15)',
+  inflammation: 'rgba(232, 116, 116, 0.12)',
+  sunDamage: 'rgba(232, 166, 76, 0.14)',
+  elasticity: 'rgba(155, 127, 219, 0.15)',
 };
 
 export const SIGNAL_LABELS: Record<keyof CompositeSignals, string> = {

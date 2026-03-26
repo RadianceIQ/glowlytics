@@ -144,6 +144,6 @@ export default function Menstrual() {
 
 const styles = StyleSheet.create({
   options: {
-    gap: Spacing.sm,
+    gap: Spacing.sm + 4,
   },
 });

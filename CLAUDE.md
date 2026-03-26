@@ -102,11 +102,11 @@ cd backend && npm test
 
 Camera → Analyzing → Results
 
-1. **Camera** (`app/scan/camera.tsx`): VisionCamera with MLKit frame processor for real-time face tracking (~15ms/frame), quality checks, auto-capture after 2s aligned, **real-time on-device lesion detection** (YOLOv8 via `onDeviceLesionDetection` service, teal bounding box overlay every 1.2s while aligned, filtered to face region only)
+1. **Camera** (`app/scan/camera.tsx`): VisionCamera with MLKit frame processor for real-time face tracking (~15ms/frame), quality checks, auto-capture after 4s aligned, **real-time on-device lesion detection** (YOLOv8 via `onDeviceLesionDetection` service, teal bounding box overlay every 350ms while face visible, filtered to face region only)
 2. **Analyzing** (`app/scan/analyzing.tsx`): Pre-encodes photo to base64 if needed, runs `analyzeWithFallback`, 9-stage progress animation, stores results + awards XP
 3. **Results** (`app/scan/results.tsx`): Displays scores, face mesh, signal breakdown, lesion overlay, RAG recommendations
 
-**Known limitation:** Analyzing hardcodes `sunscreen_used: false` and `new_product_added: false` in dailyContext since the checkin screen was removed. These context fields should be collected before analysis in a future iteration.
+**Note:** `new_product_added` is derived from products added today (no longer hardcoded). `sunscreen_used` is still hardcoded `false` since the checkin screen was removed.
 
 ## 3-Layer Signal Analysis Pipeline
 
@@ -136,13 +136,13 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 ## Design System
 
 - Light theme: background `#FAFAF7` (warm cream), primary accent `#3A9E8F` (teal)
-- Dark gradient backgrounds on scan/analyzing screens: `#060B12` → `#6B8799` → `#081522`
+- Dark gradient backgrounds on scan/analyzing screens: `#3D5A6E` → `#4A6B80` → `#6B8799` → `#2A4A5E` → `#081522`
 - Typography: Switzer-Medium as default weight, WCAG AAA contrast ratios (7:1)
 - 3-tier surface hierarchy: hero (elevated + shadow), standard (flat), recessed (inset)
 - Animations via `react-native-reanimated`
 - Onboarding: fade transitions with staggered fade-with-rise entrance (Headspace-inspired)
 - Tab bar: floating pill with SVG notch cutout, glass fill `rgba(255,255,255,0.93)`, camera button absolutely positioned above with teal glow
-- Splash screen: animated G logo glow reveal (scale+fade → teal bloom → wordmark rise), 1.5s minimum display
+- Splash screen: logo fade-in + "Find your glow" handwriting reveal (DancingScript cursive, left-to-right clip mask), 1.5s minimum display
 
 ## Important Context
 
@@ -151,11 +151,11 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 - On-device lesion detection: `src/services/onDeviceLesionDetection.ts` — runs on camera frames during alignment (confidence threshold 0.1, NMS IoU 0.45)
 - Real-time bounding boxes: `LesionOverlay.tsx` — teal sci-fi corner brackets with scanning line animation, crop-aware coordinate transform (accounts for CameraView center-crop), face-rect filtering (only shows lesions within detected face + 15% margin)
 - RAG pipeline queries Pinecone for AAD/ACOG guideline context
-- Splash screen: `SplashScreen` component in `_layout.tsx` — animated G logo + teal glow bloom + wordmark, 1.5s min via `Promise.all` with init, masks loading time
+- Splash screen: `SplashScreen` in `_layout.tsx` — logo fade-in + "Find your glow" cursive handwriting reveal, 1.5s min via `Promise.all` with init
 - `app/index.tsx` is now a minimal bridge screen (cream background) — the old landing page with safety card was removed
 - Tab bar: `NotchedTabBar.tsx` — SVG notch path (10px depth, 74px width), camera absolutely positioned via `cameraAnchor`, tabs layout has no sceneStyle (tab bar floats over content)
 - Lesion constants: `src/constants/lesions.ts` — 6 lesion classes with descriptions, colors, zone definitions
-- 422 tests (25 suites), 0 TS errors
+- 412 tests (24 running suites), 0 TS errors — 48 screens, 24 components, 20 services, 7 backend modules
 - Authentication via Clerk is mandatory when CLERK_PUBLISHABLE_KEY is set
 - Backend authorization: all POST/GET/DELETE endpoints use `req.auth.userId` — never trust `body.user_id`
 - Backend security: CORS via `CORS_ORIGINS`, rate limiting on public + vision/analyze endpoints, `safeErrorMessage()` hides PG details in production, timing-safe admin secret, transactional cascading deletes
@@ -175,8 +175,8 @@ Score merging priority: Layer 2 > Layer 1+Layer 3 weighted blend. Response inclu
 - Report gating: reports require active subscription
 - Profile screen: subscription card with trial days remaining or upgrade/manage, notification settings, Customer Center for active subscribers
 - Daily scan notifications: `src/services/notifications.ts` — `scheduleDailyReminder(h, m)`, `cancelDailyReminder()`, configurable in onboarding + profile
-- Products tab: `app/(tabs)/products.tsx` — full product management with routine score ring, ProductCard list, AddProductSheet (search/barcode/manual), FAB
-- Components: `ProductCard.tsx` (effectiveness ring, usage badge), `AddProductSheet.tsx` (modal bottom sheet with 3 add modes)
+- Products tab: `app/(tabs)/products.tsx` — routine management with AM/PM/All Day grouping, routine score card with coaching insight, score-tinted ProductCards with accent bars, AddProductSheet (search/barcode/photo/manual), inline add row
+- Components: `ProductCard.tsx` (score accent bar, effectiveness ring), `AddProductSheet.tsx` (modal bottom sheet with 4 add modes), `SkinScoreHero.tsx` (104pt animated score counter, accent bar, coaching action statement — no gauge/card wrapper), `FaceAssessmentMap.tsx` (SVG face silhouette with tappable severity markers, metric-colored ambient glow)
 - Scan UX components: `CoachingTooltip.tsx` (real-time user guidance), `DirectionIndicators.tsx` (alignment direction cues), `ConfidenceBadge.tsx` (confidence score display)
 - Backend curated products: `curated-products.js` — product database with `searchCuratedProducts()`, `lookupCuratedBarcode()`, `enrichIngredients()`
 - Services: `lesionTracker.ts` (lesion history tracking), `reportHtml.ts` (HTML report generation via expo-print)

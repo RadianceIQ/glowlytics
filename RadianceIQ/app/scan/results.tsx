@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Dimensions, FlatList, StyleSheet, Text, TouchableOpacity, View, ViewToken } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import Animated, { FadeIn, FadeInDown, FadeInRight, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
-import { AtmosphereScreen } from '../../src/components/AtmosphereScreen';
 import { ActionCard } from '../../src/components/ActionCard';
 import { Button } from '../../src/components/Button';
 import { FacialMesh } from '../../src/components/FacialMesh';
@@ -12,8 +13,8 @@ import {
   Colors,
   FontFamily,
   FontSize,
-  Surfaces,
   Spacing,
+  scoreColor,
 } from '../../src/constants/theme';
 import {
   SIGNAL_COLORS,
@@ -31,8 +32,89 @@ import { useStore } from '../../src/store/useStore';
 import { trackEvent } from '../../src/services/analytics';
 import type { LesionClass } from '../../src/types';
 
+const { height: SCREEN_H } = Dimensions.get('window');
+
+// ---------------------------------------------------------------------------
+// Story page wrapper — each page fills the viewport
+// ---------------------------------------------------------------------------
+function StoryPage({ children, insets }: { children: React.ReactNode; insets: { top: number; bottom: number } }) {
+  return (
+    <View style={[storyStyles.page, { height: SCREEN_H }]}>
+      <LinearGradient
+        colors={[Colors.background, Colors.backgroundDeep, Colors.backgroundWarm]}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.95, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[storyStyles.pageContent, { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom + Spacing.xxl }]}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+const storyStyles = StyleSheet.create({
+  page: {
+    width: '100%',
+  },
+  pageContent: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    justifyContent: 'center',
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Progress dots
+// ---------------------------------------------------------------------------
+function ProgressDots({ count, active }: { count: number; active: number }) {
+  return (
+    <View style={dotStyles.container}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View
+          key={i}
+          style={[
+            dotStyles.dot,
+            i === active && dotStyles.dotActive,
+            i < active && dotStyles.dotCompleted,
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+const dotStyles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    right: Spacing.md,
+    top: '40%',
+    gap: Spacing.sm,
+    zIndex: 10,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.textDim,
+  },
+  dotActive: {
+    backgroundColor: Colors.primary,
+    width: 6,
+    height: 18,
+    borderRadius: 3,
+  },
+  dotCompleted: {
+    backgroundColor: Colors.primaryLight,
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
 export default function Results({ hideBottomAction: hideBottomActionProp }: { hideBottomAction?: boolean }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const searchParams = useLocalSearchParams<{ hideBottomAction?: string }>();
   const hideBottomAction = hideBottomActionProp || searchParams.hideBottomAction === 'true';
   const allOutputs = useStore((s) => s.modelOutputs);
@@ -65,27 +147,26 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
     }
   }, [latestOutput?.output_id]);
 
+  const [activePage, setActivePage] = useState(0);
+  const listRef = useRef<FlatList>(null);
+
+  // Empty state
   if (!latestOutput) {
     return (
-      <AtmosphereScreen scroll={false} contentContainerStyle={styles.emptyLayout}>
-        <View style={styles.emptyBlock}>
-          <Text style={styles.emptyTitle}>No results yet</Text>
-          <Text style={styles.emptyCopy}>
-            Capture a scan first so Glowlytics can generate your trend summary.
-          </Text>
-        </View>
+      <View style={{ flex: 1, backgroundColor: Colors.background, justifyContent: 'center', paddingHorizontal: Spacing.xl }}>
+        <Text style={styles.emptyTitle}>No results yet</Text>
+        <Text style={styles.emptyCopy}>Capture a scan first.</Text>
         <Button title="Go back" onPress={() => router.back()} />
-      </AtmosphereScreen>
+      </View>
     );
   }
 
-  const latestDailyRecord = latestDaily;
   const generatedInsights = latestOutput.generated_insights;
   const templateExplanation = getExplanation(latestOutput, {
-    sunscreen: latestDailyRecord?.sunscreen_used ?? true,
+    sunscreen: latestDaily?.sunscreen_used ?? true,
     cycleWindow: latestOutput.primary_driver === 'cycle window',
-    newProduct: latestDailyRecord?.new_product_added ?? false,
-    sleepQuality: latestDailyRecord?.sleep_quality,
+    newProduct: latestDaily?.new_product_added ?? false,
+    sleepQuality: latestDaily?.sleep_quality,
   });
   const explanation = generatedInsights?.overall_summary
     || latestOutput.personalized_feedback
@@ -98,85 +179,102 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
     [latestOutput.lesions],
   );
 
-  const handleDone = () => {
-    router.replace('/(tabs)/today');
-  };
+  const handleDone = () => router.replace('/(tabs)/today');
 
-  const [showDeepDive, setShowDeepDive] = useState(false);
+  // Build story pages
+  const pages: { key: string; render: () => React.ReactNode }[] = [];
 
-  return (
-    <AtmosphereScreen>
-      {/* ── Tier 1: Hero — Overall Score (visible immediately) ── */}
-      {overallInsight && (
-        <Animated.View entering={FadeIn.duration(500)} style={styles.overallCard}>
-          <Text style={styles.overallLabel}>Overall score</Text>
-          <Text style={styles.overallScore}>
-            {overallInsight.score} <Text style={styles.overallStatus}>{overallInsight.statusLabel}</Text>
+  // Page 1: Score reveal
+  pages.push({
+    key: 'score',
+    render: () => (
+      <StoryPage insets={insets}>
+        <Animated.View entering={ZoomIn.duration(600)} style={styles.scoreCenter}>
+          <Text style={[styles.bigScore, { color: scoreColor(overallInsight?.score ?? 0) }]}>
+            {overallInsight?.score ?? 0}
           </Text>
-          <Text style={styles.overallAction}>
-            {generatedInsights?.overall_score_context || overallInsight.actionStatement}
+          <Text style={styles.scoreStatus}>{overallInsight?.statusLabel}</Text>
+        </Animated.View>
+        <Animated.View entering={FadeInUp.duration(500).delay(400)}>
+          <Text style={styles.scoreAction}>
+            {generatedInsights?.overall_score_context || overallInsight?.actionStatement}
           </Text>
         </Animated.View>
-      )}
+        <Animated.View entering={FadeIn.duration(400).delay(800)} style={styles.swipeHint}>
+          <Text style={styles.swipeText}>Swipe up for details</Text>
+          <Feather name="chevron-up" size={16} color={Colors.textDim} />
+        </Animated.View>
+      </StoryPage>
+    ),
+  });
 
-      {/* ── Tier 2: Signal Overview (compact) ── */}
-      {latestOutput.signal_scores && (
-        <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.signalSection}>
-          <Text style={styles.signalSectionTitle}>Signal Breakdown</Text>
-          <View style={styles.signalGrid}>
-            {(Object.keys(SIGNAL_LABELS) as Array<keyof typeof SIGNAL_LABELS>).map((key) => {
+  // Page 2: Signal breakdown
+  if (latestOutput.signal_scores) {
+    pages.push({
+      key: 'signals',
+      render: () => (
+        <StoryPage insets={insets}>
+          <Text style={styles.pageTitle}>Your skin signals</Text>
+          <View style={styles.signalList}>
+            {(Object.keys(SIGNAL_LABELS) as Array<keyof typeof SIGNAL_LABELS>).map((key, i) => {
               const score = latestOutput.signal_scores?.[key as keyof typeof latestOutput.signal_scores];
               const confidence = latestOutput.signal_confidence?.[key as keyof typeof latestOutput.signal_confidence];
               if (score == null) return null;
               return (
-                <View key={key} style={styles.signalItem}>
+                <Animated.View key={key} entering={FadeInDown.duration(300).delay(i * 80)} style={styles.signalItem}>
                   <View style={styles.signalRow}>
                     <View style={[styles.signalDot, { backgroundColor: SIGNAL_COLORS[key] }]} />
                     <Text style={styles.signalLabel}>{SIGNAL_LABELS[key]}</Text>
-                    {confidence && (
-                      <View style={[styles.confidenceBadge, { backgroundColor: (confidenceBadgeColor(confidence) || Colors.textMuted) + '30' }]}>
-                        <Text style={[styles.confidenceText, { color: confidenceBadgeColor(confidence) || Colors.textMuted }]}>
-                          {confidence}
-                        </Text>
-                      </View>
-                    )}
+                    <Text style={[styles.signalScore, { color: SIGNAL_COLORS[key] }]}>{Math.min(score, 100)}</Text>
                   </View>
                   <View style={styles.signalBarBg}>
-                    <View style={[styles.signalBarFill, { width: `${score}%`, backgroundColor: SIGNAL_COLORS[key] }]} />
+                    <View style={[styles.signalBarFill, { width: `${Math.min(score, 100)}%`, backgroundColor: SIGNAL_COLORS[key] }]} />
                   </View>
-                  <Text style={[styles.signalScore, { color: SIGNAL_COLORS[key] }]}>{score}</Text>
-                </View>
+                </Animated.View>
               );
             })}
           </View>
+        </StoryPage>
+      ),
+    });
+  }
+
+  // Page 3: Insights + action
+  pages.push({
+    key: 'insights',
+    render: () => (
+      <StoryPage insets={insets}>
+        <Text style={styles.pageTitle}>What to do</Text>
+        <Animated.View entering={FadeInDown.duration(400).delay(100)}>
+          <ActionCard
+            driver={latestOutput.primary_driver || 'daily insight'}
+            action={explanation}
+            supportingText={latestOutput.recommended_action}
+          />
         </Animated.View>
-      )}
+        {generatedInsights?.action_plan && generatedInsights.action_plan.length > 0 && (
+          <Animated.View entering={FadeInDown.duration(400).delay(300)} style={styles.actionPlan}>
+            <Text style={styles.actionPlanTitle}>Action plan</Text>
+            {generatedInsights.action_plan.slice(0, 3).map((action, i) => (
+              <View key={i} style={styles.actionPlanItem}>
+                <Text style={styles.actionPlanNumber}>{i + 1}</Text>
+                <Text style={styles.actionPlanText}>{action}</Text>
+              </View>
+            ))}
+          </Animated.View>
+        )}
+      </StoryPage>
+    ),
+  });
 
-      {/* Action insight */}
-      <Animated.View entering={FadeInDown.duration(500).delay(300)} style={{ marginTop: Spacing.lg }}>
-        <ActionCard
-          driver={latestOutput.primary_driver || 'daily insight'}
-          action={explanation}
-          supportingText={latestOutput.recommended_action}
-        />
-      </Animated.View>
-
-      {/* ── Tier 3: Deep Dive (collapsible) ── */}
-      <TouchableOpacity
-        style={styles.deepDiveToggle}
-        onPress={() => setShowDeepDive(!showDeepDive)}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={showDeepDive ? 'Collapse detailed analysis' : 'Show detailed analysis'}
-      >
-        <Text style={styles.deepDiveToggleText}>Detailed analysis</Text>
-        <Feather name={showDeepDive ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.primaryLight} />
-      </TouchableOpacity>
-
-      {showDeepDive && (
-        <>
-          {/* Face mesh */}
-          <Animated.View entering={FadeInDown.duration(400)}>
+  // Page 4: Deep dive (face mesh + lesions) — only if there's data
+  if (latestOutput.conditions?.length || lesionGroups.length > 0 || latestOutput.rag_recommendations?.length) {
+    pages.push({
+      key: 'deepdive',
+      render: () => (
+        <StoryPage insets={insets}>
+          <Text style={styles.pageTitle}>The full picture</Text>
+          <View style={styles.deepDiveScroll}>
             <FacialMesh
               acneScore={latestOutput.acne_score}
               sunDamageScore={latestOutput.sun_damage_score}
@@ -185,258 +283,147 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
               lesions={latestOutput.lesions}
               signalConfidence={latestOutput.signal_confidence}
             />
+            {lesionGroups.length > 0 && (
+              <View style={styles.lesionCards}>
+                {lesionGroups.map((group) => (
+                  <View key={group.class} style={[styles.lesionCard, { borderLeftColor: group.info.color }]}>
+                    <View style={styles.lesionCardHeader}>
+                      <View style={[styles.lesionDot, { backgroundColor: group.info.color }]} />
+                      <Text style={styles.lesionCardTitle}>
+                        {group.count} {group.info.label}{group.count !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.lesionCardDesc}>{group.info.description}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </StoryPage>
+      ),
+    });
+  }
+
+  // Page 5: Done
+  pages.push({
+    key: 'done',
+    render: () => (
+      <StoryPage insets={insets}>
+        <View style={styles.doneCenter}>
+          <Animated.View entering={ZoomIn.duration(400)}>
+            <Feather name="check-circle" size={56} color={Colors.success} />
+          </Animated.View>
+          <Animated.View entering={FadeInUp.duration(400).delay(200)} style={styles.doneText}>
+            <Text style={styles.doneTitle}>Scan complete</Text>
+            <Text style={styles.doneCopy}>
+              Your data has been saved. Check your signals on the Today tab to track changes over time.
+            </Text>
           </Animated.View>
 
-          {/* Lesion cards inside deep dive */}
-          {lesionGroups.length > 0 && (
-            <View style={styles.lesionCards}>
-              {lesionGroups.map((group) => (
-                <View key={group.class} style={[styles.lesionCard, { borderLeftColor: group.info.color }]}>
-                  <View style={styles.lesionCardHeader}>
-                    <View style={[styles.lesionDot, { backgroundColor: group.info.color }]} />
-                    <Text style={styles.lesionCardTitle}>
-                      {group.count} {group.info.label}{group.count !== 1 ? 's' : ''}
-                    </Text>
-                    <Text style={styles.lesionCardZones}>
-                      {group.zones.join(', ')}
-                    </Text>
-                  </View>
-                  <Text style={styles.lesionCardDesc}>{group.info.description}</Text>
-                  <Text style={styles.lesionCardImpact}>{group.info.signalImpact}</Text>
-                </View>
-              ))}
-            </View>
+          {latestOutput.escalation_flag && (
+            <Animated.View entering={FadeInDown.duration(400).delay(400)} style={styles.alertStrip}>
+              <Feather name="alert-triangle" size={18} color={Colors.warning} />
+              <Text style={styles.alertCopy}>
+                Your trend changed quickly. Consider sharing a report with your clinician.
+              </Text>
+              <Button
+                title="Share report"
+                variant="secondary"
+                size="sm"
+                onPress={() => router.push('/report/generate')}
+              />
+            </Animated.View>
           )}
 
-          {/* RAG recommendations */}
-          {latestOutput.rag_recommendations && latestOutput.rag_recommendations.length > 0 && (
-            <View style={styles.ragSection}>
-              <Text style={styles.ragTitle}>Evidence-based guidelines</Text>
-              {latestOutput.rag_recommendations.map((rec, i) => (
-                <View key={i} style={styles.ragCard}>
-                  <View style={styles.ragCategoryBadge}>
-                    <Text style={styles.ragCategoryText}>
-                      {rec.category.replace(/_/g, ' ')}
-                    </Text>
-                  </View>
-                  <Text style={styles.ragText}>{rec.text}</Text>
-                </View>
-              ))}
-            </View>
+          {!hideBottomAction && (
+            <Animated.View entering={FadeIn.duration(300).delay(600)} style={styles.doneAction}>
+              <Button title="Done" onPress={handleDone} size="lg" />
+            </Animated.View>
           )}
-
-          {/* Action plan */}
-          {generatedInsights?.action_plan && generatedInsights.action_plan.length > 0 && (
-            <View style={styles.actionPlanSection}>
-              <Text style={styles.ragTitle}>Your action plan</Text>
-              {generatedInsights.action_plan.map((action, i) => (
-                <View key={i} style={styles.actionPlanItem}>
-                  <Text style={styles.actionPlanNumber}>{i + 1}</Text>
-                  <Text style={styles.actionPlanText}>{action}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Metric guide cards */}
-          <View style={styles.metricStack}>
-            {METRIC_GUIDE.map((metric, i) => {
-              const score =
-                metric.key === 'acne'
-                  ? latestOutput.acne_score
-                  : metric.key === 'sun_damage'
-                    ? latestOutput.sun_damage_score
-                    : latestOutput.skin_age_score;
-
-              return (
-                <TouchableOpacity
-                  key={metric.key}
-                  activeOpacity={0.85}
-                  style={styles.metricCard}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${metric.title} score ${score} out of 100, open detailed assessment`}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/skin-metric/[metric]',
-                      params: { metric: metric.key },
-                    })
-                  }
-                >
-                  <View style={styles.metricCardHeader}>
-                    <Text style={styles.metricTitle}>{metric.title}</Text>
-                    <Text style={[styles.metricScore, { color: metric.color }]}>
-                      {score}/100
-                    </Text>
-                  </View>
-                  <Text style={styles.metricSubtitle}>{metric.subtitle}</Text>
-                  <Text style={styles.metricDetail}>{metric.detail}</Text>
-                  <Text style={styles.metricCta}>Open detailed assessment</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </>
-      )}
-
-      {/* Escalation alert — always visible (important) */}
-      {latestOutput.escalation_flag ? (
-        <View style={styles.alertStrip}>
-          <Text style={styles.alertTitle}>Worth escalating</Text>
-          <Text style={styles.alertCopy}>
-            Your trend changed quickly for this baseline. This is not diagnostic, but it is worth packaging for clinician context.
-          </Text>
-          <Button
-            title="Share report"
-            variant="secondary"
-            size="sm"
-            onPress={() => router.push('/report/generate')}
-          />
         </View>
-      ) : null}
+      </StoryPage>
+    ),
+  });
 
-      {!hideBottomAction && (
-        <View style={styles.bottomAction}>
-          <Button title="Continue" onPress={handleDone} size="lg" />
-        </View>
-      )}
-    </AtmosphereScreen>
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems.length > 0 && viewableItems[0].index != null) {
+      setActivePage(viewableItems[0].index);
+    }
+  }).current;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <FlatList
+        ref={listRef}
+        data={pages}
+        keyExtractor={(item) => item.key}
+        renderItem={({ item }) => <>{item.render()}</>}
+        pagingEnabled
+        showsVerticalScrollIndicator={false}
+        snapToInterval={SCREEN_H}
+        decelerationRate="fast"
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+        getItemLayout={(_, index) => ({ length: SCREEN_H, offset: SCREEN_H * index, index })}
+      />
+      <ProgressDots count={pages.length} active={activePage} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    marginBottom: Spacing.md,
+  // Page 1: Score
+  scoreCenter: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
   },
-  eyebrow: {
-    color: Colors.primaryLight,
+  bigScore: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: 120,
+    lineHeight: 120,
+    letterSpacing: -4,
+  },
+  scoreStatus: {
+    color: Colors.textSecondary,
     fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  title: {
+    fontSize: FontSize.lg,
     marginTop: Spacing.xs,
+  },
+  scoreAction: {
     color: Colors.text,
-    fontFamily: FontFamily.serifBold,
-    fontSize: FontSize.hero,
-    lineHeight: 40,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  metaText: {
-    color: Colors.textMuted,
     fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.sm,
-    textTransform: 'capitalize',
+    fontSize: FontSize.lg,
+    lineHeight: 26,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
   },
-  deepDiveToggle: {
-    flexDirection: 'row',
+  swipeHint: {
+    position: 'absolute',
+    bottom: Spacing.xxl,
+    alignSelf: 'center',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    gap: Spacing.xxs,
   },
-  deepDiveToggleText: {
-    color: Colors.primaryLight,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
-  },
-  metricStack: {
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-  },
-  alertStrip: {
-    marginTop: Spacing.lg,
-    backgroundColor: 'rgba(255, 243, 224, 0.92)',
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.warning + '40',
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  alertTitle: {
-    color: Colors.warning,
-    fontFamily: FontFamily.sansSemiBold,
+  swipeText: {
+    color: Colors.textDim,
+    fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
-  alertCopy: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.md,
-    lineHeight: 22,
-  },
-  ragSection: {
-    marginTop: Spacing.lg,
-    ...Surfaces.recessed,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  ragTitle: {
-    color: Colors.primaryLight,
+
+  // Page 2: Signals
+  pageTitle: {
+    color: Colors.textMuted,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.xs,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
+    marginBottom: Spacing.lg,
   },
-  ragCard: {
-    backgroundColor: Colors.glass,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    gap: Spacing.sm,
-  },
-  ragCategoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.surfaceOverlay,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xxs,
-  },
-  ragCategoryText: {
-    color: Colors.primary,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  ragText: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.sm,
-    lineHeight: 20,
-  },
-  signalSection: {
-    marginTop: Spacing.lg,
-    backgroundColor: Colors.glassStrong,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  signalSectionTitle: {
-    color: Colors.primaryLight,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  signalGrid: {
-    gap: Spacing.md,
+  signalList: {
+    gap: Spacing.lg,
   },
   signalItem: {
-    gap: Spacing.xxs,
+    gap: Spacing.xs,
   },
   signalRow: {
     flexDirection: 'row',
@@ -444,96 +431,42 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   signalDot: {
-    width: 8,
-    height: 8,
-    borderRadius: BorderRadius.xs,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   signalLabel: {
     flex: 1,
-    color: Colors.textSecondary,
+    color: Colors.text,
     fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.md,
   },
   signalScore: {
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textAlign: 'right',
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.lg,
   },
   signalBarBg: {
-    height: 4,
-    backgroundColor: Colors.surfaceOverlay,
-    borderRadius: BorderRadius.xs,
+    height: 6,
+    backgroundColor: Colors.divider,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   signalBarFill: {
-    height: 4,
-    borderRadius: BorderRadius.xs,
-  },
-  confidenceBadge: {
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 1,
-    borderRadius: BorderRadius.sm,
-  },
-  confidenceText: {
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xxs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  lesionCards: {
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  lesionCard: {
-    backgroundColor: Colors.surfaceOverlay,
-    borderRadius: BorderRadius.md,
-    borderLeftWidth: 3,
-    padding: Spacing.sm,
-    gap: 2,
-  },
-  lesionCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  lesionDot: {
-    width: 6,
     height: 6,
-    borderRadius: BorderRadius.xs,
+    borderRadius: 3,
   },
-  lesionCardTitle: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
-  },
-  lesionCardZones: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.xs,
-    flex: 1,
-    textAlign: 'right',
-    textTransform: 'capitalize',
-  },
-  lesionCardDesc: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.xs,
-    marginLeft: Spacing.xs + 6,
-  },
-  lesionCardImpact: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansMedium,
-    fontSize: FontSize.xs,
-    marginLeft: Spacing.xs + 6,
-  },
-  actionPlanSection: {
+
+  // Page 3: Insights
+  actionPlan: {
     marginTop: Spacing.lg,
-    backgroundColor: Colors.glassStrong,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
-    padding: Spacing.lg,
     gap: Spacing.md,
+  },
+  actionPlanTitle: {
+    color: Colors.primaryLight,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   actionPlanItem: {
     flexDirection: 'row',
@@ -553,94 +486,103 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     lineHeight: 20,
   },
-  overallCard: {
-    ...Surfaces.hero,
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-  },
-  overallLabel: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.9,
-  },
-  overallScore: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.display,
-    lineHeight: 52,
-  },
-  overallStatus: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.md,
-  },
-  overallAction: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.md,
-    lineHeight: 22,
-  },
-  metricCard: {
-    backgroundColor: Colors.glass,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    gap: Spacing.xs,
-  },
-  metricCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+
+  // Page 4: Deep dive
+  deepDiveScroll: {
+    flex: 1,
     gap: Spacing.md,
   },
-  metricTitle: {
+  lesionCards: {
+    gap: Spacing.sm,
+  },
+  lesionCard: {
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: BorderRadius.md,
+    borderLeftWidth: 3,
+    padding: Spacing.sm,
+    gap: 2,
+  },
+  lesionCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  lesionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  lesionCardTitle: {
     color: Colors.text,
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.xl,
-  },
-  metricScore: {
-    fontFamily: FontFamily.sansBold,
-    fontSize: FontSize.lg,
-  },
-  metricSubtitle: {
-    color: Colors.textMuted,
     fontFamily: FontFamily.sansSemiBold,
     fontSize: FontSize.sm,
   },
-  metricDetail: {
+  lesionCardDesc: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.xs,
+    marginLeft: Spacing.xs + 6,
+  },
+
+  // Page 5: Done
+  doneCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.lg,
+  },
+  doneText: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  doneTitle: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xxl,
+  },
+  doneCopy: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.md,
+    lineHeight: 23,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  doneAction: {
+    width: '100%',
+    paddingHorizontal: Spacing.lg,
+  },
+  alertStrip: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: 'rgba(255, 243, 224, 0.92)',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.warning + '40',
+    padding: Spacing.md,
+  },
+  alertCopy: {
+    flex: 1,
     color: Colors.textSecondary,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.sm,
     lineHeight: 20,
   },
-  metricCta: {
-    marginTop: Spacing.xs,
-    color: Colors.primaryLight,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
-  },
-  bottomAction: {
-    marginTop: Spacing.lg,
-  },
-  emptyLayout: {
-    justifyContent: 'space-between',
-  },
-  emptyBlock: {
-    gap: Spacing.sm,
-  },
+
+  // Empty
   emptyTitle: {
     color: Colors.text,
-    fontFamily: FontFamily.serifBold,
-    fontSize: FontSize.hero,
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xxl,
+    marginBottom: Spacing.sm,
   },
   emptyCopy: {
     color: Colors.textSecondary,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
     lineHeight: 24,
+    marginBottom: Spacing.lg,
   },
 });

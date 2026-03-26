@@ -57,6 +57,7 @@ export interface UserProfile {
   wearable_source?: string;
   camera_permission_status: PermissionStatus;
   health_connection: HealthConnectionState;
+  skin_goals?: PrimaryGoal[];
   onboarding_complete: boolean;
 }
 

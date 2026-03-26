@@ -1,6 +1,6 @@
 Glowlytics - Build Progress
 ===========================
-Last Updated: 2026-03-24
+Last Updated: 2026-03-25
 
 MILESTONES:
 1. Project setup + foundation (Expo SDK 54, TypeScript, Expo Router)
@@ -12,7 +12,7 @@ MILESTONES:
 7. Gamification: XP, 6 levels, 15 badges, weekly challenges
 8. Photo persistence + on-device quality checks
 9. Renamed RadianceIQ → Glowlytics (glowlytics.ai)
-10. Onboarding redesigned: 13 screens, Headspace-inspired progressive disclosure
+10. Onboarding redesigned: 7-9 active screens (trimmed from 16), Headspace-inspired progressive disclosure
 11. Backend deployed to Railway (https://glowlytics-api-production.up.railway.app)
 12. EAS build config with env vars for dev/preview/production profiles
 13. RevenueCat subscription: "Glow Pro" entitlement, 7-day free trial, native paywall UI
@@ -60,10 +60,15 @@ MILESTONES:
 55. Backend curated-products.js: product database with search, barcode lookup, ingredient enrichment
 56. Backend product endpoints with full test coverage (curated-products + product-endpoints tests)
 57. ingredientDB service expanded with curated product integration
+58. Splash redesigned: "Find your glow" DancingScript cursive handwriting reveal (replaced G logo glow)
+59. Onboarding trimmed from 16 to 7-9 active screens (welcome → age-range → sex → skin-goal → [menstrual] → [cycle-details] → camera-permission → preview → paywall)
+60. Analyzing screen: fluid infinity loop animation
+61. Skin metric detail: bolder metric cards, FaceAssessmentMap with metric-colored ambient glow
+62. Reports distilled with cleaner layout
 
 CURRENT STATUS:
-- 422 tests (25 suites), 0 TypeScript errors
-- 43 screens, 24 components, 20 services, 7 backend modules
+- 412 tests (24 suites), 0 TypeScript errors
+- 48 screens, 24 components, 20 services, 7 backend modules
 - Scan flow: Camera → Analyzing → Results (checkin removed)
 - Backend live on Railway with PostgreSQL, health check passing
 - DB schema includes signal-specific columns (signal_scores, signal_features, lesions)
@@ -75,7 +80,7 @@ CURRENT STATUS:
 - Full codebase audit completed: 11 critical/high bugs fixed, security hardened
 - Backend authorization on all user-data endpoints, rate limiting, CORS, safe error messages
 - Floating tab bar: SVG notch cutout (10px depth, 74px width), camera absolutely positioned above bar with teal glow
-- Premium splash screen: animated G logo glow reveal in _layout.tsx, 1.5s min display, replaces old landing page
+- Splash screen: "Find your glow" DancingScript cursive handwriting reveal in _layout.tsx, 1.5s min display
 - Lesion constants module: src/constants/lesions.ts (classes, descriptions, zone colors)
 - Known limitation: analyzing screen hardcodes dailyContext (sunscreen/new product) since checkin was removed
 
@@ -213,6 +218,14 @@ COMPLETED:
 [x] Backend curated-products.js: product search, barcode lookup, ingredient enrichment (843 lines)
 [x] Backend product endpoint tests: curated-products.test.js (119 lines) + product-endpoints.test.js (335 lines)
 [x] ingredientDB service expanded with curated product integration
+[x] Splash redesigned: "Find your glow" DancingScript cursive with left-to-right clip mask reveal + teal ink glow (replaced G logo glow animation)
+[x] Onboarding trimmed to 7-9 active screens (welcome, age-range, sex, skin-goal, [menstrual], [cycle-details], camera-permission, preview, paywall); deferred screens moved to post-first-scan
+[x] Onboarding preview screen added: shows what user will get after their first scan
+[x] Analyzing screen: fluid infinity loop animation (replaced staged progress)
+[x] Skin metric detail ([metric].tsx): bolder metric cards, FaceAssessmentMap with metric-colored ambient glow
+[x] SkinScoreHero: animated score counter with accent bar and coaching action statement
+[x] Reports screen distilled with cleaner layout
+[x] DancingScript font added to assets for splash handwriting
 
 REMAINING (Launch checklist):
 [ ] !! CRITICAL: Replace Clerk TEST keys with PRODUCTION keys !!

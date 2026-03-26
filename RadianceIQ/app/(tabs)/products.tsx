@@ -15,6 +15,7 @@ import {
   Shadows,
   Spacing,
   Surfaces,
+  scoreColor,
 } from '../../src/constants/theme';
 import { useStore } from '../../src/store/useStore';
 import { computeProductEffectiveness } from '../../src/services/ingredientDB';
@@ -55,13 +56,6 @@ const RING_SIZE = 72;
 const RING_STROKE = 5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-function scoreColor(score: number): string {
-  if (score >= 75) return Colors.success;
-  if (score >= 55) return Colors.primary;
-  if (score >= 35) return Colors.warning;
-  return Colors.error;
-}
 
 function RoutineScoreRing({ score }: { score: number }) {
   const safe = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;

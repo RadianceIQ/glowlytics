@@ -144,7 +144,7 @@ export default function CameraPermission() {
   return (
     <OnboardingTransition
       illustration={<CameraIllustration />}
-      heading="One last thing — your camera."
+      heading="Now, let's set up your camera."
       subtext="Photos are processed privately and never shared. We don't access your camera in the background."
       primaryLabel="Enable camera access"
       primaryOnPress={handleEnable}
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.xl,
     borderWidth: 1.5,
-    borderColor: 'rgba(58, 158, 143, 0.15)',
+    borderColor: Colors.glowPrimary,
     padding: Spacing.lg,
     gap: Spacing.sm,
   },

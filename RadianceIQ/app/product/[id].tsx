@@ -18,6 +18,7 @@ import {
   FontSize,
   Spacing,
   BorderRadius,
+  scoreColor,
 } from '../../src/constants/theme';
 import { SIGNAL_COLORS, SIGNAL_LABELS } from '../../src/constants/signals';
 import { useStore } from '../../src/store/useStore';
@@ -44,12 +45,6 @@ const ringStroke = 6;
 
 const clampScore = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
-function scoreColor(score: number): string {
-  if (score >= 75) return '#34A77B';
-  if (score >= 55) return Colors.primary;
-  if (score >= 35) return '#C07B2A';
-  return '#D14343';
-}
 
 const ratingDotColor: Record<IngredientRating, string> = {
   highly_beneficial: '#34A77B',

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Defs, RadialGradient, Stop, Circle, Ellipse, Path } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -61,7 +61,7 @@ function PreviewIllustration() {
   const style2 = useAnimatedStyle(() => ({ opacity: pulse2.value }));
 
   return (
-    <View style={{ alignItems: 'center' }}>
+    <View style={previewStyles.center}>
       <AnimatedView style={style1}>
         <Svg width={240} height={200} viewBox="0 0 240 200">
           <Defs>
@@ -142,12 +142,17 @@ function PreviewIllustration() {
   );
 }
 
+const previewStyles = StyleSheet.create({
+  center: { alignItems: 'center' },
+});
+
 export default function Preview() {
   const { advance, goBack, onboardingFlow, onboardingFlowIndex } = useOnboardingNavigation();
   const protocol = useStore((s) => s.protocol);
   const user = useStore((s) => s.user);
 
-  const goalInfo = SIGNAL_LABELS[protocol?.primary_goal || 'acne'] || SIGNAL_LABELS.acne;
+  const skinGoals = user?.skin_goals ?? (protocol?.primary_goal ? [protocol.primary_goal] : ['acne']);
+  const goalInfos = skinGoals.map((g) => SIGNAL_LABELS[g] || SIGNAL_LABELS.acne);
 
   const handleContinue = () => {
     trackEvent('onboarding_preview_continue');
@@ -183,10 +188,14 @@ export default function Preview() {
       showBack
       onBack={goBack}
     >
-      {/* Focus area badge */}
-      <View style={styles.focusBadge}>
-        <View style={[styles.focusDot, { backgroundColor: goalInfo.color }]} />
-        <Text style={styles.focusLabel}>Primary focus: {goalInfo.label}</Text>
+      {/* Focus area badges */}
+      <View style={styles.focusBadgeRow}>
+        {goalInfos.map((info, i) => (
+          <View key={skinGoals[i]} style={styles.focusBadge}>
+            <View style={[styles.focusDot, { backgroundColor: info.color }]} />
+            <Text style={styles.focusLabel}>{info.label}</Text>
+          </View>
+        ))}
       </View>
 
       {/* Signal tracking preview */}
@@ -206,15 +215,19 @@ export default function Preview() {
 }
 
 const styles = StyleSheet.create({
+  focusBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
   focusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.full,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical: Spacing.sm + 4,
     paddingHorizontal: Spacing.lg,
-    alignSelf: 'flex-start',
   },
   focusDot: {
     width: 10,
@@ -247,7 +260,7 @@ const styles = StyleSheet.create({
   signalRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm + 2,
+    gap: Spacing.sm,
   },
   signalDot: {
     width: 8,

@@ -217,7 +217,7 @@ Since no physical scanner is available, the device connection flow will be **sim
 ### 1) User Profile (one-time + editable)
 | Field | Type | Required |
 |-------|------|----------|
-| user_id | UUID | Yes |
+| user_id | TEXT (Clerk ID) | Yes |
 | age_range | string | Yes |
 | location_coarse | string (ZIP3/city) | Yes |
 | period_applicable | enum (yes/no/prefer_not) | Yes |
@@ -396,7 +396,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 
 ### Human Interface Guidelines (HIG)
 - All screens use SafeAreaView for proper inset handling
-- Dark mode as primary with proper contrast ratios (WCAG AA minimum 4.5:1)
+- Light mode as primary (warm cream #FAFAF7) with WCAG AAA contrast ratios (7:1 target)
 - Minimum touch target: 44x44pt per Apple HIG
 - Native navigation patterns: back gestures, sheet presentations for modals
 - Haptic feedback on key interactions (scan complete, score reveal)
@@ -433,7 +433,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 
 ---
 
-## Implementation Status (as of 2026-03-22)
+## Implementation Status (as of 2026-03-25)
 
 ### Completed (Ship-Ready)
 - All 3 user journeys fully implemented (onboarding, daily scan, report)
@@ -464,9 +464,9 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - **App Store metadata** — description, keywords, screenshot specs for iPhone 15 Pro Max
 - **Demo script** — 7-minute structured walkthrough with talking points
 - **Production build submitted** — v1.0.0 build #3 uploaded to App Store Connect
-- **329 frontend tests** (21 suites) + **101 backend tests** (4 suites)
-- 47 screen files, 24 components, 19 services, 6 backend modules, Zustand store
-- EAS dev client + production builds succeeding (build #18 on TestFlight)
+- **412 tests** (24 suites), 0 TypeScript errors
+- 48 screen files, 24 components, 20 services, 7 backend modules, Zustand store
+- EAS dev client + production builds succeeding (latest on TestFlight)
 
 ### SDK Migration (SDK 55 → 54)
 - Downgraded to Expo SDK 54 (`expo ~54.0.0`, `react 19.1.0`, `react-native 0.81.5`)
@@ -533,8 +533,11 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 
 ### Completed (2026-03-22): UI Polish — Tab Bar, Splash Screen, Onboarding
 - **Floating tab bar redesign**: SVG notch cutout path (10px depth, 74px width), camera button absolutely positioned above bar with teal glow shadow, glass fill `rgba(255,255,255,0.93)`, no scene padding/background so bar truly floats over content
-- **Premium splash screen**: Animated `SplashScreen` component in `_layout.tsx` — G logo scale+fade (600ms) → teal glow bloom behind logo (900ms) → "Glowlytics" wordmark fade+rise (400ms). Minimum 1.5s display via `Promise.all` with app init. Old `index.tsx` landing page (safety card, gradient blobs, terms link) replaced with minimal bridge screen.
-- **Onboarding v1.1.2**: Products step improvements, multi-select skin goals, copy rewrites across all onboarding screens
+- **Splash screen redesigned**: "Find your glow" DancingScript cursive handwriting reveal with left-to-right clip mask + teal ink glow. Minimum 1.5s display via `Promise.all` with app init. Old `index.tsx` landing page replaced with minimal bridge screen.
+- **Onboarding trimmed**: 7-9 active screens (welcome, age-range, sex, skin-goal, [menstrual], [cycle-details], camera-permission, preview, paywall). Deferred screens (location, products, supplements, exercise, shower-frequency, hand-washing, scan-reminder) moved to post-first-scan collection.
+- **Skin metric detail**: bolder metric cards, FaceAssessmentMap with metric-colored ambient glow
+- **Analyzing screen**: fluid infinity loop animation
+- **SkinScoreHero**: animated score counter with accent bar and coaching action statement
 - **Analyzing screen**: Now waits for backend response before navigating to results
 - **Backend refactoring**: `app.js` route organization cleanup, `rag.js` pipeline expansion (improved chunking/retrieval), `signal-models.js` improvements
 - **Lesion constants**: New `src/constants/lesions.ts` module (6 classes with descriptions, colors, zone definitions)
@@ -545,7 +548,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 ### Deferred (post-launch)
 - **Fix dailyContext in analyzing**: sunscreen_used/new_product_added hardcoded to `false` since checkin removal — need to collect these before analysis
 - HealthKit/Health Connect native integration (requires EAS bare workflow)
-- PDF export for clinician reports (currently stub)
+- PDF export for clinician reports (client-side generation works via expo-print; backend endpoint is DB-reference only)
 - Session replay via PostHog (currently disabled)
 - Deploy ONNX models to Railway (115MB total, needs LFS or external hosting)
 - Remaining medium-priority bugs: streak duplication, TodayScreen dead code, duplicate DB schema (see memory/bugs_audit_20260317.md)
@@ -554,23 +557,18 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 
 ## Onboarding Implementation (Current)
 
-### Onboarding flow (16 screens, progressive disclosure)
+### Onboarding flow (7-9 active screens, trimmed from 16)
 1. Welcome
 2. Age Range (2×3 grid)
-3. Biological Sex (branching: female → menstrual screens)
-4. Location (geolocation or ZIP)
-5. Skin Goal (3 cards with dynamic illustration)
-6. Products (current skincare products)
-7. Menstrual Cycle (female only)
-8. Cycle Details (if yes to #7: date, length, birth control)
-9. Supplements & HRT (multi-select chips)
-10. Exercise Frequency
-11. Shower Frequency
-12. Hand Washing
-13. Scan Reminder (time picker for daily notifications)
-14. Camera Permission (pre-permission screen + system dialog)
-15. Ready (luminous orb animation → paywall)
-16. Paywall (RevenueCatUI inline, skip starts 7-day trial)
+3. Biological Sex (branching: female → inserts menstrual screens)
+4. Skin Goal (3 cards with dynamic illustration)
+5. Menstrual Cycle (female only)
+6. Cycle Details (if yes to #5: date, length, birth control)
+7. Camera Permission (pre-permission screen + system dialog)
+8. Preview (shows what user gets after first scan)
+9. Paywall (RevenueCatUI inline, skip starts 7-day trial)
+
+**Deferred screens** (collected post-first-scan): location, products, supplements, exercise, shower-frequency, hand-washing, scan-reminder. Files still exist in `app/onboarding/`.
 
 ### Flow architecture
 - Dynamic flow array via `buildOnboardingFlow(sex, menstrualStatus)` in `src/services/onboardingFlow.ts`
@@ -601,7 +599,7 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 ### Redirect Logic
 - **Root layout** (`app/_layout.tsx`) contains `AuthRedirector` component that returns only `<Redirect>` components or `null` — never its own navigator
 - When Clerk is configured:
-  - `!appReady` → animated `SplashScreen` (G logo glow reveal, 1.5s min) in `_layout.tsx`
+  - `!appReady` → animated `SplashScreen` ("Find your glow" handwriting reveal, 1.5s min) in `_layout.tsx`
   - `!isSignedIn` → redirect to `/auth/sign-in`
   - `isSignedIn` + `!onboarding_complete` → redirect to `/onboarding/welcome`
   - `isSignedIn` + `onboarding_complete` → render normal tab navigation
@@ -687,21 +685,21 @@ Score merging: Layer 2 overrides > Layer 1 + Layer 3 weighted blend (0.6/0.4 for
 - [x] Demo data hidden in production
 - [x] Console.log gated behind __DEV__
 
-### Milestone 2: Camera Pipeline Upgrade (IN PROGRESS)
-- [ ] Replace expo-face-detector with react-native-vision-camera + MLKit
-- [ ] Frame processor for real-time face detection (~15ms vs ~200ms)
-- [ ] Remove takePictureAsync polling loop (useFaceTracking)
-- [ ] Update photoQuality to use VisionCamera face data
-- [ ] Integrate lesion detection with frame processor pipeline
-- [ ] Update tests for new camera module
+### Milestone 2: Camera Pipeline Upgrade (DONE — 2026-03-23)
+- [x] Replace expo-face-detector with react-native-vision-camera + MLKit
+- [x] Frame processor for real-time face detection (~15ms vs ~200ms)
+- [x] Remove takePictureAsync polling loop (useFaceTracking)
+- [x] Update photoQuality to use VisionCamera face data
+- [x] Integrate lesion detection with frame processor pipeline
+- [x] Update tests for new camera module (23 face/photo tests rewritten as pure function tests)
 
 ### Milestone 3: Remaining Launch Blockers
 - [ ] Clerk pk_live_ key in production EAS profile
 - [ ] CORS_ORIGINS set on Railway
 - [ ] SSL rejectUnauthorized: true with CA cert
 - [ ] Sunscreen/product context collection before scan
-- [ ] Real PDF report generation (replace stub)
-- [ ] Backend log masking in production
+- [x] Report generation — client-side via expo-print + buildReportHtml (backend endpoint is DB-reference only)
+- [x] Backend log masking in production (safeErrorMessage + 9 error/warn sites masked)
 
 ### Milestone 4: App Store Submission
 - [ ] EAS production build (iOS)

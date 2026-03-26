@@ -61,6 +61,9 @@ export const OnboardingChip: React.FC<OnboardingChipProps> = ({
       style={[styles.chip, selected && styles.chipSelected]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="checkbox"
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
     >
       <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{label}</Text>
     </TouchableOpacity>
@@ -83,6 +86,9 @@ export const OnboardingGridOption: React.FC<OnboardingGridOptionProps> = ({
       style={[styles.gridOption, selected && styles.gridOptionSelected]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
     >
       <Text style={[styles.gridLabel, selected && styles.gridLabelSelected]}>{label}</Text>
     </TouchableOpacity>

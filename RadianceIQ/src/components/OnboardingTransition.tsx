@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   contentArea: {
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   buttonArea: {
     gap: Spacing.md,

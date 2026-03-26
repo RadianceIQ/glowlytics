@@ -95,6 +95,14 @@ export const FontSize = {
   display: 52,
 };
 
+/** Shared score → color mapping. Use this everywhere — do not copy inline. */
+export function scoreColor(score: number): string {
+  if (score >= 75) return Colors.success;
+  if (score >= 55) return Colors.primary;
+  if (score >= 35) return Colors.warning;
+  return Colors.error;
+}
+
 export const BorderRadius = {
   xs: 6,
   sm: 10,

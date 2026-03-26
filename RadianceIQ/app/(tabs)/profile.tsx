@@ -139,21 +139,41 @@ export default function ProfileTab() {
     <AtmosphereScreen>
       {/* Identity header */}
       <View style={styles.identityHeader}>
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarLetter}>
-            {(clerkEmail?.[0] || user?.age_range?.[0] || 'G').toUpperCase()}
-          </Text>
+        <View style={styles.avatarWrap}>
+          <View style={styles.avatarGlow} />
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarLetter}>
+              {(clerkEmail?.[0] || user?.age_range?.[0] || 'G').toUpperCase()}
+            </Text>
+          </View>
         </View>
         <View style={styles.identityInfo}>
           {clerkEmail && <Text style={styles.identityEmail} numberOfLines={1}>{clerkEmail}</Text>}
           <View style={styles.identityMeta}>
-            <View style={styles.tierBadge}>
-              <Text style={styles.tierBadgeText}>
+            <View style={[styles.tierBadge, {
+              backgroundColor: subscription.is_active
+                ? 'rgba(192, 123, 42, 0.12)'
+                : isTrialActive(subscription)
+                  ? Colors.surfaceOverlay
+                  : Colors.surface,
+            }]}>
+              <Text style={[styles.tierBadgeText, {
+                color: subscription.is_active
+                  ? Colors.warning
+                  : isTrialActive(subscription)
+                    ? Colors.primary
+                    : Colors.textMuted,
+              }]}>
                 {subscription.is_active ? 'Glow Pro' : isTrialActive(subscription) ? 'Trial' : 'Free'}
               </Text>
             </View>
             {streak > 0 && (
-              <Text style={styles.identityStreak}>{streak} day streak</Text>
+              <View style={styles.identityStreakRow}>
+                <Feather name="zap" size={11} color={streak >= 7 ? Colors.warning : Colors.primary} />
+                <Text style={[styles.identityStreak, { color: streak >= 7 ? Colors.warning : Colors.primary }]}>
+                  {streak}d
+                </Text>
+              </View>
             )}
           </View>
         </View>
@@ -161,7 +181,10 @@ export default function ProfileTab() {
 
       {/* Account & Subscription */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Account & Plan</Text>
+        <View style={styles.cardTitleRow}>
+          <Feather name="user" size={15} color={Colors.primary} />
+          <Text style={styles.cardTitle}>Account & Plan</Text>
+        </View>
         {clerkEmail ? (
           <InfoRow label="Email" value={clerkEmail} />
         ) : null}
@@ -298,7 +321,10 @@ export default function ProfileTab() {
 
       {/* Notifications */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Notifications</Text>
+        <View style={styles.cardTitleRow}>
+          <Feather name="bell" size={15} color={Colors.secondary} />
+          <Text style={styles.cardTitle}>Notifications</Text>
+        </View>
         <TouchableOpacity
           style={styles.infoRow}
           onPress={() => {
@@ -309,7 +335,9 @@ export default function ProfileTab() {
           activeOpacity={notificationSettings.notifications_enabled ? 0.7 : 1}
         >
           <Text style={styles.infoLabel}>Daily reminder</Text>
-          <Text style={styles.infoValue}>
+          <Text style={[styles.infoValue, notificationSettings.notifications_enabled && notificationSettings.notification_time
+            ? { color: Colors.primary }
+            : { color: Colors.textDim }]}>
             {notificationSettings.notifications_enabled && notificationSettings.notification_time
               ? notificationSettings.notification_time
               : 'Off'}
@@ -385,7 +413,10 @@ export default function ProfileTab() {
 
       {/* Your Profile — demographics + scan protocol combined */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Your Profile</Text>
+        <View style={styles.cardTitleRow}>
+          <Feather name="edit-3" size={15} color={Colors.clay} />
+          <Text style={styles.cardTitle}>Your Profile</Text>
+        </View>
         <InfoRow label="Age range" value={user?.age_range || '—'} />
         <InfoRow label="Location" value={user?.location_coarse || '—'} />
         <InfoRow label="Period tracking" value={periodLabel} />
@@ -403,16 +434,42 @@ export default function ProfileTab() {
 
       {/* Progress — gamification + achievements unified */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Progress</Text>
+        <View style={styles.cardTitleRow}>
+          <Feather name="award" size={15} color={Colors.warning} />
+          <Text style={styles.cardTitle}>Progress</Text>
+        </View>
         <GamificationCard gamification={gamification} streak={streak} />
         <View style={styles.divider} />
         <LevelProgressBar xp={gamification.xp} />
         <BadgeShowcase earnedBadges={gamification.badges} />
         <View style={styles.personalBests}>
-          <InfoRow label="Longest streak" value={`${gamification.personal_bests.longest_streak} days`} />
-          <InfoRow label="Lowest acne" value={gamification.personal_bests.lowest_acne < 100 ? String(gamification.personal_bests.lowest_acne) : '--'} />
-          <InfoRow label="Best skin score" value={gamification.personal_bests.highest_skin_score > 0 ? String(gamification.personal_bests.highest_skin_score) : '--'} />
-          <InfoRow label="Best week consistency" value={gamification.personal_bests.most_consistent_week > 0 ? `${gamification.personal_bests.most_consistent_week} / 7 days` : '--'} />
+          <Text style={styles.personalBestsTitle}>Personal bests</Text>
+          <View style={styles.bestGrid}>
+            <View style={[styles.bestItem, { backgroundColor: 'rgba(192, 123, 42, 0.06)' }]}>
+              <Text style={[styles.bestValue, { color: Colors.warning }]}>
+                {gamification.personal_bests?.longest_streak || '--'}
+              </Text>
+              <Text style={styles.bestLabel}>Longest streak</Text>
+            </View>
+            <View style={[styles.bestItem, { backgroundColor: Colors.glowCoral }]}>
+              <Text style={[styles.bestValue, { color: Colors.acne }]}>
+                {(gamification.personal_bests?.lowest_acne ?? 100) < 100 ? gamification.personal_bests!.lowest_acne : '--'}
+              </Text>
+              <Text style={styles.bestLabel}>Lowest acne</Text>
+            </View>
+            <View style={[styles.bestItem, { backgroundColor: Colors.surfaceOverlay }]}>
+              <Text style={[styles.bestValue, { color: Colors.primary }]}>
+                {(gamification.personal_bests?.highest_skin_score ?? 0) > 0 ? gamification.personal_bests!.highest_skin_score : '--'}
+              </Text>
+              <Text style={styles.bestLabel}>Best score</Text>
+            </View>
+            <View style={[styles.bestItem, { backgroundColor: Colors.glowSecondary }]}>
+              <Text style={[styles.bestValue, { color: Colors.secondary }]}>
+                {(gamification.personal_bests?.most_consistent_week ?? 0) > 0 ? `${gamification.personal_bests!.most_consistent_week}/7` : '--'}
+              </Text>
+              <Text style={styles.bestLabel}>Best week</Text>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -430,9 +487,22 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     marginBottom: Spacing.md,
   },
+  avatarWrap: {
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarGlow: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.glowPrimary,
+  },
   avatarCircle: {
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.primary,
     alignItems: 'center',
@@ -470,9 +540,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  identityStreakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
   identityStreak: {
-    color: Colors.textMuted,
-    fontFamily: FontFamily.sansMedium,
+    fontFamily: FontFamily.sansBold,
     fontSize: FontSize.xs,
   },
   divider: {
@@ -488,6 +562,11 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.sm,
     marginBottom: Spacing.md,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   cardTitle: {
     color: Colors.text,
@@ -539,9 +618,34 @@ const styles = StyleSheet.create({
   },
   personalBests: {
     marginTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.divider,
-    paddingTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  personalBestsTitle: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  bestGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  bestItem: {
+    width: '47%' as any,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    gap: Spacing.xxs,
+  },
+  bestValue: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: FontSize.xl,
+  },
+  bestLabel: {
+    color: Colors.textMuted,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xs,
   },
   footerSpacer: {
     height: Spacing.xl,
