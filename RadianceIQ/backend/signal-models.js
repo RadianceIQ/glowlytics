@@ -124,6 +124,11 @@ async function initModels() {
     fs.mkdirSync(MODEL_DIR, { recursive: true });
   }
 
+  // Auto-download models if missing or incomplete (external-data stub)
+  const GH_BASE = 'https://raw.githubusercontent.com/RadianceIQ/glowlytics/development/RadianceIQ/backend/models';
+  await ensureModel('skin_signals_v2', `${GH_BASE}/skin_signals_v2.onnx`, 10_000_000);
+  await ensureModel('acne_detector', `${GH_BASE}/acne_detector.onnx`, 30_000_000);
+
   if (modelExists('skin_signals_v2')) {
     skinSignalsSession = await loadModel('skin_signals_v2');
     if (skinSignalsSession) loaded.push('skin_signals_v2');
