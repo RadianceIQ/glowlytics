@@ -41,6 +41,56 @@ function modelExists(name) {
 }
 
 /**
+ * Ensure a model file is present and valid (not an external-data stub).
+ * Downloads from HuggingFace if missing or below minSize.
+ */
+async function ensureModel(name, url, minSize) {
+  const modelPath = path.join(MODEL_DIR, `${name}.onnx`);
+  if (fs.existsSync(modelPath)) {
+    const sz = fs.statSync(modelPath).size;
+    if (sz >= minSize) {
+      console.log(`[signal-models] ${name}.onnx: ${(sz / 1024 / 1024).toFixed(1)} MB (ok)`);
+      return;
+    }
+    console.log(`[signal-models] ${name}.onnx: ${(sz / 1024 / 1024).toFixed(1)} MB (too small, re-downloading)`);
+  } else {
+    console.log(`[signal-models] ${name}.onnx: not found, downloading`);
+  }
+
+  try {
+    const https = require('https');
+    const tmpPath = modelPath + '.tmp';
+    await new Promise((resolve, reject) => {
+      const follow = (reqUrl) => {
+        https.get(reqUrl, (res) => {
+          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            follow(res.headers.location);
+            return;
+          }
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP ${res.statusCode}`));
+            return;
+          }
+          const file = fs.createWriteStream(tmpPath);
+          res.pipe(file);
+          file.on('finish', () => { file.close(resolve); });
+          file.on('error', reject);
+        }).on('error', reject);
+      };
+      follow(url);
+    });
+    fs.renameSync(tmpPath, modelPath);
+    const sz = fs.statSync(modelPath).size;
+    console.log(`[signal-models] ${name}.onnx: downloaded ${(sz / 1024 / 1024).toFixed(1)} MB`);
+  } catch (err) {
+    console.warn(`[signal-models] Failed to download ${name}:`, err.message);
+    // Clean up partial download
+    const tmpPath = modelPath + '.tmp';
+    if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+  }
+}
+
+/**
  * Load an ONNX model session (cached).
  */
 async function loadModel(name) {
@@ -69,9 +119,14 @@ async function initModels() {
 
   const loaded = [];
 
-  if (modelExists('skin_signals')) {
-    skinSignalsSession = await loadModel('skin_signals');
-    if (skinSignalsSession) loaded.push('skin_signals');
+  // Ensure models directory exists
+  if (!fs.existsSync(MODEL_DIR)) {
+    fs.mkdirSync(MODEL_DIR, { recursive: true });
+  }
+
+  if (modelExists('skin_signals_v2')) {
+    skinSignalsSession = await loadModel('skin_signals_v2');
+    if (skinSignalsSession) loaded.push('skin_signals_v2');
   }
 
   if (modelExists('acne_detector')) {
@@ -266,8 +321,8 @@ async function runAcneDetector(base64Image) {
   const data = raw.data;
   const numDetections = 8400;
   // Two-tier confidence: 0.15 for display (dimmed), 0.30 for scoring impact
-  const confThresholdDisplay = 0.15;
-  const confThresholdScoring = 0.30;
+  const confThresholdDisplay = 0.04;
+  const confThresholdScoring = 0.08;
   const iouThreshold = 0.45;
 
   const candidateBoxes = [];
