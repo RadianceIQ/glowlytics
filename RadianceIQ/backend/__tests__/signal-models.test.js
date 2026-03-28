@@ -570,17 +570,12 @@ describe('signal-models.js', () => {
       expect(Array.isArray(LESION_CLASSES)).toBe(true);
     });
 
-    test('contains expected dermatological lesion classes', () => {
-      expect(LESION_CLASSES).toContain('comedone');
-      expect(LESION_CLASSES).toContain('papule');
-      expect(LESION_CLASSES).toContain('pustule');
-      expect(LESION_CLASSES).toContain('nodule');
-      expect(LESION_CLASSES).toContain('macule');
-      expect(LESION_CLASSES).toContain('patch');
+    test('contains the acne class for v2 single-class detector', () => {
+      expect(LESION_CLASSES).toContain('acne');
     });
 
-    test('has exactly 6 classes', () => {
-      expect(LESION_CLASSES).toHaveLength(6);
+    test('has exactly 1 class (v2 single-class detector)', () => {
+      expect(LESION_CLASSES).toHaveLength(1);
     });
   });
 
@@ -666,7 +661,7 @@ describe('signal-models.js', () => {
     };
 
     const layer2NoOverrides = {
-      signalOverrides: { structure: null, hydration: null, elasticity: null },
+      signalOverrides: { structure: null, hydration: null, sunDamage: null, elasticity: null },
       lesions: [],
       signalConfidence: {
         structure: 'med', hydration: 'med', inflammation: 'med',
@@ -684,7 +679,7 @@ describe('signal-models.js', () => {
 
     test('Layer 2 overrides have highest weight in uncertainty-weighted merge', () => {
       const layer2WithOverrides = {
-        signalOverrides: { structure: 85, hydration: null, elasticity: 92 },
+        signalOverrides: { structure: 85, hydration: null, sunDamage: null, elasticity: 92 },
         lesions: [],
         signalConfidence: {
           structure: 'high', hydration: 'med', inflammation: 'med',
@@ -702,6 +697,22 @@ describe('signal-models.js', () => {
       // Hydration has no override (beta_L2=0), so only L1+L3
       // (0.5*65 + 0.6*55) / 1.1 = (32.5+33)/1.1 = 60 (rounded)
       expect(merged.hydration).toBe(60);
+    });
+
+    test('sunDamage L2 override uses BETA_L2_LOADED.sunDamage = 0.85', () => {
+      const layer2WithSunDamage = {
+        signalOverrides: { structure: null, hydration: null, sunDamage: 80, elasticity: null },
+        lesions: [],
+        signalConfidence: {
+          structure: 'med', hydration: 'med', inflammation: 'med',
+          sunDamage: 'high', elasticity: 'med',
+        },
+      };
+
+      const merged = mergeSignalScores(layer1Scores, layer2WithSunDamage, layer3Scores);
+
+      // sunDamage: (0.8*75 + 0.85*80 + 0.6*65) / (0.8+0.85+0.6) = (60+68+39)/2.25 = 74 (rounded)
+      expect(merged.sunDamage).toBe(74);
     });
 
     test('without overrides, uses L1+L3 uncertainty-weighted merge', () => {
@@ -803,19 +814,21 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
   const mockRunAllModels = jest.fn();
   const mockMergeSignalScores = jest.fn();
 
-  const mockRunLesionDetector = jest.fn();
+  const mockRunAcneDetector = jest.fn();
 
   const mockApplyLesionFeedback = jest.fn((scores) => scores);
 
   jest.mock('../signal-models', () => ({
     initModels: jest.fn().mockResolvedValue({ loaded: [] }),
     runAllModels: mockRunAllModels,
-    runLesionDetector: mockRunLesionDetector,
+    runAcneDetector: mockRunAcneDetector,
+    runSkinSignalsModel: jest.fn(),
     mergeSignalScores: mockMergeSignalScores,
     applyLesionFeedback: mockApplyLesionFeedback,
     bboxToZone: jest.fn(),
-    LESION_CLASSES: ['comedone', 'papule', 'pustule', 'nodule', 'macule', 'patch'],
-    prepareImageTensor: jest.fn(),
+    LESION_CLASSES: ['acne'],
+    prepareImageTensorV2: jest.fn(),
+    prepareDetectorTensor: jest.fn(),
     computeIoU: jest.fn(),
     nms: jest.fn(),
   }));
@@ -846,7 +859,7 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
   const MOCK_LAYER1_SCORES = { structure: 72, hydration: 65, inflammation: 78, sunDamage: 73, elasticity: 61 };
 
   const MOCK_LAYER2_RESULTS = {
-    signalOverrides: { structure: null, hydration: null, elasticity: null },
+    signalOverrides: { structure: null, hydration: null, sunDamage: null, elasticity: null },
     lesions: [],
     signalConfidence: {
       structure: 'med', hydration: 'med', inflammation: 'med',
@@ -996,8 +1009,8 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
 
   test('lesions array is passed through from Layer 2 results', async () => {
     const lesionsData = [
-      { class: 'papule', confidence: 0.87, bbox: [0.3, 0.4, 0.05, 0.05], zone: 'left_cheek' },
-      { class: 'comedone', confidence: 0.72, bbox: [0.5, 0.1, 0.03, 0.03], zone: 'forehead' },
+      { class: 'acne', confidence: 0.87, bbox: [0.3, 0.4, 0.05, 0.05], zone: 'left_cheek' },
+      { class: 'acne', confidence: 0.72, bbox: [0.5, 0.1, 0.03, 0.03], zone: 'forehead' },
     ];
 
     mockExtractFeatures.mockResolvedValueOnce(MOCK_FEATURES);
@@ -1025,7 +1038,7 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
 
     expect(res.body.lesions).toEqual(lesionsData);
     expect(res.body.lesions).toHaveLength(2);
-    expect(res.body.lesions[0].class).toBe('papule');
+    expect(res.body.lesions[0].class).toBe('acne');
     expect(res.body.lesions[1].zone).toBe('forehead');
   });
 
@@ -1062,9 +1075,9 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
 
   test('detect-lesions returns lesions array and latency_ms', async () => {
     const mockLesions = [
-      { class: 'papule', confidence: 0.85, bbox: [0.3, 0.4, 0.05, 0.05], zone: 'left_cheek' },
+      { class: 'acne', confidence: 0.85, bbox: [0.3, 0.4, 0.05, 0.05], zone: 'left_cheek' },
     ];
-    mockRunLesionDetector.mockResolvedValueOnce(mockLesions);
+    mockRunAcneDetector.mockResolvedValueOnce(mockLesions);
 
     const res = await request(app)
       .post('/api/vision/detect-lesions')
@@ -1078,7 +1091,7 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
   });
 
   test('detect-lesions returns empty lesions on error (graceful)', async () => {
-    mockRunLesionDetector.mockRejectedValueOnce(new Error('model failed'));
+    mockRunAcneDetector.mockRejectedValueOnce(new Error('model failed'));
 
     const res = await request(app)
       .post('/api/vision/detect-lesions')
@@ -1098,7 +1111,7 @@ describe('POST /api/vision/analyze (signal pipeline integration)', () => {
   });
 
   test('detect-lesions does not require authentication', async () => {
-    mockRunLesionDetector.mockResolvedValueOnce([]);
+    mockRunAcneDetector.mockResolvedValueOnce([]);
 
     const res = await request(app)
       .post('/api/vision/detect-lesions')

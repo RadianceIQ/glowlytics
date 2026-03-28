@@ -11,6 +11,14 @@ export interface LesionInfo {
 }
 
 export const LESION_INFO: Record<LesionClass, LesionInfo> = {
+  acne: {
+    label: 'Acne Lesion',
+    description: 'Detected acne blemish (pimple, clogged pore, or inflamed bump)',
+    severity: 'moderate',
+    signalImpact: 'Affects inflammation + structure',
+    color: '#FF7A78',
+    affectedSignals: ['inflammation', 'structure'],
+  },
   comedone: {
     label: 'Comedone',
     description: 'Clogged pore (blackhead or whitehead)',

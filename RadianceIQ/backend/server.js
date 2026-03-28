@@ -1,6 +1,7 @@
 const app = require('./app');
 const { Pool } = require('pg');
 const { initSchema } = require('./db-init');
+const signalModels = require('./signal-models');
 
 const PORT = process.env.PORT || 3001;
 
@@ -30,4 +31,5 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.log('  WARNING: CLERK_ISSUER_URL not set -- JWT verification disabled (dev mode)');
   }
   await initDB();
+  await signalModels.initModels();
 });

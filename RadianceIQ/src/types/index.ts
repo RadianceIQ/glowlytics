@@ -241,7 +241,7 @@ export interface SignalFeatures {
   specular_ratio?: number;
 }
 
-export type LesionClass = 'comedone' | 'papule' | 'pustule' | 'nodule' | 'macule' | 'patch';
+export type LesionClass = 'acne' | 'comedone' | 'papule' | 'pustule' | 'nodule' | 'macule' | 'patch';
 
 export type LesionTier = 'confirmed' | 'possible';
 

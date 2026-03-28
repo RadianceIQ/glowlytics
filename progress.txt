@@ -1,304 +1,99 @@
 Glowlytics - Build Progress
 ===========================
-Last Updated: 2026-03-25
+Last Updated: 2026-03-28
 
-MILESTONES:
-1. Project setup + foundation (Expo SDK 54, TypeScript, Expo Router)
-2. Auth: Clerk (Apple + Google + Email/Password), JWT backend auth
-3. 3 user journeys: onboarding, daily scan, report
-4. Vision: Fine-tuned GPT-4o via backend proxy
-5. RAG: Pinecone + AAD/ACOG guidelines
-6. Deterministic scoring (GAGS, SCORAD, VISIA)
-7. Gamification: XP, 6 levels, 15 badges, weekly challenges
-8. Photo persistence + on-device quality checks
-9. Renamed RadianceIQ → Glowlytics (glowlytics.ai)
-10. Onboarding redesigned: 7-9 active screens (trimmed from 16), Headspace-inspired progressive disclosure
-11. Backend deployed to Railway (https://glowlytics-api-production.up.railway.app)
-12. EAS build config with env vars for dev/preview/production profiles
-13. RevenueCat subscription: "Glow Pro" entitlement, 7-day free trial, native paywall UI
-14. PostHog analytics: 20 events across auth/onboarding/scan/paywall/engagement
-15. App icon fixed: gradient background with white G logo
-16. Production build v1.0.0 (#3) submitted to App Store Connect
-17. 3-layer signal-specific analysis pipeline (deterministic + ONNX CV + GPT-4o)
-18. ML training pipeline: 9 notebooks (data prep, GPT-4o finetune, MedGemma, eval, structure, hydration, elasticity, lesion detection, signal eval)
-19. DB schema migrated on Railway with signal_scores, signal_features, lesions columns
-20. Analysis progress screen: staged messages tied to pipeline, dual-track timing (timer + API)
-21. Results + skin-metrics consolidated into single results screen
-22. ONNX models downloaded from HuggingFace (structure, hydration, elasticity, lesion_detector)
-23. On-device lesion detection: onnxruntime-react-native, YOLOv8 inference during camera scan
-24. Sci-fi bounding box overlay: teal corner brackets, scanning line, glow pulse
-25. Shared constants: SIGNAL_COLORS, SIGNAL_LABELS, METRIC_GUIDE, formatMetricStatus, confidenceBadgeColor
-26. Shared utility: getEstimatedCycleDay, theme gradient/text-on-dark constants
-27. Critical bug fixes: getStreak() state mutation, analyzing screen hydration hang, signal color consistency
-28. HuggingFace ONNX models wired into backend (structure, hydration, elasticity, lesion detection)
-29. Handcrafted features: Gabor, LBP-uniform, Frangi, landmark geometry for Layer 2 model input
-30. Security hardening: authorization, rate limiting, CORS, safe errors, SQL validation
-31. Full codebase audit: 4 critical + 8 high + 9 medium bugs identified, 11 fixed
-32. Build #18 submitted to TestFlight with all bug fixes
-33. Checkin screen removed from scan flow — camera navigates directly to analyzing
-34. Lesion overlay coordinate fix: crop-aware transform, face-rect filtering, orientation fix
-35. On-device lesion detection confidence threshold tuned from 0.02 → 0.1
-36. v1.1.2: onboarding polish, products step, multi-select goals, copy rewrite
-37. Floating tab bar redesign: SVG notch path, absolute camera button, glass fill, teal glow
-38. Premium splash screen: animated G logo glow reveal (1.5s), replaces old static landing page
-39. Backend RAG pipeline expanded: improved chunking, better guideline retrieval
-40. Backend app.js refactored: cleaner route structure, improved error handling
-41. Lesion constants extracted to src/constants/lesions.ts (6 classes, descriptions, colors)
-42. Vision API service expanded with better error handling and response parsing
-43. Analyzing screen: waits for backend response before navigating, improved progress stages
-44. Results screen: enhanced signal display, better lesion visualization
-45. Onboarding screens polished: skin-goal multi-select, products step improvements, copy rewrites
-46. Profile screen: updated subscription card styling
-47. Build #19+ submitted to TestFlight with all UI changes
-48. Design system normalization: WCAG AAA contrast, token alignment, Switzer-Medium font
-49. 3-tier surface hierarchy system: hero, standard, recessed elevation levels
-50. Home screen distilled: progressive revelation, less clutter
-51. Profile screen redesign: identity header, consolidated cards, gamification section
-52. Results screen restructured: 3-tier progressive disclosure
-53. Gamification + achievements unified into single Progress section
-54. VisionCamera MLKit face detection wired up via frame processor (real-time GPU)
-55. Backend curated-products.js: product database with search, barcode lookup, ingredient enrichment
-56. Backend product endpoints with full test coverage (curated-products + product-endpoints tests)
-57. ingredientDB service expanded with curated product integration
-58. Splash redesigned: "Find your glow" DancingScript cursive handwriting reveal (replaced G logo glow)
-59. Onboarding trimmed from 16 to 7-9 active screens (welcome → age-range → sex → skin-goal → [menstrual] → [cycle-details] → camera-permission → preview → paywall)
-60. Analyzing screen: fluid infinity loop animation
-61. Skin metric detail: bolder metric cards, FaceAssessmentMap with metric-colored ambient glow
-62. Reports distilled with cleaner layout
+MILESTONES (chronological):
+ 1. Foundation: Expo SDK 54, TypeScript, Expo Router, Zustand
+ 2. Auth: Clerk (Apple + Google + email), JWT backend
+ 3. Vision: Fine-tuned GPT-4o via backend proxy
+ 4. RAG: Pinecone + AAD/ACOG guidelines
+ 5. Scoring: Deterministic heuristics (GAGS, SCORAD, VISIA)
+ 6. Gamification: XP, 6 levels, 15 badges, weekly challenges
+ 7. Rename: RadianceIQ → Glowlytics (glowlytics.ai)
+ 8. Onboarding: 7-9 active screens, Headspace-inspired
+ 9. Backend: Railway deployment + PostgreSQL
+10. Subscriptions: RevenueCat "Glow Pro", 7-day trial, native paywall
+11. Analytics: PostHog, 20 events
+12. 3-layer vision pipeline: deterministic + ONNX CV + GPT-4o
+13. ML pipeline: 9 notebooks, ONNX export, HuggingFace hosting
+14. On-device lesion detection: YOLOv8 via onnxruntime-react-native
+15. Security hardening: auth, rate limiting, CORS, cascading deletes
+16. Camera: MLKit face detection frame processor (replaced expo-face-detector)
+17. Design system: WCAG AAA, 3-tier surfaces, Switzer-Medium font
+18. Products page: AM/PM grouping, routine coaching, score-tinted cards
+19. Results: story format (paginated swipe-up pages)
+20. Today screen: signal movers, AI insight card, 104pt score hero
+21. Metric detail: per-metric personality (coral/amber/blue), SVG face map
+22. Profile: colored sections, tier badges, personal bests grid
 
 CURRENT STATUS:
-- 412 tests (24 suites), 0 TypeScript errors
-- 48 screens, 24 components, 20 services, 7 backend modules
-- Scan flow: Camera → Analyzing → Results (checkin removed)
-- Backend live on Railway with PostgreSQL, health check passing
-- DB schema includes signal-specific columns (signal_scores, signal_features, lesions)
-- EAS project linked (f56f9712-7cc3-48a3-ba5d-710c5e469c3d)
-- Latest .ipa build uploaded to App Store Connect via EAS submit (ASC App ID: 6760600635)
-- HuggingFace models integrated into backend ONNX inference pipeline
-- On-device YOLOv8 lesion detection with real-time teal bounding box overlay, face-rect filtered
-- LesionOverlay: crop-aware coordinate mapping, face bounding box filtering (15% margin)
-- Full codebase audit completed: 11 critical/high bugs fixed, security hardened
-- Backend authorization on all user-data endpoints, rate limiting, CORS, safe error messages
-- Floating tab bar: SVG notch cutout (10px depth, 74px width), camera absolutely positioned above bar with teal glow
-- Splash screen: "Find your glow" DancingScript cursive handwriting reveal in _layout.tsx, 1.5s min display
-- Lesion constants module: src/constants/lesions.ts (classes, descriptions, zone colors)
-- Known limitation: analyzing screen hardcodes dailyContext (sunscreen/new product) since checkin was removed
+- 0 TS errors, 38 screens, 25 components, 20 services, 7 backend modules
+- Scan flow: Camera → Analyzing (infinity loop) → Results (story pages)
+- Backend live on Railway with PostgreSQL, ONNX models, RAG pipeline
+- Latest build submitted to App Store Connect (ASC App ID: 6760600635)
 
-COMPLETED:
-[x] RevenueCat SDK (react-native-purchases + react-native-purchases-ui v9.12.0)
-[x] "Glow Pro" entitlement with 7-day free trial
-[x] Native paywall UI via RevenueCatUI.presentPaywallIfNeeded
-[x] Customer Center for subscription management (profile screen)
-[x] Scan gating: camera tab, camera screen, home scan buttons → paywall
-[x] Report gating: reports require active subscription
-[x] Subscription state in Zustand (tier, is_active, expires_at, product_id, free_scans_used)
-[x] Premium users' free_scans_used counter frozen during subscription
-[x] PostHog analytics service (src/services/analytics.ts)
-[x] 20 analytics events: auth (start/complete/fail/signout), onboarding (start/skip/complete),
-    scan (started/results_viewed), paywall (shown/purchased/restored/dismissed),
-    subscription (manage_tapped), report (generated)
-[x] PostHog user identification via Clerk userId
-[x] Analytics reset on sign-out
-[x] App icon: gradient purple-to-cyan background + white G (was white-on-white)
-[x] Favicon fixed to match app icon
-[x] .npmrc for legacy-peer-deps in EAS builds
-[x] Dependency alignment: react-native-purchases matched to v9.12.0
-[x] @types/jest downgraded to 29.5.14, jest-expo to ~54.0.17 for SDK 54
-[x] Production EAS build succeeded (v1.0.0, build #3)
-[x] Submitted to App Store Connect via eas submit
-[x] Scan flow refactor: analysis runs after checkin with real user context
-[x] restorePurchases crash guard (missing RevenueCat key)
-[x] Vision API 30s fetch timeout (AbortController)
-[x] Face tracking / photo quality threshold alignment (both 20% min fill)
-[x] Camera: stale dimensions fix, retake auto-capture fix, stale closure fix
-[x] Face tracking memory leak fix (temp photo cleanup)
-[x] Paywall pauses camera + face tracking
-[x] Store: pendingPhotoBase64 for photo handoff, null-user assertion in addDailyRecord
-[x] Backend deployment to Railway
-[x] Railway env vars (Clerk, OpenAI, Pinecone, Vision model)
-[x] EAS project initialized with dev/preview/production profiles
-[x] 3-layer parallel signal analysis pipeline (Layer 1: CIELAB/ITA/GLCM/LBP/specular, Layer 2: ONNX CV, Layer 3: GPT-4o)
-[x] backend/image-processing.js — deterministic feature extraction via sharp
-[x] backend/signal-models.js — ONNX model inference + score merging logic
-[x] Signal scores (structure, hydration, inflammation, sunDamage, elasticity) in API response
-[x] Lesion detection data (bbox, class, confidence, zone) in API response
-[x] Per-signal confidence indicators (low/med/high) based on which layers contributed
-[x] Results screen: Signal Breakdown section with per-signal bars + confidence badges
-[x] FacialMesh: lesion bounding box rendering (dashed rectangles) + lesion count legend
-[x] DB schema: signal_scores, signal_features, lesions JSONB columns on model_outputs
-[x] Railway DB schema manually initialized (tables were missing after Postgres recreate)
-[x] home.tsx refactored to use overallInsight.signals (single source of truth)
-[x] CameraFaceMesh.tsx: shared meshData.ts module, uniform scaling
-[x] ML notebooks 05-09: structure, hydration, elasticity, lesion detection, evaluation
-[x] ml/requirements.txt updated with onnxruntime, ultralytics, opencv-python, albumentations, timm, coremltools
-[x] 53 new tests: image processing unit tests, signal model merging, endpoint integration
-[x] Backend deps: sharp (image processing), onnxruntime-node (optional, CV models)
-[x] Analysis progress screen (app/scan/analyzing.tsx): 9 staged messages, dual-track timer+API, XP overlay
-[x] Scan flow: Camera → Analyzing → Results (checkin removed, processing bypassed)
-[x] Consolidated results + skin-metrics into single results screen with overall score card + metric guide
-[x] SkinScoreHero: single "View latest results" button (removed Learn more + View today's results)
-[x] ONNX models pulled from HuggingFace (mufasabrownie/glowlytics-skin-models)
-[x] Structure model output parsing fix (3 separate tensors, not 1 combined)
-[x] All 4 ONNX models loading + running: structure (18MB), hydration (17MB), elasticity (17MB), lesion_detector (43MB)
-[x] Score merging verified: Layer 2 ONNX overrides structure/hydration/elasticity; inflammation/sunDamage use L1-primary blend
-[x] On-device lesion detection service (src/services/onDeviceLesionDetection.ts)
-[x] onnxruntime-react-native + jpeg-js dependencies added
-[x] Lesion model downloads from HF on first use, cached in document directory
-[x] YOLOv8 post-processing: NMS (IoU 0.45, conf 0.1 on-device / 0.25 server), 6 lesion classes, zone mapping
-[x] Sci-fi LesionOverlay: teal (#7DE7E1) corner brackets, scanning line, glow pulse, crop-aware coordinate mapping, face-rect filtering
-[x] Camera: on-device detection every 1.2s when face aligned (no server dependency)
-[x] Shared constants extracted: SIGNAL_COLORS, SIGNAL_LABELS, METRIC_GUIDE, formatMetricStatus (src/constants/signals.ts)
-[x] Shared utility: getEstimatedCycleDay (src/utils/cycleDay.ts)
-[x] Theme: gradientMid, gradientEnd, textOnDark, textOnDarkMuted, textOnDarkDim constants
-[x] buildOverallSkinInsight: all 6 call sites now pass server signal data (was missing on home, skin-metrics, product, signal, profile)
-[x] Bug fix: getStreak() mutated dailyRecords in place via .sort() — now spreads first
-[x] Bug fix: analyzing screen bail-out timeout (5s) if store never hydrates
-[x] Bug fix: timer cleanup race condition in analyzing screen
-[x] Bug fix: confidenceBadgeColor default case for unexpected server values
-[x] Bug fix: signal colors consistent across all screens via shared SIGNAL_COLORS
-[x] Dead code removed: getStatusLabel in results.tsx
-[x] Dedup: estimatedCycleDay (3 copies → 1 utility), scannerData (2 copies → 1 ref)
-[x] Efficiency: modelOutputs/pendingPhotoBase64 subscriptions removed from analyzing (use getState())
-[x] Efficiency: memoized history arrays in home.tsx, estimatedCycleDay in checkin.tsx
-[x] HuggingFace ONNX model integration: real inference for structure, hydration, elasticity, lesion detection
-[x] backend/signal-models.js: prepareImageTensor (ImageNet norm), NMS post-processing, all 4 model runners
-[x] backend/image-processing.js: Gabor (24-dim), LBP-uniform (18-dim), Frangi (9-dim), landmark geometry (5-dim)
-[x] Handcrafted feature builders: buildHydrationFeatures (44-dim), buildElasticityFeatures (14-dim)
-[x] Fast lesion detection endpoint: POST /api/vision/detect-lesions (rate-limited, public)
-[x] backend/scripts/download-models.sh: downloads ONNX from HuggingFace, auto-exports lesion .pt → .onnx
-[x] ml/export_lesion_onnx.py: standalone YOLOv8 .pt → .onnx converter
-[x] .gitignore: backend/models/*.onnx and *.pt excluded
-[x] Security: authorization checks on all 7 user-data GET/PATCH endpoints (authorizeUser helper)
-[x] Security: CORS restricted via CORS_ORIGINS env var in production
-[x] Security: rate limiting on /api/vision/detect-lesions (10 req/10s per IP)
-[x] Security: safeErrorMessage() hides PG details in production responses
-[x] Security: SQL field name regex validation (/^[a-z_]+$/) in PATCH /api/users/:id
-[x] Security: production auth misconfiguration warning (CLERK_ISSUER_URL check)
-[x] Security: rag.js OpenAI key sanitization (matching app.js pattern)
-[x] Bug fix: getStreak() O(n^2) → O(n) via Set-based lookup
-[x] Bug fix: camera detection loop re-fired every 200ms (lastFrameUri in deps → moved to ref)
-[x] Bug fix: stale lesion bounding boxes persisted after face un-aligned (now cleared)
-[x] Bug fix: AbortSignal.timeout() → AbortController+setTimeout (Hermes compatibility)
-[x] Bug fix: analyzing screen runPostApiStages race condition (postApiStarted guard)
-[x] Bug fix: computeLBPUniform nPoints clamped to max 24 (OOM prevention)
-[x] Bug fix: resetAll now resets onboardingFlow + onboardingFlowIndex
-[x] Bug fix: dead ringColor shared value removed from camera.tsx
-[x] Bug fix: skin-metrics scan button now gates on paywall
-[x] Build #18 submitted to TestFlight via local EAS build + eas submit
-[x] Checkin screen removed from scan flow — camera navigates directly to analyzing
-[x] LesionOverlay: crop-aware coordinate transform (accounts for CameraView center-crop vs full sensor frame)
-[x] LesionOverlay: face-rect filtering — only shows lesions whose center falls within detected face (15% margin)
-[x] useFaceTracking: removed skipProcessing (fixes raw sensor orientation), exposes lastFrameWidth/lastFrameHeight
-[x] On-device lesion detection confidence threshold: 0.02 → 0.1 (eliminates noise, keeps borderline detections)
-[x] v1.1.2: onboarding polish — products step, multi-select skin goals, copy rewrite across all onboarding screens
-[x] Analyzing screen waits for backend response before navigating to results
-[x] Floating tab bar redesign: SVG notch path (10px depth, 74px width, 22px corner radius)
-[x] Tab bar camera button: absolutely positioned above bar, 68px size, white glass ring + teal inner circle + glow shadow
-[x] Tab bar glass fill: rgba(255,255,255,0.93) with subtle stroke, no scene padding/background
-[x] Premium splash screen: animated SplashScreen component in _layout.tsx
-[x] Splash animation: G logo scale+fade (600ms) → teal glow bloom (900ms) → "Glowlytics" wordmark rise (400ms)
-[x] Splash timing: Promise.all ensures minimum 1.5s display while init runs in parallel
-[x] Old index.tsx landing page replaced with minimal bridge screen (removed safety card, gradient blobs, terms link)
-[x] Backend app.js refactored: cleaner route organization, improved error handling
-[x] Backend RAG pipeline expanded (rag.js): improved chunking and guideline retrieval
-[x] Lesion constants module: src/constants/lesions.ts (6 classes with descriptions, colors, zone definitions)
-[x] Vision API service (visionAPI.ts): expanded response parsing, better error handling
-[x] Results screen: enhanced signal display and lesion visualization
-[x] Profile screen: updated subscription card styling
-[x] TabsLayout simplified: removed sceneStyle paddingBottom/backgroundColor, tab bar truly floats over content
-[x] Latest build submitted to TestFlight via local EAS build + eas submit
-[x] Design system normalization: WCAG AAA contrast ratios, token alignment, medium font weight default
-[x] Switzer-Medium font added to assets
-[x] 3-tier surface hierarchy: hero (elevated + shadow), standard (flat), recessed (inset) surfaces
-[x] Home screen distilled: progressive revelation, reduced clutter
-[x] Profile redesign: identity header, consolidated cards, gamification Progress section
-[x] Results screen: 3-tier progressive disclosure layout
-[x] Gamification + achievements unified into single Progress section on profile
-[x] VisionCamera MLKit face detection: real GPU frame processor (replaced polling approach)
-[x] Backend curated-products.js: product search, barcode lookup, ingredient enrichment (843 lines)
-[x] Backend product endpoint tests: curated-products.test.js (119 lines) + product-endpoints.test.js (335 lines)
-[x] ingredientDB service expanded with curated product integration
-[x] Splash redesigned: "Find your glow" DancingScript cursive with left-to-right clip mask reveal + teal ink glow (replaced G logo glow animation)
-[x] Onboarding trimmed to 7-9 active screens (welcome, age-range, sex, skin-goal, [menstrual], [cycle-details], camera-permission, preview, paywall); deferred screens moved to post-first-scan
-[x] Onboarding preview screen added: shows what user will get after their first scan
-[x] Analyzing screen: fluid infinity loop animation (replaced staged progress)
-[x] Skin metric detail ([metric].tsx): bolder metric cards, FaceAssessmentMap with metric-colored ambient glow
-[x] SkinScoreHero: animated score counter with accent bar and coaching action statement
-[x] Reports screen distilled with cleaner layout
-[x] DancingScript font added to assets for splash handwriting
+COMPLETED (grouped by area):
+
+[Auth & Subscriptions]
+- Clerk OAuth + email/password, JWT backend auth
+- RevenueCat "Glow Pro" entitlement, 7-day trial, native paywall
+- gateWithPaywall() shared helper (6 call sites → 1)
+- Customer Center, subscription state in Zustand
+- PostHog: 20 events, user identification, funnel tracking
+
+[Scan Flow]
+- Camera: MLKit face tracking, auto-capture 4s, direction indicators
+- On-device lesion detection: YOLOv8 (conf 0.1, NMS 0.45), teal overlay
+- Analyzing: infinity loop animation, 9-stage messages, XP overlay
+- Results: story format (score reveal → signals → insights → deep dive → done)
+- 3-layer parallel pipeline: L1 deterministic + L2 ONNX + L3 GPT-4o
+
+[UI/Design]
+- SkinScoreHero: 104pt animated counter, accent bar (no gauge/card)
+- Products: AM/PM/All Day grouping, routine score coaching, score-tinted cards
+- Profile: colored section icons, tier badge, 2x2 personal bests grid
+- Metric detail: per-metric personality, SVG face map, color-coded guidance
+- Today: signal movers, AI insight card, streak with milestones
+- Splash: "Find your glow" DancingScript handwriting reveal
+- Tab bar: SVG notch, floating camera button, glass fill
+- Design tokens: WCAG AAA, 3-tier surfaces, scoreColor() unified
+
+[Backend & Security]
+- Express + PostgreSQL + ONNX + RAG on Railway
+- Authorization on all endpoints, rate limiting, CORS, safe errors
+- Account deletion with cascading transaction (Apple 5.1.1)
+- Curated products DB: search, barcode, ingredient enrichment
+- Signal-specific DB columns (signal_scores, signal_features, lesions)
+
+[ML Pipeline]
+- 9 notebooks: data prep, finetune, MedGemma, eval, structure/hydration/elasticity/lesion
+- ONNX models on HuggingFace (mufasabrownie/glowlytics-skin-models)
+- Handcrafted features: Gabor, LBP-uniform, Frangi, landmark geometry
+
+[Hardening (this session)]
+- UTC→local date fix (7 files via localDateStr)
+- NaN guards: scoreColor, SkinScoreHero, signal movers, results bars
+- Crash guards: personal_bests undefined, GamificationCard xp
+- Memory: CoachingTooltip timer leak, pendingPhotoBase64 not cleared
+- Error handling: sign-out try/catch, notification handlers, empty fallbacks
+- Accessibility: zone marker labels, back button roles, swipe hints
+- FaceAssessmentMap: React.memo + useMemo (428 edges), animation cleanup
+- Shared utilities: scoreColor(), gateWithPaywall(), localDateStr()
 
 REMAINING (Launch checklist):
-[ ] !! CRITICAL: Replace Clerk TEST keys with PRODUCTION keys !!
-    - eas.json: swap pk_test_* → pk_live_* in all profiles
-    - Railway: swap sk_test_* → sk_live_* and update CLERK_ISSUER_URL
-    - Create production Clerk instance at dashboard.clerk.com
-[ ] RevenueCat dashboard setup:
-    - Design paywall template (shown via RevenueCatUI)
-    - Create subscription products in App Store Connect (monthly/yearly/lifetime)
-    - Map products to "Glow Pro" entitlement
-    - Configure Customer Center paths (cancel, restore, refund)
-[ ] PostHog dashboard setup:
-    - Build auth→onboarding→scan funnel
-    - Build paywall conversion funnel
-    - Set up retention cohorts
-[ ] App Store Connect: fill metadata from app-store-metadata.json
-[ ] Screenshots: capture 5 screens on iPhone 15 Pro Max (1290x2796)
-[ ] Privacy policy URL: host at https://glowlytics.ai/privacy
-[ ] Content rating questionnaire: complete (12+, medical info: yes)
+[ ] !! Clerk PRODUCTION keys (replace pk_test_ → pk_live_) !!
+    → eas.json production profile + Railway sk_live_ + CLERK_ISSUER_URL
+[ ] RevenueCat dashboard: paywall template, ASC products, "Glow Pro" mapping
+[ ] PostHog dashboard: auth→scan funnel, paywall conversion, retention
+[ ] App Store: metadata, 5 screenshots (iPhone 15 Pro Max), privacy policy URL
+[ ] Content rating questionnaire (12+, medical info: yes)
 [ ] Seed Pinecone on production: POST /api/rag/seed
-[ ] TestFlight: smoke test all 3 journeys + subscription flow + paywall
+[ ] TestFlight smoke test: 3 journeys + subscription + paywall
+[ ] Deploy ONNX models to Railway (115MB, needs LFS or external hosting)
+[ ] Run ML evaluation notebook (target: MAE < 10, Pearson r > 0.7)
 [ ] Submit for App Review
-[ ] Fix analyzing screen dailyContext: sunscreen_used/new_product_added hardcoded to false since checkin removal
 
-SECURITY & LAUNCH READINESS (2026-03-23):
-[x] 33. Security audit: fixed critical IDOR on 5 POST routes (protocols, products, daily-records, model-outputs, reports)
-[x] 34. Account deletion endpoint: DELETE /api/users/:id with atomic cascading transaction (Apple 5.1.1(v))
-[x] 35. DB schema: user_id migrated UUID→TEXT (Clerk ID), migration v2 handles existing data
-[x] 36. Input validation: POST /api/users validates age_range, location, period, cycle_length, drink_frequency
-[x] 37. Rate limiting: POST /api/vision/analyze (10 req/min/user), existing detect-lesions limit preserved
-[x] 38. RAG seed endpoint: requires X-Admin-Secret header (timing-safe comparison)
-[x] 39. Auth hardening: dev-mode passthrough no longer leaks when NODE_ENV unset
-[x] 40. Android RECORD_AUDIO permission removed from app.json
-[x] 41. API_BASE_URL: logs error if pointed at localhost in production build
-[x] 42. Demo data: "Load demo data" button hidden in production builds (__DEV__ guard)
-[x] 43. Subscription service: console.log wrapped in __DEV__ guards
-[x] 44. DELETE /api/products/:id: now verifies product ownership via user_id WHERE clause
-[x] 45. Replace expo-face-detector → react-native-vision-camera + MLKit frame processor
-    - Installed react-native-vision-camera, react-native-vision-camera-face-detector, react-native-worklets-core
-    - Removed expo-face-detector (deprecated)
-    - faceTracking.ts: pure analyzeAlignment() function, no camera dependency
-    - photoQuality.ts: pure checkPhotoQualityFromFaces() function
-    - useFaceTracking hook: frame-processor callback pattern (no more takePictureAsync polling)
-    - camera.tsx: updated hook signature
-    - 23 face/photo tests rewritten as pure function tests (no mocking needed)
-[x] 46. Rate limiter periodic cleanup: 60s sweep removes stale entries (prevents memory leak)
-[x] 47. Backend log masking: production-safe logger masks err.message details (9 error/warn sites)
-[x] 48. Scan context: new_product_added now derived from products added today (no longer hardcoded false)
-[x] 49. Report generation: already functional client-side (expo-print + buildReportHtml). Backend stub is only a DB reference record — not a blocker.
-
-MANUAL STEPS REMAINING (credentials/config — complete these before App Store submission):
-[ ] 50. Clerk pk_live_ key in eas.json production profile
-    HOW: 1. Go to dashboard.clerk.com → API Keys → Production
-         2. Copy the pk_live_xxx key
-         3. Edit RadianceIQ/eas.json → production.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
-         4. Also set CLERK_ISSUER_URL on Railway to your production Clerk issuer URL
-[ ] 51. CORS_ORIGINS on Railway
-    HOW: 1. Go to Railway dashboard → your backend service → Variables
-         2. Add: CORS_ORIGINS=https://glowlytics.ai,https://glowlytics-api-production.up.railway.app
-         3. Redeploy
-[ ] 52. SSL rejectUnauthorized on Railway DB
-    HOW: 1. Check Railway dashboard for DATABASE_URL — Railway managed Postgres may auto-handle SSL
-         2. If CA cert available: set CA_CERT env var, update backend/app.js and db-init.js:
-            ssl: { rejectUnauthorized: true, ca: process.env.CA_CERT }
-         3. If Railway doesn't provide CA cert, rejectUnauthorized: false is acceptable behind their internal network
-[ ] 53. ADMIN_SECRET on Railway
-    HOW: 1. Generate: openssl rand -hex 32
-         2. Set ADMIN_SECRET=<value> in Railway env vars
-         3. Use when seeding RAG: curl -X POST .../api/rag/seed -H "X-Admin-Secret: <value>"
-
-REMAINING (ML pipeline):
-[x] Models trained and exported to ONNX (hosted on HuggingFace: mufasabrownie/glowlytics-skin-models)
-[x] Models downloaded to backend/models/ (structure.onnx, hydration.onnx, elasticity.onnx, lesion_detector.onnx)
-[x] Lesion YOLOv8 .pt exported to .onnx via ultralytics
-[ ] Deploy ONNX models to Railway (currently local only — 115MB total, needs LFS or external hosting)
-[ ] Run evaluation notebook (09) — target: MAE < 10, Pearson r > 0.7 per signal
+MANUAL CONFIG (credentials — do before submission):
+[ ] CORS_ORIGINS on Railway: https://glowlytics.ai,...
+[ ] ADMIN_SECRET on Railway: openssl rand -hex 32
+[ ] SSL: verify Railway DB cert handling

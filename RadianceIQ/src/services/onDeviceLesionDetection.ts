@@ -21,14 +21,14 @@ import { trackEvent } from './analytics';
 const TAG = '[LesionDetection]';
 
 const MODELS_DIR = `${FileSystem.documentDirectory}models/`;
-const MODEL_PATH = `${MODELS_DIR}lesion_detector.onnx`;
+const MODEL_PATH = `${MODELS_DIR}acne_detector.onnx`;
 
 const INPUT_SIZE = 640;
-const NUM_CLASSES = 6;
+const NUM_CLASSES = 1;
 const CONF_THRESHOLD = 0.1;
 const IOU_THRESHOLD = 0.45;
 
-const LESION_CLASSES: LesionClass[] = ['comedone', 'papule', 'pustule', 'nodule', 'macule', 'patch'];
+const LESION_CLASSES: LesionClass[] = ['acne'];
 
 // ImageNet normalization constants (matches backend signal-models.js)
 const IMAGENET_MEAN = [0.485, 0.456, 0.406];
@@ -54,7 +54,7 @@ async function resolveModelPath(): Promise<string | null> {
   try {
     const { Asset } = await import('expo-asset');
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const asset = Asset.fromModule(require('../../assets/models/lesion_detector.onnx'));
+    const asset = Asset.fromModule(require('../../assets/models/acne_detector.onnx'));
     await asset.downloadAsync();
     if (asset.localUri) {
       console.log(TAG, 'Using bundled model at:', asset.localUri);
@@ -365,7 +365,7 @@ export async function detectLesions(frameInput: string): Promise<DetectedLesion[
     const raw = results[outputKey];
     const data = raw.data as Float32Array;
 
-    // YOLOv8 output: [1, 10, 8400] — transposed format
+    // YOLOv8 output: [1, 5, 8400] — transposed format (4 bbox + 1 class)
     const numDetections = 8400;
     const candidates: RawBox[] = [];
 

@@ -1,14 +1,13 @@
 /**
  * Layer 2: Custom CV Model Inference via ONNX Runtime
  *
- * Loads and runs custom computer vision models for signal-specific scoring:
- * - Structure (MobileNetV3): pore detection + texture regularity
- * - Hydration (EfficientNet-B0): Gabor+LBP hydration scoring
- * - Elasticity (EfficientNet-B0): Frangi wrinkle quantification
- * - Lesion detection (YOLOv8): comedones, papules, pustules, etc.
+ * V2 models (knowledge-distilled from Claude Sonnet 4):
+ * - skin_signals.onnx: Unified multi-head EfficientNet-B0 predicting
+ *   structure, hydration, sunDamage, elasticity (4 outputs, 0-1 range)
+ * - acne_detector.onnx: YOLOv8s single-class acne lesion detector
  *
- * Models are loaded from ONNX format. When models are not yet available
- * (pre-training phase), Layer 1 deterministic features are used as fallback.
+ * Models are loaded from ONNX format. When models are not available,
+ * Layer 1 deterministic features are used as fallback.
  */
 
 const path = require('path');
@@ -30,11 +29,9 @@ try {
 
 const MODEL_DIR = path.join(__dirname, 'models');
 
-// Model session cache
-let structureSession = null;
-let hydrationSession = null;
-let elasticitySession = null;
-let lesionSession = null;
+// V2 model sessions
+let skinSignalsSession = null;
+let acneDetectorSession = null;
 
 /**
  * Check if a model file exists.
@@ -72,21 +69,14 @@ async function initModels() {
 
   const loaded = [];
 
-  if (modelExists('structure')) {
-    structureSession = await loadModel('structure');
-    if (structureSession) loaded.push('structure');
+  if (modelExists('skin_signals')) {
+    skinSignalsSession = await loadModel('skin_signals');
+    if (skinSignalsSession) loaded.push('skin_signals');
   }
-  if (modelExists('hydration')) {
-    hydrationSession = await loadModel('hydration');
-    if (hydrationSession) loaded.push('hydration');
-  }
-  if (modelExists('elasticity')) {
-    elasticitySession = await loadModel('elasticity');
-    if (elasticitySession) loaded.push('elasticity');
-  }
-  if (modelExists('lesion_detector')) {
-    lesionSession = await loadModel('lesion_detector');
-    if (lesionSession) loaded.push('lesion_detector');
+
+  if (modelExists('acne_detector')) {
+    acneDetectorSession = await loadModel('acne_detector');
+    if (acneDetectorSession) loaded.push('acne_detector');
   }
 
   console.log(`[signal-models] Loaded models: ${loaded.length > 0 ? loaded.join(', ') : 'none (using Layer 1 fallback)'}`);
@@ -112,160 +102,76 @@ function bboxToZone(cx, cy) {
   return 'jaw';
 }
 
-const LESION_CLASSES = ['comedone', 'papule', 'pustule', 'nodule', 'macule', 'patch'];
-
-/**
- * Run all available models on the image.
- * Returns model-based signal score overrides and lesion detections.
- *
- * @param {string} base64Image - Base64-encoded image
- * @param {object} layer1Features - Features from deterministic image processing
- * @returns {Promise<object>} Model inference results
- */
-async function runAllModels(base64Image, layer1Features) {
-  const results = {
-    // Model-based signal score overrides (null means use Layer 1)
-    signalOverrides: {
-      structure: null,
-      hydration: null,
-      elasticity: null,
-    },
-    // Lesion detections
-    lesions: [],
-    // Per-signal confidence based on which layers contributed
-    signalConfidence: {
-      structure: 'med',
-      hydration: 'med',
-      inflammation: 'med',
-      sunDamage: 'med',
-      elasticity: 'med',
-    },
-  };
-
-  // Run available models in parallel
-  const promises = [];
-
-  if (structureSession) {
-    promises.push(
-      runStructureModel(base64Image, layer1Features)
-        .then((score) => {
-          if (score != null) {
-            results.signalOverrides.structure = score;
-            results.signalConfidence.structure = 'high';
-          }
-        })
-        .catch((err) => {
-          console.warn('[signal-models] Structure model error:', err.message);
-        })
-    );
-  }
-
-  if (hydrationSession) {
-    promises.push(
-      runHydrationModel(base64Image, layer1Features)
-        .then((score) => {
-          if (score != null) {
-            results.signalOverrides.hydration = score;
-            results.signalConfidence.hydration = 'high';
-          }
-        })
-        .catch((err) => {
-          console.warn('[signal-models] Hydration model error:', err.message);
-        })
-    );
-  }
-
-  if (elasticitySession) {
-    promises.push(
-      runElasticityModel(base64Image, layer1Features)
-        .then((score) => {
-          if (score != null) {
-            results.signalOverrides.elasticity = score;
-            results.signalConfidence.elasticity = 'high';
-          }
-        })
-        .catch((err) => {
-          console.warn('[signal-models] Elasticity model error:', err.message);
-        })
-    );
-  }
-
-  if (lesionSession) {
-    promises.push(
-      runLesionDetector(base64Image)
-        .then((lesions) => {
-          results.lesions = lesions;
-        })
-        .catch((err) => {
-          console.warn('[signal-models] Lesion detector error:', err.message);
-        })
-    );
-  }
-
-  await Promise.all(promises);
-
-  // Update confidence based on what layers contributed
-  // Layer 1 (deterministic) alone = 'med', Layer 1 + Layer 2 = 'high'
-  // Inflammation and sun damage are deterministic-primary, so 'med' with Layer 1 features
-  if (layer1Features) {
-    if (!structureSession) results.signalConfidence.structure = 'med';
-    if (!hydrationSession) results.signalConfidence.hydration = 'med';
-    if (!elasticitySession) results.signalConfidence.elasticity = 'med';
-  }
-
-  return results;
-}
+const LESION_CLASSES = ['acne'];
 
 // ImageNet normalization constants
 const IMAGENET_MEAN = [0.485, 0.456, 0.406];
 const IMAGENET_STD = [0.229, 0.224, 0.225];
 
 /**
- * Prepare an image tensor from base64 for ONNX inference.
+ * Prepare an image tensor for the v2 skin signals model.
+ * Resize shortest side to 256, center crop 224x224, ImageNet normalize.
+ *
  * @param {string} base64Image - Base64-encoded image
- * @param {number} size - Target width/height
- * @param {object} [options] - { greenChannelCLAHE: bool }
- * @returns {Promise<ort.Tensor>} Float32 tensor [1, 3, size, size]
+ * @returns {Promise<ort.Tensor|null>} Float32 tensor [1, 3, 224, 224]
  */
-async function prepareImageTensor(base64Image, size, options) {
+async function prepareImageTensorV2(base64Image) {
   if (!sharp || !ort) return null;
 
   const buf = Buffer.from(base64Image, 'base64');
+  const metadata = await sharp(buf).metadata();
+  const { width, height } = metadata;
+  const scale = 256 / Math.min(width, height);
+  const resizedW = Math.round(width * scale);
+  const resizedH = Math.round(height * scale);
+
+  const cropLeft = Math.round((resizedW - 224) / 2);
+  const cropTop = Math.round((resizedH - 224) / 2);
+
   const { data } = await sharp(buf)
-    .resize(size, size, { fit: 'fill' })
+    .resize(resizedW, resizedH)
+    .extract({ left: cropLeft, top: cropTop, width: 224, height: 224 })
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  const pixels = size * size;
+  const pixels = 224 * 224;
   const floats = new Float32Array(3 * pixels);
-
-  if (options && options.greenChannelCLAHE) {
-    // Green channel → simple contrast stretch (CLAHE approximation) → stack 3x
-    let min = 255, max = 0;
-    for (let i = 0; i < pixels; i++) {
-      const g = data[i * 3 + 1];
-      if (g < min) min = g;
-      if (g > max) max = g;
-    }
-    const range = max - min || 1;
-    for (let i = 0; i < pixels; i++) {
-      const stretched = (data[i * 3 + 1] - min) / range;
-      const normalized = (stretched - IMAGENET_MEAN[1]) / IMAGENET_STD[1];
-      floats[i] = normalized;             // channel 0
-      floats[pixels + i] = normalized;     // channel 1
-      floats[2 * pixels + i] = normalized; // channel 2
-    }
-  } else {
-    // Standard RGB → CHW → ImageNet normalize
-    for (let i = 0; i < pixels; i++) {
-      floats[i] = (data[i * 3] / 255 - IMAGENET_MEAN[0]) / IMAGENET_STD[0];
-      floats[pixels + i] = (data[i * 3 + 1] / 255 - IMAGENET_MEAN[1]) / IMAGENET_STD[1];
-      floats[2 * pixels + i] = (data[i * 3 + 2] / 255 - IMAGENET_MEAN[2]) / IMAGENET_STD[2];
-    }
+  for (let i = 0; i < pixels; i++) {
+    floats[i] = (data[i * 3] / 255 - IMAGENET_MEAN[0]) / IMAGENET_STD[0];
+    floats[pixels + i] = (data[i * 3 + 1] / 255 - IMAGENET_MEAN[1]) / IMAGENET_STD[1];
+    floats[2 * pixels + i] = (data[i * 3 + 2] / 255 - IMAGENET_MEAN[2]) / IMAGENET_STD[2];
   }
 
-  return new ort.Tensor('float32', floats, [1, 3, size, size]);
+  return new ort.Tensor('float32', floats, [1, 3, 224, 224]);
+}
+
+/**
+ * Prepare an image tensor for the YOLOv8 lesion detector.
+ * Resize to 640x640, normalize to [0, 1] (no ImageNet normalization).
+ *
+ * @param {string} base64Image - Base64-encoded image
+ * @returns {Promise<ort.Tensor|null>} Float32 tensor [1, 3, 640, 640]
+ */
+async function prepareDetectorTensor(base64Image) {
+  if (!sharp || !ort) return null;
+
+  const buf = Buffer.from(base64Image, 'base64');
+  const { data } = await sharp(buf)
+    .resize(640, 640, { fit: 'fill' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const pixels = 640 * 640;
+  const floats = new Float32Array(3 * pixels);
+  for (let i = 0; i < pixels; i++) {
+    floats[i] = data[i * 3] / 255;
+    floats[pixels + i] = data[i * 3 + 1] / 255;
+    floats[2 * pixels + i] = data[i * 3 + 2] / 255;
+  }
+
+  return new ort.Tensor('float32', floats, [1, 3, 640, 640]);
 }
 
 /**
@@ -319,91 +225,45 @@ function nms(boxes, scores, iouThreshold) {
 }
 
 /**
- * Run the structure model (MobileNetV3).
- * Returns score 0-100 or null if model unavailable.
+ * Run the unified v2 skin signals model.
+ * Returns {structure, hydration, sunDamage, elasticity} scores 0-100, or null.
  */
-async function runStructureModel(base64Image, layer1Features) {
-  if (!structureSession) return null;
+async function runSkinSignalsModel(base64Image) {
+  if (!skinSignalsSession) return null;
 
-  const tensor = await prepareImageTensor(base64Image, 224, { greenChannelCLAHE: true });
+  const tensor = await prepareImageTensorV2(base64Image);
   if (!tensor) return null;
 
-  const results = await structureSession.run({ image: tensor });
+  const results = await skinSignalsSession.run({ image: tensor });
+  const output = results[Object.keys(results)[0]];
+  const data = output.data;
 
-  // Model outputs 3 separate tensors: pore_count, texture_regularity, structure_score
-  const score = results.structure_score
-    ? results.structure_score.data[0]
-    : results[Object.keys(results)[Object.keys(results).length - 1]].data[0];
-  return Math.max(0, Math.min(100, Math.round(score)));
+  // Output order: [structure, hydration, sunDamage, elasticity], values in [0,1]
+  const clamp = (v) => Math.max(0, Math.min(100, Math.round(v * 100)));
+  return {
+    structure: clamp(data[0]),
+    hydration: clamp(data[1]),
+    sunDamage: clamp(data[2]),
+    elasticity: clamp(data[3]),
+  };
 }
 
 /**
- * Run the hydration model (EfficientNet-B0).
- */
-async function runHydrationModel(base64Image, layer1Features) {
-  if (!hydrationSession) return null;
-
-  const imageTensor = await prepareImageTensor(base64Image, 224);
-  if (!imageTensor) return null;
-
-  // Build handcrafted features tensor (44-dim)
-  const handcrafted = layer1Features && layer1Features.hydration_handcrafted
-    ? layer1Features.hydration_handcrafted
-    : new Float32Array(44);
-
-  const featureTensor = new ort.Tensor('float32', handcrafted, [1, 44]);
-  const results = await hydrationSession.run({
-    image: imageTensor,
-    handcrafted_features: featureTensor,
-  });
-
-  const outputKey = results.hydration_score ? 'hydration_score' : Object.keys(results)[0];
-  const score = results[outputKey].data[0];
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-/**
- * Run the elasticity model (EfficientNet-B0).
- */
-async function runElasticityModel(base64Image, layer1Features) {
-  if (!elasticitySession) return null;
-
-  const imageTensor = await prepareImageTensor(base64Image, 224);
-  if (!imageTensor) return null;
-
-  // Build handcrafted features tensor (14-dim)
-  const handcrafted = layer1Features && layer1Features.elasticity_handcrafted
-    ? layer1Features.elasticity_handcrafted
-    : new Float32Array(14);
-
-  const featureTensor = new ort.Tensor('float32', handcrafted, [1, 14]);
-  const results = await elasticitySession.run({
-    image: imageTensor,
-    handcrafted_features: featureTensor,
-  });
-
-  const outputKey = results.elasticity_score ? 'elasticity_score' : Object.keys(results)[0];
-  const score = results[outputKey].data[0];
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-/**
- * Run YOLOv8 lesion detector.
+ * Run YOLOv8s acne detector (single-class).
  * Returns array of detected lesions with bounding boxes.
  */
-async function runLesionDetector(base64Image) {
-  if (!lesionSession) return [];
+async function runAcneDetector(base64Image) {
+  if (!acneDetectorSession) return [];
 
-  const tensor = await prepareImageTensor(base64Image, 640);
+  const tensor = await prepareDetectorTensor(base64Image);
   if (!tensor) return [];
 
-  const results = await lesionSession.run({ images: tensor });
+  const results = await acneDetectorSession.run({ images: tensor });
   const outputKey = results.output0 ? 'output0' : Object.keys(results)[0];
   const raw = results[outputKey];
 
-  // raw shape: [1, 10, 8400] — 4 bbox coords + 6 class scores per detection
+  // raw shape: [1, 5, 8400] — 4 bbox coords + 1 class score per detection
   const data = raw.data;
-  const numClasses = 6;
   const numDetections = 8400;
   // Two-tier confidence: 0.15 for display (dimmed), 0.30 for scoring impact
   const confThresholdDisplay = 0.15;
@@ -412,27 +272,15 @@ async function runLesionDetector(base64Image) {
 
   const candidateBoxes = [];
   const candidateScores = [];
-  const candidateClassIds = [];
 
   for (let d = 0; d < numDetections; d++) {
-    // Transpose: raw is [1, 10, 8400], access as [feature][detection]
     const cx = data[0 * numDetections + d];
     const cy = data[1 * numDetections + d];
     const w = data[2 * numDetections + d];
     const h = data[3 * numDetections + d];
+    const score = data[4 * numDetections + d];
 
-    // Find best class
-    let maxScore = 0;
-    let maxClass = 0;
-    for (let c = 0; c < numClasses; c++) {
-      const score = data[(4 + c) * numDetections + d];
-      if (score > maxScore) {
-        maxScore = score;
-        maxClass = c;
-      }
-    }
-
-    if (maxScore < confThresholdDisplay) continue;
+    if (score < confThresholdDisplay) continue;
 
     // Convert center format to [x, y, w, h] normalized
     const bx = (cx - w / 2) / 640;
@@ -441,48 +289,95 @@ async function runLesionDetector(base64Image) {
     const bh = h / 640;
 
     candidateBoxes.push([bx, by, bw, bh]);
-    candidateScores.push(maxScore);
-    candidateClassIds.push(maxClass);
+    candidateScores.push(score);
   }
 
   if (candidateBoxes.length === 0) return [];
 
-  // Per-class NMS: run NMS within each class, then merge
-  // This prevents different lesion types at the same location from suppressing each other
-  const candidatesByClass = {};
-  for (let i = 0; i < candidateBoxes.length; i++) {
-    const cls = candidateClassIds[i];
-    if (!candidatesByClass[cls]) candidatesByClass[cls] = { boxes: [], scores: [], indices: [] };
-    candidatesByClass[cls].boxes.push(candidateBoxes[i]);
-    candidatesByClass[cls].scores.push(candidateScores[i]);
-    candidatesByClass[cls].indices.push(i);
-  }
-
-  const allKeptIndices = [];
-  for (const cls of Object.keys(candidatesByClass)) {
-    const { boxes, scores, indices } = candidatesByClass[cls];
-    const keptLocal = nms(boxes, scores, iouThreshold);
-    allKeptIndices.push(...keptLocal.map((localIdx) => indices[localIdx]));
-  }
+  // Single-class NMS
+  const keptIndices = nms(candidateBoxes, candidateScores, iouThreshold);
 
   // Sort by confidence descending, limit to top 20
-  allKeptIndices.sort((a, b) => candidateScores[b] - candidateScores[a]);
+  keptIndices.sort((a, b) => candidateScores[b] - candidateScores[a]);
 
-  const lesions = allKeptIndices.slice(0, 20).map((i) => {
+  return keptIndices.slice(0, 20).map((i) => {
     const [bx, by, bw, bh] = candidateBoxes[i];
     const cx = bx + bw / 2;
     const cy = by + bh / 2;
     return {
-      class: LESION_CLASSES[candidateClassIds[i]],
+      class: 'acne',
       confidence: Math.round(candidateScores[i] * 100) / 100,
       bbox: [bx, by, bw, bh],
       zone: bboxToZone(cx, cy),
-      // Two-tier: high confidence lesions get scoring impact
       tier: candidateScores[i] >= confThresholdScoring ? 'confirmed' : 'possible',
     };
   });
+}
 
-  return lesions;
+/**
+ * Run all available models on the image.
+ * Returns model-based signal score overrides and lesion detections.
+ *
+ * @param {string} base64Image - Base64-encoded image
+ * @param {object} layer1Features - Features from deterministic image processing
+ * @returns {Promise<object>} Model inference results
+ */
+async function runAllModels(base64Image, layer1Features) {
+  const results = {
+    signalOverrides: {
+      structure: null,
+      hydration: null,
+      sunDamage: null,
+      elasticity: null,
+    },
+    lesions: [],
+    signalConfidence: {
+      structure: 'med',
+      hydration: 'med',
+      inflammation: 'med',
+      sunDamage: 'med',
+      elasticity: 'med',
+    },
+  };
+
+  const promises = [];
+
+  if (skinSignalsSession) {
+    promises.push(
+      runSkinSignalsModel(base64Image)
+        .then((scores) => {
+          if (scores) {
+            results.signalOverrides.structure = scores.structure;
+            results.signalOverrides.hydration = scores.hydration;
+            results.signalOverrides.sunDamage = scores.sunDamage;
+            results.signalOverrides.elasticity = scores.elasticity;
+            results.signalConfidence.structure = 'high';
+            results.signalConfidence.hydration = 'high';
+            results.signalConfidence.sunDamage = 'high';
+            results.signalConfidence.elasticity = 'high';
+          }
+        })
+        .catch((err) => {
+          console.warn('[signal-models] Skin signals model error:', err.message);
+        })
+    );
+  }
+
+  if (acneDetectorSession) {
+    promises.push(
+      runAcneDetector(base64Image)
+        .then((lesions) => {
+          results.lesions = lesions;
+        })
+        .catch((err) => {
+          console.warn('[signal-models] Acne detector error:', err.message);
+        })
+    );
+  }
+
+  await Promise.all(promises);
+
+  return results;
 }
 
 /**
@@ -494,7 +389,8 @@ async function runLesionDetector(base64Image) {
  *
  * Layer 1 (deterministic): strong for inflammation (a*) and sunDamage (ITA),
  *   moderate for structure/hydration/elasticity (texture proxies).
- * Layer 2 (ONNX models): highest reliability when loaded, 0 otherwise.
+ * Layer 2 (v2 unified model): highest reliability when loaded, 0 otherwise.
+ *   Correlations: structure r=0.913, hydration r=0.889, sunDamage r=0.882, elasticity r=0.940
  * Layer 3 (GPT-4o): moderate — excellent semantic understanding but
  *   coarse numerical precision from a vision-language model.
  */
@@ -510,7 +406,7 @@ const BETA_L2_LOADED = {
   structure: 0.9,
   hydration: 0.9,
   inflammation: 0.0, // no Layer 2 model for inflammation
-  sunDamage: 0.0,    // no Layer 2 model for sun damage
+  sunDamage: 0.85,   // v2 model covers sunDamage (r=0.882)
   elasticity: 0.9,
 };
 
@@ -565,7 +461,7 @@ function mergeSignalScores(layer1Scores, layer2Results, layer3Scores) {
 
 /**
  * Apply lesion detection feedback to signal scores.
- * Detected lesions create score penalties for relevant signals,
+ * Detected acne lesions create penalties for inflammation and structure,
  * closing the loop between visual detection and quantitative scoring.
  *
  * Only "confirmed" tier lesions (confidence >= 0.30) affect scores.
@@ -580,39 +476,21 @@ function applyLesionFeedback(signalScores, lesions) {
 
   let inflammationPenalty = 0;
   let structurePenalty = 0;
-  let sunDamagePenalty = 0;
 
   for (const lesion of lesions) {
-    // Only confirmed-tier lesions affect scores (require explicit confirmation)
     if (lesion.tier !== 'confirmed') continue;
     const conf = lesion.confidence;
 
-    switch (lesion.class) {
-      case 'papule':
-      case 'pustule':
-        inflammationPenalty += conf * 4;
-        structurePenalty += conf * 1.5;
-        break;
-      case 'nodule':
-        inflammationPenalty += conf * 8;
-        structurePenalty += conf * 3;
-        break;
-      case 'comedone':
-        structurePenalty += conf * 3;
-        break;
-      case 'macule':
-      case 'patch':
-        sunDamagePenalty += conf * 3;
-        structurePenalty += conf * 1;
-        break;
-    }
+    // Single-class acne detector: apply generalized penalties
+    inflammationPenalty += conf * 5;
+    structurePenalty += conf * 2;
   }
 
   return {
     structure: Math.max(0, Math.round(signalScores.structure - Math.min(25, structurePenalty))),
     hydration: signalScores.hydration,
     inflammation: Math.max(0, Math.round(signalScores.inflammation - Math.min(25, inflammationPenalty))),
-    sunDamage: Math.max(0, Math.round(signalScores.sunDamage - Math.min(15, sunDamagePenalty))),
+    sunDamage: signalScores.sunDamage,
     elasticity: signalScores.elasticity,
   };
 }
@@ -620,13 +498,15 @@ function applyLesionFeedback(signalScores, lesions) {
 module.exports = {
   initModels,
   runAllModels,
-  runLesionDetector,
+  runAcneDetector,
+  runSkinSignalsModel,
   mergeSignalScores,
   applyLesionFeedback,
   bboxToZone,
   LESION_CLASSES,
   // Exported for testing
-  prepareImageTensor,
+  prepareImageTensorV2,
+  prepareDetectorTensor,
   computeIoU,
   nms,
 };

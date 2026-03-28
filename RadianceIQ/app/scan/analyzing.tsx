@@ -47,50 +47,94 @@ const INF_LEN = 785;
 function InfinityLoop({ progress }: { progress: SharedValue<number> }) {
   const phaseA = useSharedValue(0);
   const phaseB = useSharedValue(0);
+  const phaseC = useSharedValue(0);
 
   useEffect(() => {
+    // Primary — fast, bold
     phaseA.value = withRepeat(
-      withTiming(INF_LEN, { duration: 3500, easing: Easing.linear }),
+      withTiming(INF_LEN, { duration: 2800, easing: Easing.linear }),
       -1,
     );
-    phaseB.value = withDelay(600, withRepeat(
-      withTiming(INF_LEN, { duration: 5000, easing: Easing.linear }),
+    // Secondary — medium, offset
+    phaseB.value = withDelay(500, withRepeat(
+      withTiming(INF_LEN, { duration: 4000, easing: Easing.linear }),
+      -1,
+    ));
+    // Tertiary — slow accent
+    phaseC.value = withDelay(1000, withRepeat(
+      withTiming(INF_LEN, { duration: 6000, easing: Easing.linear }),
       -1,
     ));
   }, []);
 
-  const fluidAProps = useAnimatedProps(() => ({
+  // Glow trail — same phase as A, wide + dim = soft bloom
+  const glowProps = useAnimatedProps(() => ({
     strokeDashoffset: -phaseA.value,
-    strokeOpacity: 0.5 + progress.value * 0.5,
+    strokeOpacity: 0.06 + progress.value * 0.1,
   }));
 
+  // Primary trail — bold, bright
+  const fluidAProps = useAnimatedProps(() => ({
+    strokeDashoffset: -phaseA.value,
+    strokeOpacity: 0.55 + progress.value * 0.45,
+  }));
+
+  // Secondary trail
   const fluidBProps = useAnimatedProps(() => ({
     strokeDashoffset: -phaseB.value,
     strokeOpacity: 0.3 + progress.value * 0.4,
   }));
 
+  // Tertiary accent trail — thin, slow
+  const fluidCProps = useAnimatedProps(() => ({
+    strokeDashoffset: -phaseC.value,
+    strokeOpacity: 0.15 + progress.value * 0.25,
+  }));
+
   return (
     <Svg width={INF_W} height={INF_H} viewBox={`0 0 ${INF_W} ${INF_H}`}>
-      {/* Fluid A — primary trail */}
+      {/* Glow — wide, dim bloom behind the primary trail */}
       <AnimatedPath
         d={INF_PATH}
         stroke={Colors.ringAccent}
-        strokeWidth={4}
+        strokeWidth={14}
         fill="none"
         strokeLinecap="round"
-        strokeDasharray={`${INF_LEN * 0.3} ${INF_LEN * 0.7}`}
+        strokeDasharray={`${INF_LEN * 0.35} ${INF_LEN * 0.65}`}
+        animatedProps={glowProps}
+      />
+
+      {/* Trail A — primary, bold */}
+      <AnimatedPath
+        d={INF_PATH}
+        stroke={Colors.ringAccent}
+        strokeWidth={5}
+        fill="none"
+        strokeLinecap="round"
+        strokeDasharray={`${INF_LEN * 0.35} ${INF_LEN * 0.65}`}
         animatedProps={fluidAProps}
       />
 
-      {/* Fluid B — secondary trail, offset timing */}
+      {/* Trail B — secondary */}
       <AnimatedPath
         d={INF_PATH}
         stroke={Colors.primary}
-        strokeWidth={2.5}
+        strokeWidth={3}
         fill="none"
         strokeLinecap="round"
-        strokeDasharray={`${INF_LEN * 0.2} ${INF_LEN * 0.8}`}
+        strokeDasharray={`${INF_LEN * 0.22} ${INF_LEN * 0.78}`}
         animatedProps={fluidBProps}
+      />
+
+      {/* Trail C — thin accent */}
+      <AnimatedPath
+        d={INF_PATH}
+        stroke={Colors.ringAccent}
+        strokeWidth={1.5}
+        fill="none"
+        strokeLinecap="round"
+        strokeDasharray={`${INF_LEN * 0.15} ${INF_LEN * 0.85}`}
+        animatedProps={fluidCProps}
       />
     </Svg>
   );
@@ -379,7 +423,7 @@ export default function AnalyzingScreen() {
         return;
       }
     } catch (err: any) {
-      console.error('[Glowlytics] Persist failed:', err?.message || err);
+      if (__DEV__) console.error('[Glowlytics] Persist failed:', err?.message || err);
       setError('We couldn\u2019t save your results. Please try again.');
       return;
     }
@@ -477,7 +521,7 @@ export default function AnalyzingScreen() {
     // Hard timeout at 45s -- show error instead of navigating with no data
     const tHardTimeout = setTimeout(() => {
       if (!apiDone.current) {
-        console.error('[Glowlytics] Analysis hard timeout at 45s');
+        if (__DEV__) console.error('[Glowlytics] Analysis hard timeout at 45s');
         trackEvent('scan_analysis_timeout', { analysis_time_ms: 45000 });
         setError('Analysis is taking too long. Please check your connection and try again.');
       }
@@ -561,7 +605,7 @@ export default function AnalyzingScreen() {
         }
       })
       .catch((err) => {
-        console.error('[Glowlytics] Analysis failed:', err?.message || err, err?.stack);
+        if (__DEV__) console.error('[Glowlytics] Analysis failed:', err?.message || err);
         trackEvent('scan_analysis_failed', {
           error: String(err?.message || err),
           analysis_time_ms: Date.now() - analysisStartTime.current,
@@ -641,7 +685,50 @@ export default function AnalyzingScreen() {
   // Main render
   // ---------------------------------------------------------------------------
   return (
-    <>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[Colors.gradientStart, Colors.gradientEarly, Colors.gradientMid, Colors.gradientLate, Colors.gradientEnd]}
+        locations={[0, 0.25, 0.45, 0.7, 1]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+
+      <View style={styles.content}>
+        <Animated.View style={[styles.infinityContainer, infinityAnimStyle]}>
+          <InfinityLoop progress={ringProgress} />
+        </Animated.View>
+
+        <View style={styles.messageContainer}>
+          <Animated.Text
+            key={displayedMessage}
+            entering={FadeIn.duration(500)}
+            exiting={FadeOut.duration(500)}
+            style={styles.statusMessage}
+          >
+            {displayedMessage}
+          </Animated.Text>
+        </View>
+
+        {isStreaming && streamedText.length > 0 && (
+          <Animated.View entering={FadeIn.duration(400)} style={styles.streamContainer}>
+            <Text style={styles.streamText} numberOfLines={4} accessibilityLabel="Analysis insight">
+              {streamedText.slice(-200).replace(/^\S*\s/, '')}
+            </Text>
+          </Animated.View>
+        )}
+
+        {slowWarning && !isStreaming && (
+          <Animated.Text
+            entering={FadeIn.duration(300)}
+            style={styles.slowWarning}
+            accessibilityLabel="Analysis is taking longer than expected"
+          >
+            Taking longer than expected...
+          </Animated.Text>
+        )}
+      </View>
+
       {/* XP feedback overlay */}
       {xpFeedback && (
         <Animated.View
@@ -659,59 +746,7 @@ export default function AnalyzingScreen() {
           </View>
         </Animated.View>
       )}
-
-      <View style={styles.container}>
-        {/* Background gradient — smooth 5-stop to avoid visible banding */}
-        <LinearGradient
-          colors={[Colors.gradientStart, Colors.gradientEarly, Colors.gradientMid, Colors.gradientLate, Colors.gradientEnd]}
-          locations={[0, 0.25, 0.45, 0.7, 1]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-
-        <View style={styles.content}>
-          {/* Fluid infinity loop */}
-          <Animated.View style={[styles.infinityContainer, infinityAnimStyle]}>
-            <InfinityLoop progress={ringProgress} />
-          </Animated.View>
-
-          {/* Status message */}
-          <View style={styles.messageContainer}>
-            <Animated.Text
-              key={displayedMessage}
-              entering={FadeIn.duration(500)}
-              exiting={FadeOut.duration(500)}
-              style={styles.statusMessage}
-            >
-              {displayedMessage}
-            </Animated.Text>
-          </View>
-
-          {/* Streamed insight text (Stage 2) */}
-          {isStreaming && streamedText.length > 0 && (
-            <Animated.View
-              entering={FadeIn.duration(400)}
-              style={styles.streamContainer}
-            >
-              <Text style={styles.streamText} numberOfLines={4}>
-                {streamedText.slice(-200).replace(/^\S*\s/, '')}
-              </Text>
-            </Animated.View>
-          )}
-
-          {/* Slow warning */}
-          {slowWarning && !isStreaming && (
-            <Animated.Text
-              entering={FadeIn.duration(300)}
-              style={styles.slowWarning}
-            >
-              Taking longer than expected...
-            </Animated.Text>
-          )}
-        </View>
-      </View>
-    </>
+    </View>
   );
 }
 
@@ -778,8 +813,10 @@ const styles = StyleSheet.create({
     color: Colors.textOnDarkDim,
     fontFamily: FontFamily.sans,
     fontSize: FontSize.md,
+    lineHeight: 22,
     textAlign: 'center',
     marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.md,
   },
   errorButtons: {
     marginTop: Spacing.xl,

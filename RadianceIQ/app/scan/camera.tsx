@@ -149,24 +149,48 @@ export default function CameraScreen() {
   const flashOpacity = useSharedValue(0);
   const buttonScale = useSharedValue(1);
 
-  // Auto-capture: track continuous alignment
+  // Auto-capture: 4s timer starts when aligned, countdown ticks every 1s
+  const autoCaptureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
-    if (trackingState.status === 'aligned' && trackingState.lightingOk && !capturing) {
-      if (!alignedStartRef.current) {
-        alignedStartRef.current = Date.now();
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-      const elapsed = Date.now() - alignedStartRef.current;
-      if (elapsed >= 4000) {
+    const isAligned = trackingState.status === 'aligned' && trackingState.lightingOk && !capturing;
+
+    if (isAligned && !autoCaptureTimer.current) {
+      // Start alignment — haptic feedback + begin countdown
+      alignedStartRef.current = Date.now();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      setAutoCountdown(4);
+
+      // Tick countdown every second
+      countdownInterval.current = setInterval(() => {
+        const start = alignedStartRef.current;
+        if (!start) return;
+        const remaining = Math.ceil((4000 - (Date.now() - start)) / 1000);
+        setAutoCountdown(Math.max(0, remaining));
+      }, 1000);
+
+      // Fire capture after 4s
+      autoCaptureTimer.current = setTimeout(() => {
         handleCaptureRef.current();
-      } else {
-        setAutoCountdown(Math.ceil((4000 - elapsed) / 1000));
-      }
-    } else {
+      }, 4000);
+    } else if (!isAligned && autoCaptureTimer.current) {
+      // Alignment lost — clear everything
+      clearTimeout(autoCaptureTimer.current);
+      autoCaptureTimer.current = null;
+      if (countdownInterval.current) clearInterval(countdownInterval.current);
+      countdownInterval.current = null;
       alignedStartRef.current = null;
       setAutoCountdown(0);
     }
-  }, [trackingState]);
+
+    return () => {
+      if (autoCaptureTimer.current) clearTimeout(autoCaptureTimer.current);
+      autoCaptureTimer.current = null;
+      if (countdownInterval.current) clearInterval(countdownInterval.current);
+      countdownInterval.current = null;
+    };
+  }, [trackingState.status, trackingState.lightingOk, capturing]);
 
   // Lazy-load lesion detection
   useEffect(() => {

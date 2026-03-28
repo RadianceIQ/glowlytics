@@ -276,7 +276,7 @@ app.post('/api/vision/detect-lesions', detectRateLimit, async (req, res) => {
       return res.status(413).json({ error: 'Image too large (max 10MB)' });
     }
 
-    const lesions = await signalModels.runLesionDetector(image_base64);
+    const lesions = await signalModels.runAcneDetector(image_base64);
     res.json({ lesions, latency_ms: Date.now() - start });
   } catch (err) {
     log.warn('[detect-lesions] Error:', err.message);

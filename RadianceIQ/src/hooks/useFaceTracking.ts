@@ -39,7 +39,7 @@ export function useFaceTracking(
 
   const onFacesDetected = useCallback((faces: DetectedFace[], w: number, h: number) => {
     if (!enabled || !warmupDone.current) return;
-    if (w > 0 && h > 0) setFrameDims({ w, h });
+    if (w > 0 && h > 0) setFrameDims((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
     // Use actual camera frame dimensions (not screen dims) since MLKit
     // returns face coords in camera-frame pixel space.
     const fw = w > 0 ? w : frameWidth;
@@ -50,7 +50,14 @@ export function useFaceTracking(
       ...f,
       x: fw - f.x - f.width,
     })) : faces;
-    setTrackingState(analyzeAlignment(mirrored, fw, fh));
+    const next = analyzeAlignment(mirrored, fw, fh);
+    setTrackingState((prev) =>
+      prev.status === next.status &&
+      prev.lightingOk === next.lightingOk &&
+      prev.issues.length === next.issues.length
+        ? prev
+        : next,
+    );
   }, [enabled, frameWidth, frameHeight]);
 
   return {
