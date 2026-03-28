@@ -125,7 +125,8 @@ async function initModels() {
   }
 
   // Auto-download models if missing or incomplete (external-data stub)
-  const GH_BASE = 'https://raw.githubusercontent.com/RadianceIQ/glowlytics/development/RadianceIQ/backend/models';
+  // Pin to commit 18966b9 where models were force-added (removed from HEAD to unblock railway up)
+  const GH_BASE = 'https://raw.githubusercontent.com/RadianceIQ/glowlytics/18966b9/RadianceIQ/backend/models';
   await ensureModel('skin_signals_v2', `${GH_BASE}/skin_signals_v2.onnx`, 10_000_000);
   await ensureModel('acne_detector', `${GH_BASE}/acne_detector.onnx`, 30_000_000);
 
