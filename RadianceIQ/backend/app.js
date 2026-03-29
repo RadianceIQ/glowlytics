@@ -194,9 +194,13 @@ const ALLOWED_USER_FIELDS = [
   'wearable_connected',
   'wearable_source',
   'camera_permission_status',
+  'health_connection',
   'onboarding_complete',
   'trial_start_date',
   'trial_end_date',
+  'skin_goal',
+  'sex',
+  'menstrual_status',
 ];
 
 // ==================== PUBLIC ROUTES (no auth) ====================
@@ -823,6 +827,7 @@ Return ONLY valid JSON matching this schema:
           relevance: r.score,
           signal: r.signal || 'general',
           evidence_level: r.evidence_level || 'C',
+          source_citation: r.source_citation || '',
         }));
       }
     } catch (err) {
@@ -879,12 +884,16 @@ function buildInsightPrompt({ signal_scores, lesions, conditions, zone_severity,
     ? Object.entries(lesionSummary).map(([cls, count]) => `${count} ${cls}(s)`).join(', ')
     : 'No lesions detected';
 
-  const ragText = (rag_context || []).map((r, i) => `[${i + 1}] ${r.text}`).join('\n');
+  const ragText = (rag_context || []).map((r, i) => {
+    const cite = r.source_citation ? ` (${r.source_citation})` : '';
+    const grade = r.evidence_level ? ` [Grade ${r.evidence_level}]` : '';
+    return `[${i + 1}]${grade}${cite} ${r.text}`;
+  }).join('\n');
   const productText = (products || []).map(p => `- ${p.product_name} (${p.usage_schedule})`).join('\n') || 'No products logged';
 
   const system = `You are Glowlytics AI, a personalized skin health advisor. Generate detailed, personalized insights based on the user's scan results and clinical guidelines.
 
-IMPORTANT: Every insight MUST be personalized to THIS user's specific scores, detected conditions, and context. Never use generic advice. Ground recommendations in the clinical guidelines provided.
+IMPORTANT: Every insight MUST be personalized to THIS user's specific scores, detected conditions, and context. Never use generic advice. Ground recommendations in the clinical guidelines provided. When making a recommendation, cite the guideline number in brackets (e.g., "Based on [2]: ..."). Prefer Grade A evidence over B or C when available.
 
 User context:
 - Primary goal: ${user_goal || 'general tracking'}

@@ -171,6 +171,13 @@ DO $$ BEGIN
 END $$;
 `;
 
+// Migration v3: add missing user_profiles columns for onboarding fields
+const migrationV3 = `
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS skin_goal VARCHAR(30);
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS sex VARCHAR(20);
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS menstrual_status VARCHAR(30);
+`;
+
 /**
  * Initialize schema using a provided pool (does NOT close it).
  * Runs CREATE TABLE IF NOT EXISTS + ALTER TABLE for migrations.
@@ -186,6 +193,11 @@ async function initSchema(externalPool) {
     await externalPool.query(migrationV2);
   } catch (err) {
     console.warn('[db-init] Migration v2 warning (may be harmless):', err.message);
+  }
+  try {
+    await externalPool.query(migrationV3);
+  } catch (err) {
+    console.warn('[db-init] Migration v3 warning (may be harmless):', err.message);
   }
 }
 
