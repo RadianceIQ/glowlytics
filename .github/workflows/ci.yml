@@ -60,20 +60,24 @@ jobs:
           path: RadianceIQ/backend/coverage/
           retention-days: 7
 
-  # ─── ONNX Model Availability Check ────────────────────────────
-  model-check:
-    name: ML · Verify Model URLs
+  # ─── Backend ONNX Model Availability ───────────────────────────
+  # The backend auto-downloads these at startup (signal-models.js).
+  # Mobile models (acne_detector, lesion_detector) are bundled in the
+  # IPA/APK via assets/models/ and the expo-asset plugin — no runtime
+  # download needed on the client side.
+  backend-model-check:
+    name: Backend · Verify ONNX Model URLs
     runs-on: ubuntu-latest
+    env:
+      GH_BASE: https://raw.githubusercontent.com/RadianceIQ/glowlytics/18966b9/RadianceIQ/backend/models
     steps:
       - name: Check skin_signals_v2.onnx
         run: |
-          HTTP_CODE=$(curl -sL -o /dev/null -w '%{http_code}' \
-            'https://huggingface.co/mufasabrownie/glowlytics-skin-models/resolve/main/skin_signals_v2.onnx')
+          HTTP_CODE=$(curl -sL -o /dev/null -w '%{http_code}' "${GH_BASE}/skin_signals_v2.onnx")
           echo "skin_signals_v2.onnx → HTTP $HTTP_CODE"
-          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]
+          [ "$HTTP_CODE" = "200" ]
       - name: Check acne_detector.onnx
         run: |
-          HTTP_CODE=$(curl -sL -o /dev/null -w '%{http_code}' \
-            'https://huggingface.co/mufasabrownie/glowlytics-skin-models/resolve/main/acne_detector.onnx')
+          HTTP_CODE=$(curl -sL -o /dev/null -w '%{http_code}' "${GH_BASE}/acne_detector.onnx")
           echo "acne_detector.onnx → HTTP $HTTP_CODE"
-          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]
+          [ "$HTTP_CODE" = "200" ]
