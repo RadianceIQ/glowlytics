@@ -8,6 +8,7 @@ on:
       - 'RadianceIQ/src/**'
       - 'RadianceIQ/assets/**'
       - 'RadianceIQ/app.json'
+      - 'RadianceIQ/eas.json'
       - 'RadianceIQ/package.json'
       - '.github/workflows/deploy-mobile.yml'
   workflow_dispatch:
@@ -43,6 +44,9 @@ concurrency:
 jobs:
   test:
     name: Frontend · Pre-build Test
+    # On push, CI workflow already runs these tests in parallel.
+    # Only run here for manual workflow_dispatch triggers.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -61,11 +65,12 @@ jobs:
   build:
     name: EAS Build (${{ matrix.platform }})
     needs: test
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.profile || 'preview' }}
     strategy:
       matrix:
-        platform: ${{ github.event.inputs.platform == 'all' && fromJSON('["ios", "android"]') || fromJSON(format('["{0}"]', github.event.inputs.platform || 'all')) }}
+        platform: ${{ github.event.inputs.platform == 'all' && fromJSON('["ios", "android"]') || fromJSON(format('["{0}"]', github.event.inputs.platform || 'ios')) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -82,7 +87,7 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build
+      - name: Build (blocks until complete)
         working-directory: RadianceIQ
         run: |
           PROFILE="${{ github.event.inputs.profile || 'preview' }}"
@@ -91,15 +96,12 @@ jobs:
           eas build \
             --platform "$PLATFORM" \
             --profile "$PROFILE" \
-            --non-interactive \
-            --no-wait
+            --non-interactive
 
   submit:
     name: Submit to Store (${{ matrix.platform }})
     needs: build
-    if: |
-      github.event.inputs.submit == 'true' ||
-      (github.event_name == 'push' && false)
+    if: github.event.inputs.submit == 'true'
     runs-on: ubuntu-latest
     environment: production
     strategy:
