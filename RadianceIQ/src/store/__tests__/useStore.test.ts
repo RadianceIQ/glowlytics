@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStore } from '../useStore';
 import { localDateStr } from '../../utils/localDate';
 
@@ -260,6 +261,24 @@ describe('useStore', () => {
 
       useStore.getState().incrementFreeScansUsed();
       expect(useStore.getState().subscription.free_scans_used).toBe(2);
+    });
+
+    it('incrementFreeScansUsed persists to AsyncStorage', async () => {
+      const mockSetItem = AsyncStorage.setItem as jest.Mock;
+      mockSetItem.mockClear();
+
+      useStore.getState().incrementFreeScansUsed();
+      useStore.getState().incrementFreeScansUsed();
+
+      // Wait for debounced persist (50ms timer + execution)
+      await new Promise((r) => setTimeout(r, 100));
+
+      expect(mockSetItem).toHaveBeenCalled();
+      const [key, raw] = mockSetItem.mock.calls[mockSetItem.mock.calls.length - 1];
+      expect(key).toBe('glowlytics_data');
+      expect(raw).not.toBeNull();
+      const persisted = JSON.parse(raw);
+      expect(persisted.subscription.free_scans_used).toBe(2);
     });
 
     it('canPerformScan returns true for user with active trial', () => {
