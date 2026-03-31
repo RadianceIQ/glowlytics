@@ -1282,6 +1282,9 @@ app.get('/api/daily-records/:userId', async (req, res) => {
 
 app.post('/api/model-outputs', async (req, res) => {
   try {
+    const userId = req.auth?.userId;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
     const {
       daily_id, acne_score, sun_damage_score, skin_age_score,
       confidence, primary_driver, recommended_action, escalation_flag,
@@ -1289,6 +1292,15 @@ app.post('/api/model-outputs', async (req, res) => {
       conditions, rag_recommendations, personalized_feedback,
       zone_severity, generated_insights,
     } = req.body;
+
+    // SECURITY: verify the authenticated user owns this daily record
+    const ownership = await pool.query(
+      'SELECT 1 FROM daily_records WHERE daily_id = $1 AND user_id = $2',
+      [daily_id, userId]
+    );
+    if (ownership.rowCount === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
     const result = await pool.query(
       `INSERT INTO model_outputs

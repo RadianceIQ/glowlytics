@@ -249,6 +249,76 @@ describe('Issue #13: RAG seed endpoint requires ADMIN_SECRET', () => {
   });
 });
 
+// ---- IDOR fix: POST /api/model-outputs ownership check ----
+
+describe('POST /api/model-outputs ownership check (IDOR fix)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('returns 403 when authenticated user does not own the daily_id', async () => {
+    // Ownership query returns no matching rows — user does not own this daily_id
+    mockQuery.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+    const res = await request(app)
+      .post('/api/model-outputs')
+      .send({
+        daily_id: 'some-other-users-daily-id',
+        acne_score: 10,
+        sun_damage_score: 5,
+        skin_age_score: 15,
+        confidence: 'high',
+        primary_driver: 'acne',
+        recommended_action: 'Use retinol.',
+      })
+      .expect(403);
+
+    expect(res.body.error).toMatch(/access denied/i);
+
+    // Ownership query should have been called with the daily_id and the authenticated userId
+    const ownershipCall = mockQuery.mock.calls[0];
+    expect(ownershipCall[0]).toMatch(/daily_records/);
+    expect(ownershipCall[1]).toEqual(['some-other-users-daily-id', 'dev-user']);
+  });
+
+  test('returns 201 and inserts when authenticated user owns the daily_id', async () => {
+    const fakeRow = {
+      output_id: 'abc-123',
+      daily_id: 'owned-daily-id',
+      acne_score: 10,
+    };
+
+    // First call: ownership check succeeds (rowCount: 1)
+    mockQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ '?column?': 1 }] });
+    // Second call: INSERT returns the new row
+    mockQuery.mockResolvedValueOnce({ rows: [fakeRow] });
+
+    const res = await request(app)
+      .post('/api/model-outputs')
+      .send({
+        daily_id: 'owned-daily-id',
+        acne_score: 10,
+        sun_damage_score: 5,
+        skin_age_score: 15,
+        confidence: 'high',
+        primary_driver: 'acne',
+        recommended_action: 'Use retinol.',
+      })
+      .expect(201);
+
+    expect(res.body.output_id).toBe('abc-123');
+
+    // Ownership query should have been called first
+    const ownershipCall = mockQuery.mock.calls[0];
+    expect(ownershipCall[0]).toMatch(/daily_records/);
+    expect(ownershipCall[1]).toEqual(['owned-daily-id', 'dev-user']);
+
+    // INSERT should have been called second
+    const insertCall = mockQuery.mock.calls[1];
+    expect(insertCall[0]).toMatch(/INSERT INTO model_outputs/);
+  });
+});
+
 // ---- Issue #11: Rate limiting on vision/analyze ----
 
 describe('Issue #11: Rate limiting on POST /api/vision/analyze', () => {
