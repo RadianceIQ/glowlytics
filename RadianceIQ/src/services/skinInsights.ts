@@ -217,6 +217,7 @@ export const buildOverallSkinInsight = ({
   latestOutput,
   baselineOutput,
   latestDaily,
+  baselineDaily,
   serverSignalScores,
   serverSignalFeatures,
   serverSignalConfidence,
@@ -225,6 +226,7 @@ export const buildOverallSkinInsight = ({
   latestOutput: ModelOutput | null;
   baselineOutput: ModelOutput | null;
   latestDaily: DailyRecord | null;
+  baselineDaily?: DailyRecord | null;
   serverSignalScores?: SignalScores;
   serverSignalFeatures?: SignalFeatures;
   serverSignalConfidence?: SignalConfidence;
@@ -268,9 +270,9 @@ export const buildOverallSkinInsight = ({
         acneRisk: baselineOutput.acne_score,
         sunRisk: baselineOutput.sun_damage_score,
         ageRisk: baselineOutput.skin_age_score,
-        inflammationRisk: baselineOutput.acne_score,
-        pigmentationRisk: baselineOutput.sun_damage_score,
-        textureRisk: baselineOutput.skin_age_score,
+        inflammationRisk: baselineDaily?.scanner_indices?.inflammation_index ?? baselineOutput.acne_score,
+        pigmentationRisk: baselineDaily?.scanner_indices?.pigmentation_index ?? baselineOutput.sun_damage_score,
+        textureRisk: baselineDaily?.scanner_indices?.texture_index ?? baselineOutput.skin_age_score,
       })
     : null;
 

@@ -92,6 +92,7 @@ export default function Home() {
   const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
   const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
   const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
+  const baselineDaily = getLatestDailyForOutput(baseline, dailyRecords);
 
   const getStreak = useStore((s) => s.getStreak);
   const streak = useMemo(() => getStreak(), [dailyRecords, getStreak]);
@@ -102,12 +103,13 @@ export default function Home() {
         latestOutput,
         baselineOutput: baseline,
         latestDaily,
+        baselineDaily,
         serverSignalScores: latestOutput?.signal_scores,
         serverSignalFeatures: latestOutput?.signal_features,
         serverSignalConfidence: latestOutput?.signal_confidence,
         serverLesions: latestOutput?.lesions,
       }),
-    [latestOutput, baseline, latestDaily]
+    [latestOutput, baseline, latestDaily, baselineDaily]
   );
 
   const topStats = useMemo<TopStat[]>(() => {
@@ -127,14 +129,15 @@ export default function Home() {
         ? buildOverallSkinInsight({
             latestOutput: baseline,
             baselineOutput: baseline,
-            latestDaily: null,
+            latestDaily: baselineDaily,
+            baselineDaily,
             serverSignalScores: baseline.signal_scores,
             serverSignalFeatures: baseline.signal_features,
             serverSignalConfidence: baseline.signal_confidence,
             serverLesions: baseline.lesions,
           })
         : null,
-    [baseline],
+    [baseline, baselineDaily],
   );
 
   const signalMovers = useMemo(() => {

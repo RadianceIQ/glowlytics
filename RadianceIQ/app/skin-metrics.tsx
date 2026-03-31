@@ -26,6 +26,7 @@ export default function SkinMetricsScreen() {
   const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
   const baselineOutput = modelOutputs.length > 0 ? modelOutputs[0] : null;
   const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
+  const baselineDaily = getLatestDailyForOutput(baselineOutput, dailyRecords);
 
   const overallInsight = useMemo(
     () =>
@@ -33,12 +34,13 @@ export default function SkinMetricsScreen() {
         latestOutput,
         baselineOutput,
         latestDaily,
+        baselineDaily,
         serverSignalScores: latestOutput?.signal_scores,
         serverSignalFeatures: latestOutput?.signal_features,
         serverSignalConfidence: latestOutput?.signal_confidence,
         serverLesions: latestOutput?.lesions,
       }),
-    [latestOutput, baselineOutput, latestDaily]
+    [latestOutput, baselineOutput, latestDaily, baselineDaily]
   );
 
   return (

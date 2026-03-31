@@ -78,6 +78,7 @@ export default function ProductDetailScreen() {
   const latestOutput = modelOutputs.length > 0 ? modelOutputs[modelOutputs.length - 1] : null;
   const baseline = modelOutputs.length > 0 ? modelOutputs[0] : null;
   const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
+  const baselineDaily = getLatestDailyForOutput(baseline, dailyRecords);
 
   const overallInsight = useMemo(
     () =>
@@ -85,12 +86,13 @@ export default function ProductDetailScreen() {
         latestOutput,
         baselineOutput: baseline,
         latestDaily,
+        baselineDaily,
         serverSignalScores: latestOutput?.signal_scores,
         serverSignalFeatures: latestOutput?.signal_features,
         serverSignalConfidence: latestOutput?.signal_confidence,
         serverLesions: latestOutput?.lesions,
       }),
-    [latestOutput, baseline, latestDaily],
+    [latestOutput, baseline, latestDaily, baselineDaily],
   );
 
   const primaryGoal = protocol?.primary_goal ?? 'acne';

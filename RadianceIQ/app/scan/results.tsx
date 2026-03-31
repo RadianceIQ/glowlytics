@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, useWindowDimensions, View, ViewToken } from 'react-native';
+import { FlatList, StyleSheet, Text, useWindowDimensions, View, ViewToken } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Animated, {
   Easing,
@@ -35,11 +35,9 @@ import {
   buildOverallSkinInsight,
   getLatestDailyForOutput,
 } from '../../src/services/skinInsights';
-import { groupLesionsByType } from '../../src/constants/lesions';
 import { useStore } from '../../src/store/useStore';
 import { trackEvent } from '../../src/services/analytics';
 import { AnimatedFillBar } from '../../src/components/AnimatedFillBar';
-import type { LesionClass } from '../../src/types';
 
 // ---------------------------------------------------------------------------
 // Story page wrapper — each page fills the viewport
@@ -187,18 +185,20 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
   const latestOutput = allOutputs.length > 0 ? allOutputs[allOutputs.length - 1] : null;
   const baselineOutput = allOutputs.length > 0 ? allOutputs[0] : null;
   const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
+  const baselineDaily = getLatestDailyForOutput(baselineOutput, dailyRecords);
 
   const overallInsight = useMemo(
     () => buildOverallSkinInsight({
       latestOutput,
       baselineOutput,
       latestDaily,
+      baselineDaily,
       serverSignalScores: latestOutput?.signal_scores,
       serverSignalFeatures: latestOutput?.signal_features,
       serverSignalConfidence: latestOutput?.signal_confidence,
       serverLesions: latestOutput?.lesions,
     }),
-    [latestOutput, baselineOutput, latestDaily],
+    [latestOutput, baselineOutput, latestDaily, baselineDaily],
   );
 
   useEffect(() => {
@@ -261,13 +261,6 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
     || latestOutput.personalized_feedback
     || templateExplanation
     || 'Your skin analysis is ready. See your signal breakdown below.';
-
-  const lesionGroups = useMemo(
-    () => latestOutput.lesions && latestOutput.lesions.length > 0
-      ? groupLesionsByType(latestOutput.lesions as Array<{ class: LesionClass; zone: string; confidence: number; tier?: string }>)
-      : [],
-    [latestOutput.lesions],
-  );
 
   const handleDone = () => router.replace('/(tabs)/today');
   const scanCount = allOutputs.length;
@@ -401,38 +394,20 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
       ),
     });
 
-    // Page 4: Deep dive (conditional)
-    if (latestOutput.conditions?.length || lesionGroups.length > 0) {
+    // Page 4: Facial analysis (conditional)
+    if (latestOutput.conditions?.length || (latestOutput.lesions && latestOutput.lesions.length > 0)) {
       p.push({
         key: 'deepdive',
         render: () => (
           <StoryPage screenH={screenH} insets={stableInsets}>
-            <Text style={styles.pageTitle}>The full picture</Text>
-            <ScrollView style={styles.deepDiveScroll} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-              <FacialMesh
-                acneScore={latestOutput.acne_score}
-                sunDamageScore={latestOutput.sun_damage_score}
-                skinAgeScore={latestOutput.skin_age_score}
-                conditions={latestOutput.conditions}
-                lesions={latestOutput.lesions}
-                signalConfidence={latestOutput.signal_confidence}
-              />
-              {lesionGroups.length > 0 && (
-                <View style={styles.lesionCards}>
-                  {lesionGroups.map((group) => (
-                    <View key={group.class} style={[styles.lesionCard, { borderLeftColor: group.info.color }]}>
-                      <View style={styles.lesionCardHeader}>
-                        <View style={[styles.lesionDot, { backgroundColor: group.info.color }]} />
-                        <Text style={styles.lesionCardTitle}>
-                          {group.count} {group.info.label}{group.count !== 1 ? 's' : ''}
-                        </Text>
-                      </View>
-                      <Text style={styles.lesionCardDesc} numberOfLines={2}>{group.info.description}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </ScrollView>
+            <FacialMesh
+              acneScore={latestOutput.acne_score}
+              sunDamageScore={latestOutput.sun_damage_score}
+              skinAgeScore={latestOutput.skin_age_score}
+              conditions={latestOutput.conditions}
+              lesions={latestOutput.lesions}
+              signalConfidence={latestOutput.signal_confidence}
+            />
           </StoryPage>
         ),
       });
@@ -481,7 +456,7 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
     });
 
     return p;
-  }, [latestOutput, overallInsight, generatedInsights, explanation, lesionGroups, screenH, stableInsets, hideBottomAction, accentColor, scanCount]);
+  }, [latestOutput, overallInsight, generatedInsights, explanation, screenH, stableInsets, hideBottomAction, accentColor, scanCount]);
 
   const getItemLayout = useCallback(
     (_: unknown, index: number) => ({ length: screenH, offset: screenH * index, index }),
@@ -682,41 +657,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // Page 4: Deep dive
-  deepDiveScroll: {
-    flex: 1,
-  },
-  lesionCards: {
-    gap: Spacing.sm,
-  },
-  lesionCard: {
-    backgroundColor: Colors.surfaceOverlay,
-    borderRadius: BorderRadius.md,
-    borderLeftWidth: 3,
-    padding: Spacing.sm,
-    gap: Spacing.xxs,
-  },
-  lesionCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  lesionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  lesionCardTitle: {
-    color: Colors.text,
-    fontFamily: FontFamily.sansSemiBold,
-    fontSize: FontSize.sm,
-  },
-  lesionCardDesc: {
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.sans,
-    fontSize: FontSize.xs,
-    marginLeft: Spacing.xs + 6,
-  },
 
   // Page 5: Done
   doneCenter: {

@@ -92,117 +92,8 @@ const levelColor = (score: number) => {
 };
 
 // ---------------------------------------------------------------------------
-// Recommendations per signal per level
 // ---------------------------------------------------------------------------
 type Level = 'Excellent' | 'Good' | 'Fair' | 'Poor';
-
-const RECOMMENDATIONS: Record<SignalKey, Record<Level, string[]>> = {
-  hydration: {
-    Excellent: [
-      'Maintain your current routine -- your barrier function is thriving.',
-      'Continue using humectant-based moisturizers to sustain hydration levels.',
-    ],
-    Good: [
-      'Consider layering a hyaluronic acid serum under your moisturizer for a minor boost.',
-      'Track water intake -- aim for at least 2L daily to support trans-epidermal hydration.',
-    ],
-    Fair: [
-      'Increase water intake and introduce a ceramide-based barrier repair cream at night.',
-      'Switch to a gentle, non-foaming cleanser to preserve natural lipids.',
-      'Add a humectant serum (hyaluronic acid or glycerin) to your AM routine.',
-    ],
-    Poor: [
-      'Priority: repair your skin barrier immediately with a rich ceramide moisturizer.',
-      'Avoid all exfoliating actives (AHAs, BHAs, retinoids) until hydration stabilizes.',
-      'Use a humidifier while sleeping and apply occlusive balm over your moisturizer at night.',
-      'Drink at least 2.5L of water daily and reduce caffeine and alcohol intake.',
-    ],
-  },
-  inflammation: {
-    Excellent: [
-      'Your inflammation markers are well controlled -- maintain your current gentle routine.',
-      'Continue avoiding known irritants and keep stress management practices in place.',
-    ],
-    Good: [
-      'Consider adding niacinamide (4-5%) to your routine for mild anti-inflammatory support.',
-      'Monitor for flare triggers -- track diet and stress alongside scan data.',
-    ],
-    Fair: [
-      'Introduce an anti-inflammatory active like azelaic acid (10%) or centella extract.',
-      'Reduce stress through breathing exercises, meditation, or gentle movement.',
-      'Switch to fragrance-free, minimal-ingredient products to reduce irritation sources.',
-    ],
-    Poor: [
-      'Priority: simplify your routine to cleanser, moisturizer, and SPF only.',
-      'Stop all active ingredients for 2 weeks to let inflammation settle.',
-      'Apply cold compresses to inflamed areas and avoid touching your face.',
-      'Consider consulting a dermatologist if inflammation persists beyond 10 days.',
-    ],
-  },
-  sun_damage: {
-    Excellent: [
-      'Excellent UV protection! Maintain daily SPF 30+ and reapply every 2 hours outdoors.',
-      'Continue using antioxidant serums (vitamin C, vitamin E) in your morning routine.',
-    ],
-    Good: [
-      'Ensure you are applying enough sunscreen -- a full teaspoon for the face.',
-      'Consider adding a vitamin C serum in the AM for additional photoprotection.',
-    ],
-    Fair: [
-      'Apply broad-spectrum SPF 30+ every morning, even on cloudy days.',
-      'Add an antioxidant serum (L-ascorbic acid 15-20%) to neutralize free radicals.',
-      'Wear a wide-brim hat and seek shade during peak UV hours (10 AM - 4 PM).',
-    ],
-    Poor: [
-      'Priority: start using SPF 50+ daily and reapply every 90 minutes when outdoors.',
-      'Wear protective clothing, wide-brim hat, and UV-blocking sunglasses.',
-      'Introduce a potent antioxidant blend (vitamins C + E + ferulic acid) each morning.',
-      'Avoid direct sun exposure during peak hours and seek professional assessment.',
-    ],
-  },
-  structure: {
-    Excellent: [
-      'Your skin structure is strong -- keep up your retinoid and peptide routine.',
-      'Maintain consistent sleep and hydration to preserve collagen integrity.',
-    ],
-    Good: [
-      'Consider adding a low-strength retinoid (retinaldehyde or retinol 0.3%) 2-3 nights per week.',
-      'Introduce peptide serums to support collagen synthesis alongside your current routine.',
-    ],
-    Fair: [
-      'Start a retinoid (retinol 0.5%) on alternating nights, building tolerance gradually.',
-      'Add copper peptides or matrixyl to your PM routine for structural support.',
-      'Maintain a consistent routine -- avoid frequent product swaps.',
-    ],
-    Poor: [
-      'Priority: begin with a gentle retinoid (retinyl palmitate) and increase strength over 8 weeks.',
-      'Use peptide-rich serums nightly to stimulate collagen and elastin production.',
-      'Ensure adequate protein and vitamin C intake to support collagen synthesis from within.',
-      'Keep your routine stable for at least 6 weeks before evaluating changes.',
-    ],
-  },
-  elasticity: {
-    Excellent: [
-      'Your elasticity is excellent -- maintain collagen support with retinoids and peptides.',
-      'Continue prioritizing 7-9 hours of sleep for optimal skin repair.',
-    ],
-    Good: [
-      'Consider adding a collagen-boosting supplement (vitamin C, collagen peptides).',
-      'Ensure you are getting 7+ hours of quality sleep to support overnight repair.',
-    ],
-    Fair: [
-      'Start a retinoid 2-3 nights per week to stimulate collagen and improve elasticity.',
-      'Prioritize sleep hygiene -- aim for 7-9 hours of uninterrupted sleep.',
-      'Introduce peptide serums (palmitoyl pentapeptide) for targeted firmness support.',
-    ],
-    Poor: [
-      'Priority: begin a retinoid protocol and commit to nightly peptide application.',
-      'Sleep is critical -- optimize for 8+ hours and keep a consistent schedule.',
-      'Add bakuchiol as a gentle retinol alternative if your skin is too sensitive for retinoids.',
-      'Consider professional treatments (microneedling, LED therapy) for accelerated results.',
-    ],
-  },
-};
 
 // ---------------------------------------------------------------------------
 // Gauge — Circle-based for smooth native animation via strokeDashoffset
@@ -289,19 +180,22 @@ export default function SignalDetailScreen() {
 
   const latestOutput = getLatestOutput();
   const latestDaily = getLatestDailyForOutput(latestOutput, dailyRecords);
+  const baselineOutput = modelOutputs.length > 0 ? modelOutputs[0] : null;
+  const baselineDaily = getLatestDailyForOutput(baselineOutput, dailyRecords);
 
   const insight = useMemo(
     () =>
       buildOverallSkinInsight({
         latestOutput,
-        baselineOutput: modelOutputs.length > 0 ? modelOutputs[0] : null,
+        baselineOutput,
         latestDaily,
+        baselineDaily,
         serverSignalScores: latestOutput?.signal_scores,
         serverSignalFeatures: latestOutput?.signal_features,
         serverSignalConfidence: latestOutput?.signal_confidence,
         serverLesions: latestOutput?.lesions,
       }),
-    [latestOutput, latestDaily, modelOutputs],
+    [latestOutput, latestDaily, baselineOutput, baselineDaily],
   );
 
   const hasData = insight !== null;
@@ -334,8 +228,9 @@ export default function SignalDetailScreen() {
         if (!output) return null;
         const dayInsight = buildOverallSkinInsight({
           latestOutput: output,
-          baselineOutput: modelOutputs.length > 0 ? modelOutputs[0] : null,
+          baselineOutput,
           latestDaily: record,
+          baselineDaily,
           serverSignalScores: output?.signal_scores,
           serverSignalFeatures: output?.signal_features,
           serverSignalConfidence: output?.signal_confidence,
@@ -377,8 +272,14 @@ export default function SignalDetailScreen() {
   const headerAnim = useCalmFadeIn(0);
   const gaugeAnim = useCalmFadeIn(120);
 
-  const recommendations = RECOMMENDATIONS[signalKey]?.[level] || [];
   const generatedInsight = latestOutput?.generated_insights?.signal_insights?.[signalProperty(signalKey)];
+
+  // Filter RAG guidelines to this signal + general
+  const signalGuidelines = useMemo(() => {
+    const recs = latestOutput?.rag_recommendations;
+    if (!recs || recs.length === 0) return [];
+    return recs.filter((r) => r.signal === signalProperty(signalKey) || r.signal === 'general');
+  }, [latestOutput?.rag_recommendations, signalKey]);
 
   const formatShortDate = (dateStr: string) => {
     const [, m, d] = dateStr.split('-');
@@ -520,7 +421,7 @@ export default function SignalDetailScreen() {
               )}
             </Animated.View>
 
-            {/* ── Recommendations ── */}
+            {/* ── Recommendations (AI-generated when available) ── */}
             <Animated.View
               entering={FadeInDown.delay(550).duration(400)}
               style={[styles.recsCard, { borderLeftColor: color }]}
@@ -536,34 +437,48 @@ export default function SignalDetailScreen() {
                   </View>
                 </View>
               ) : (
-                recommendations.map((rec, i) => (
-                  <View key={i} style={styles.recRow}>
-                    <View style={[styles.recDot, { backgroundColor: color }]} />
-                    <Text style={styles.recText}>{rec}</Text>
-                  </View>
-                ))
+                <Text style={styles.noDataText}>
+                  Personalized recommendations require an active scan with internet connection.
+                </Text>
               )}
               <Text style={styles.disclaimer}>
                 For informational purposes only. Not medical advice. Consult a dermatologist for diagnosis and treatment.
               </Text>
             </Animated.View>
 
-            {/* ── Clinical Guidelines from RAG ── */}
-            {latestOutput?.rag_recommendations && latestOutput.rag_recommendations.length > 0 && (
+            {/* ── Clinical Guidelines — filtered to this signal ── */}
+            {signalGuidelines.length > 0 && (
               <Animated.View
                 entering={FadeInDown.delay(700).duration(400)}
                 style={[styles.recsCard, { borderLeftColor: Colors.primary }]}
               >
                 <Text style={styles.cardTitle}>Clinical Guidelines</Text>
-                {latestOutput.rag_recommendations.map((rec, i) => (
-                  <View key={i} style={styles.recRow}>
-                    <View style={[styles.recDot, { backgroundColor: Colors.primary }]} />
-                    <View style={styles.recContent}>
+                {signalGuidelines.map((rec, i) => (
+                  <View key={i} style={styles.guidelineRow}>
+                    <View style={styles.guidelineHeader}>
                       <Text style={styles.ragCategory}>
                         {rec.category.replace(/_/g, ' ').toUpperCase()}
                       </Text>
-                      <Text style={styles.recText}>{rec.text}</Text>
+                      <View style={[
+                        styles.evidenceBadge,
+                        rec.evidence_level === 'A' ? styles.evidenceA
+                          : rec.evidence_level === 'B' ? styles.evidenceB
+                          : styles.evidenceC,
+                      ]}>
+                        <Text style={[
+                          styles.evidenceBadgeText,
+                          rec.evidence_level === 'A' ? styles.evidenceAText
+                            : rec.evidence_level === 'B' ? styles.evidenceBText
+                            : styles.evidenceCText,
+                        ]}>
+                          Grade {rec.evidence_level || 'C'}
+                        </Text>
+                      </View>
                     </View>
+                    <Text style={styles.recText}>{rec.text}</Text>
+                    {rec.source_citation ? (
+                      <Text style={styles.sourceCitation}>{rec.source_citation}</Text>
+                    ) : null}
                   </View>
                 ))}
               </Animated.View>
@@ -805,12 +720,56 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     lineHeight: FontSize.md * 1.5,
   },
+  guidelineRow: {
+    marginBottom: Spacing.md,
+    gap: Spacing.xs,
+  },
+  guidelineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xxs,
+  },
   ragCategory: {
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.xs,
     color: Colors.textMuted,
     letterSpacing: 0.8,
-    marginBottom: Spacing.xxs,
+  },
+  evidenceBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  evidenceA: {
+    backgroundColor: Colors.success + '18',
+  },
+  evidenceB: {
+    backgroundColor: Colors.warning + '18',
+  },
+  evidenceC: {
+    backgroundColor: Colors.textDim + '18',
+  },
+  evidenceBadgeText: {
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 9,
+    letterSpacing: 0.5,
+  },
+  evidenceAText: {
+    color: Colors.success,
+  },
+  evidenceBText: {
+    color: Colors.warning,
+  },
+  evidenceCText: {
+    color: Colors.textDim,
+  },
+  sourceCitation: {
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.xxs,
+    color: Colors.textDim,
+    fontStyle: 'italic',
+    marginTop: Spacing.xxs,
   },
   disclaimer: {
     fontFamily: FontFamily.sans,
