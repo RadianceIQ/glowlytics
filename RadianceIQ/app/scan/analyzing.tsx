@@ -227,7 +227,7 @@ export default function AnalyzingScreen() {
 
   const progressForStage = (stage: number) => {
     if (stage <= 5) return (stage + 1) / STAGES.length;
-    if (stage === 6) return 0.66;
+    if (stage === 6) return 0.70;
     if (stage === 7) return 0.85;
     return 1;
   };
