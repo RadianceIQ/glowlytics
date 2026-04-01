@@ -2,6 +2,8 @@ import type { LesionClass } from '../types';
 
 export interface LesionInfo {
   label: string;
+  /** Plain-language subtitle shown below the clinical name */
+  subtitle: string;
   description: string;
   severity: 'mild' | 'moderate' | 'severe';
   signalImpact: string;
@@ -13,6 +15,7 @@ export interface LesionInfo {
 export const LESION_INFO: Record<LesionClass, LesionInfo> = {
   acne: {
     label: 'Acne Lesion',
+    subtitle: 'detected blemish',
     description: 'Detected acne blemish (pimple, clogged pore, or inflamed bump)',
     severity: 'moderate',
     signalImpact: 'Affects inflammation + structure',
@@ -21,6 +24,7 @@ export const LESION_INFO: Record<LesionClass, LesionInfo> = {
   },
   comedone: {
     label: 'Comedone',
+    subtitle: 'clogged pore',
     description: 'Clogged pore (blackhead or whitehead)',
     severity: 'mild',
     signalImpact: 'Affects structure score',
@@ -29,6 +33,7 @@ export const LESION_INFO: Record<LesionClass, LesionInfo> = {
   },
   papule: {
     label: 'Papule',
+    subtitle: 'inflammatory bump',
     description: 'Small raised inflamed bump',
     severity: 'moderate',
     signalImpact: 'Affects inflammation + structure',
@@ -37,6 +42,7 @@ export const LESION_INFO: Record<LesionClass, LesionInfo> = {
   },
   pustule: {
     label: 'Pustule',
+    subtitle: 'pus-filled bump',
     description: 'Pus-filled inflamed lesion',
     severity: 'moderate',
     signalImpact: 'Affects inflammation + structure',
@@ -45,6 +51,7 @@ export const LESION_INFO: Record<LesionClass, LesionInfo> = {
   },
   nodule: {
     label: 'Nodule',
+    subtitle: 'deep inflammation',
     description: 'Deep, painful inflammatory lesion',
     severity: 'severe',
     signalImpact: 'Strongly affects inflammation + structure',
@@ -53,6 +60,7 @@ export const LESION_INFO: Record<LesionClass, LesionInfo> = {
   },
   macule: {
     label: 'Macule',
+    subtitle: 'dark spot',
     description: 'Flat discolored spot (post-inflammatory)',
     severity: 'mild',
     signalImpact: 'Affects sun damage + structure',
@@ -61,6 +69,7 @@ export const LESION_INFO: Record<LesionClass, LesionInfo> = {
   },
   patch: {
     label: 'Patch',
+    subtitle: 'pigmented area',
     description: 'Larger flat pigmented area',
     severity: 'moderate',
     signalImpact: 'Affects sun damage + structure',
@@ -87,6 +96,7 @@ export function groupLesionsByType(lesions: Array<{ class: LesionClass; zone: st
 
   const FALLBACK_INFO: LesionInfo = {
     label: 'Lesion',
+    subtitle: 'detected lesion',
     description: 'Detected skin lesion',
     severity: 'mild',
     signalImpact: 'Under assessment',

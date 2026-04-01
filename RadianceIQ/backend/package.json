@@ -6,6 +6,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "db:init": "node db-init.js",
+    "postinstall": "bash scripts/download-models.sh || echo 'Model download skipped'",
     "test": "jest"
   },
   "dependencies": {

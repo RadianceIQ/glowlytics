@@ -462,6 +462,16 @@ export default function CameraScreen() {
           <Feather name="chevron-left" size={28} color={Colors.textOnDark} />
         </TouchableOpacity>
 
+        {/* Lesion count badge — shows when lesions are detected */}
+        {detectedLesions.length > 0 && (
+          <View style={styles.lesionBadge}>
+            <View style={styles.lesionBadgeDot} />
+            <Text style={styles.lesionBadgeText}>
+              {detectedLesions.length} detected
+            </Text>
+          </View>
+        )}
+
         {!trackingState.lightingUnavailable && (
           <View style={[
             styles.lightingPill,
@@ -580,6 +590,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  lesionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm + 2,
+    backgroundColor: 'rgba(125, 231, 225, 0.18)',
+  },
+  lesionBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.ringAccent,
+  },
+  lesionBadgeText: {
+    color: Colors.ringAccent,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.xxs,
+    letterSpacing: 0.5,
   },
   lightingPill: {
     flexDirection: 'row',

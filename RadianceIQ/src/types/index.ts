@@ -158,6 +158,7 @@ export interface RagRecommendation {
   relevance: number;
   signal?: string;
   evidence_level?: 'A' | 'B' | 'C';
+  source_citation?: string;
 }
 
 // Subscription

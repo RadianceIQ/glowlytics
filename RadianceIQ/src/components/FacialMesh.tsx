@@ -73,6 +73,9 @@ const regionCenter: Record<HotZone['region'], { cx: number; cy: number }> = {
 };
 
 function deriveHotZones(acne: number, sun: number, age: number, conditions?: DetectedCondition[]): HotZone[] {
+  // Use real condition data from the backend analysis when available.
+  // Each condition has specific zones with severity — this is the only
+  // source of truth for WHERE on the face issues appear.
   if (conditions && conditions.length > 0) {
     const zones: HotZone[] = [];
     for (const condition of conditions) {
@@ -88,26 +91,13 @@ function deriveHotZones(acne: number, sun: number, age: number, conditions?: Det
         });
       }
     }
-    if (zones.length === 0) {
-      zones.push({ label: 'All clear', severity: 'low', region: 'nose' });
-    }
-    return zones;
+    if (zones.length > 0) return zones;
   }
 
-  const zones: HotZone[] = [];
-  if (acne > 40)
-    zones.push({ label: 'Acne activity', severity: acne > 70 ? 'elevated' : 'moderate', region: 'left_cheek' });
-  if (acne > 55)
-    zones.push({ label: 'Breakout zone', severity: acne > 75 ? 'elevated' : 'moderate', region: 'chin' });
-  if (sun > 45)
-    zones.push({ label: 'Sun exposure', severity: sun > 70 ? 'elevated' : 'moderate', region: 'forehead' });
-  if (sun > 55)
-    zones.push({ label: 'Pigmentation', severity: sun > 70 ? 'elevated' : 'moderate', region: 'right_cheek' });
-  if (age > 50)
-    zones.push({ label: 'Fine lines', severity: age > 70 ? 'elevated' : 'moderate', region: 'nose' });
-  if (zones.length === 0)
-    zones.push({ label: 'All clear', severity: 'low', region: 'nose' });
-  return zones;
+  // No condition data from backend — show only score-level summary
+  // without fabricating zone positions. We don't know WHERE on the face
+  // issues are, only that scores indicate concern.
+  return [{ label: 'All clear', severity: 'low', region: 'nose' }];
 }
 
 export const FacialMesh: React.FC<Props> = ({ acneScore, sunDamageScore, skinAgeScore, conditions, lesions, signalConfidence }) => {
@@ -162,35 +152,34 @@ export const FacialMesh: React.FC<Props> = ({ acneScore, sunDamageScore, skinAge
             );
           })}
 
-          {/* Lesion bounding boxes — corner bracket style, compressed to match mesh */}
+          {/* Lesion markers — positioned by zone center, compressed to match mesh */}
           {hasLesions && lesions.map((lesion, i) => {
-            const [bx, by, bw, bh] = lesion.bbox;
-            const rawX = bx * SVG_WIDTH;
-            const x = 150 + (rawX - 150) * 0.86; // match mesh compression
-            const y = by * SVG_HEIGHT;
-            const w = bw * SVG_WIDTH;
-            const h = bh * SVG_HEIGHT;
+            const zone = (lesion.zone || 'nose') as HotZone['region'];
+            const center = regionCenter[zone] || regionCenter.nose;
+            // Apply same 0.86 horizontal compression as mesh and hot zones
+            const baseCx = 150 + (center.cx - 150) * 0.86;
+            const baseCy = center.cy;
+            // Spread multiple lesions in the same zone so they don't stack
+            const zoneIndex = lesions.slice(0, i).filter((l) => (l.zone || 'nose') === zone).length;
+            const spreadX = (zoneIndex % 3 - 1) * 14;
+            const spreadY = Math.floor(zoneIndex / 3) * 12;
+            const markerCx = baseCx + spreadX;
+            const markerCy = baseCy + spreadY;
             const color = LESION_COLORS[lesion.class] || Colors.error;
-            const opacity = Math.max(0.4, Math.min(0.9, lesion.confidence));
-            const cl = Math.min(w * 0.25, 10);
-            const clY = Math.min(h * 0.25, 10);
-            const x1 = x, y1 = y, x2 = x + w, y2 = y + h;
-            const cx = x + w / 2, cy = y + h / 2;
+            const opacity = Math.max(0.35, Math.min(0.95, lesion.confidence));
+            const r = 8;
 
             return (
-              <G key={`lesion-${i}`} opacity={opacity}>
-                <Line x1={x1} y1={y1 + 2} x2={x1} y2={y1 + clY} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-                <Line x1={x1 + 2} y1={y1} x2={x1 + cl} y2={y1} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-                <Line x1={x2 - cl} y1={y1} x2={x2 - 2} y2={y1} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-                <Line x1={x2} y1={y1 + 2} x2={x2} y2={y1 + clY} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-                <Line x1={x1} y1={y2 - clY} x2={x1} y2={y2 - 2} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-                <Line x1={x1 + 2} y1={y2} x2={x1 + cl} y2={y2} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-                <Line x1={x2 - cl} y1={y2} x2={x2 - 2} y2={y2} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-                <Line x1={x2} y1={y2 - clY} x2={x2} y2={y2 - 2} stroke={color} strokeWidth={1.5} strokeLinecap="round" />
-                <Line x1={x1 + cl} y1={y1} x2={x2 - cl} y2={y1} stroke={color} strokeWidth={0.4} strokeDasharray="2 6" opacity={0.5} />
-                <Line x1={x1 + cl} y1={y2} x2={x2 - cl} y2={y2} stroke={color} strokeWidth={0.4} strokeDasharray="2 6" opacity={0.5} />
-                <Circle cx={cx} cy={cy} r={2} fill={color} opacity={0.7} />
-                <Circle cx={cx} cy={cy} r={5} fill="none" stroke={color} strokeWidth={0.5} opacity={0.4} />
+              <G key={`lesion-${lesion.trackId || i}`} opacity={opacity}>
+                {/* Outer pulse ring */}
+                <Circle cx={markerCx} cy={markerCy} r={r + 4} fill="none"
+                  stroke={color} strokeWidth={0.6} opacity={0.3} strokeDasharray="2 4" />
+                {/* Solid marker */}
+                <Circle cx={markerCx} cy={markerCy} r={r} fill={color} opacity={0.2} />
+                <Circle cx={markerCx} cy={markerCy} r={r} fill="none"
+                  stroke={color} strokeWidth={1.2} />
+                {/* Center dot */}
+                <Circle cx={markerCx} cy={markerCy} r={2} fill={color} />
               </G>
             );
           })}
@@ -219,7 +208,7 @@ export const FacialMesh: React.FC<Props> = ({ acneScore, sunDamageScore, skinAge
               {lesions.length} lesion{lesions.length !== 1 ? 's' : ''} detected
             </Text>
             <Text style={[styles.legendSeverity, { color: Colors.error }]}>
-              {lesions.filter(l => l.confidence > 0.7).length} high conf
+              {lesions.filter(l => (l.tier || 'possible') === 'confirmed').length} confirmed
             </Text>
           </View>
         )}

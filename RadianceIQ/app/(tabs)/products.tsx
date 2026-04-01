@@ -24,6 +24,11 @@ import {
   getLatestDailyForOutput,
 } from '../../src/services/skinInsights';
 import { trackEvent } from '../../src/services/analytics';
+import {
+  sortByApplicationOrder,
+  detectConflicts,
+  generateAdjustments,
+} from '../../src/services/routineBuilder';
 
 // ---------------------------------------------------------------------------
 // Schedule color palette — warm/cool temporal rhythm
@@ -209,6 +214,37 @@ export default function ProductsTab() {
   const insight = useMemo(() => buildInsight(productData, routineScore), [productData, routineScore]);
   const grouped = useMemo(() => groupBySchedule(productData), [productData]);
 
+  // Smart ordering: sort products within each schedule group by application order
+  const sortedGrouped = useMemo(() => {
+    const result = new Map<ScheduleGroup, (ProductDatum & { timingLabel?: string })[]>();
+    for (const [schedule, items] of grouped) {
+      if (!items) continue;
+      const prods = items.map((d) => d.product);
+      const sorted = sortByApplicationOrder(prods, schedule === 'PM' ? 'PM' : 'AM');
+      result.set(
+        schedule,
+        sorted.map((cat) => {
+          const original = items.find((d) => d.product.user_product_id === cat.product.user_product_id);
+          return { ...original!, timingLabel: cat.timingLabel };
+        }),
+      );
+    }
+    return result;
+  }, [grouped]);
+
+  // Conflict detection: find ingredient conflicts in PM products
+  const conflicts = useMemo(() => {
+    const pmProducts = (grouped.get('PM') || []).map((d) => d.product);
+    const amProducts = (grouped.get('AM') || []).map((d) => d.product);
+    return [...detectConflicts(pmProducts), ...detectConflicts(amProducts)];
+  }, [grouped]);
+
+  // Signal-driven adjustment tips
+  const adjustments = useMemo(() => {
+    if (!overallInsight?.signals) return [];
+    return generateAdjustments(products, overallInsight.signals);
+  }, [products, overallInsight]);
+
   const openAdd = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     trackEvent('product_add_sheet_opened', { source: 'products_tab' });
@@ -261,13 +297,28 @@ export default function ProductsTab() {
         </View>
       )}
 
+      {/* Signal-driven adjustment tips */}
+      {adjustments.length > 0 && (
+        <View style={styles.adjustmentSection}>
+          {adjustments.map((tip, i) => (
+            <View key={i} style={styles.adjustmentTip}>
+              <Feather name={tip.color === 'warning' ? 'alert-circle' : 'info'} size={14} color={tip.color === 'warning' ? Colors.warning : Colors.primary} />
+              <Text style={styles.adjustmentText}>{tip.text}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* Grouped product list */}
       {productData.length > 0 ? (
         <View style={styles.sections}>
           {SCHEDULE_ORDER.map((schedule) => {
-            const items = grouped.get(schedule);
+            const items = sortedGrouped.get(schedule);
             if (!items || items.length === 0) return null;
             const palette = SCHEDULE_PALETTE[schedule];
+            const sectionConflicts = conflicts.filter((c) =>
+              items.some((d) => d.product.product_name === c.productA || d.product.product_name === c.productB)
+            );
 
             return (
               <View
@@ -302,6 +353,7 @@ export default function ProductsTab() {
                       product={d.product}
                       score={d.score}
                       topContributor={d.topContributor}
+                      timingLabel={d.timingLabel}
                       onPress={() =>
                         router.push({
                           pathname: '/product/[id]',
@@ -311,6 +363,21 @@ export default function ProductsTab() {
                     />
                   ))}
                 </View>
+
+                {/* Ingredient conflict warnings */}
+                {sectionConflicts.length > 0 && (
+                  <View style={styles.conflictSection}>
+                    {sectionConflicts.map((c, i) => (
+                      <View key={i} style={styles.conflictBanner}>
+                        <Feather name="alert-triangle" size={14} color={Colors.warning} />
+                        <View style={styles.conflictTextWrap}>
+                          <Text style={styles.conflictMessage}>{c.productA} + {c.productB}</Text>
+                          <Text style={styles.conflictResolution}>{c.resolution}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             );
           })}
@@ -473,6 +540,55 @@ const styles = StyleSheet.create({
   },
   sectionList: {
     gap: Spacing.sm,
+  },
+  // Conflicts
+  conflictSection: {
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  conflictBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: Colors.warning + '10',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.warning,
+  },
+  conflictTextWrap: {
+    flex: 1,
+    gap: Spacing.xxs,
+  },
+  conflictMessage: {
+    color: Colors.text,
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: FontSize.sm,
+  },
+  conflictResolution: {
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sans,
+    fontSize: FontSize.xs,
+  },
+  // Adjustments
+  adjustmentSection: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  adjustmentTip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+  },
+  adjustmentText: {
+    flex: 1,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.sm,
+    lineHeight: 20,
   },
   // Add row
   addRow: {

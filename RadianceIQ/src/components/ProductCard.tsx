@@ -16,6 +16,7 @@ interface Props {
   product: ProductEntry;
   score?: number;
   topContributor?: string;
+  timingLabel?: string;
   onPress: () => void;
 }
 
@@ -73,7 +74,7 @@ function cardBg(score?: number): string {
   return Colors.glass;
 }
 
-export const ProductCard: React.FC<Props> = ({ product, score, topContributor, onPress }) => {
+export const ProductCard: React.FC<Props> = ({ product, score, topContributor, timingLabel, onPress }) => {
   const safe = score !== undefined && Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : undefined;
 
   return (
@@ -87,9 +88,11 @@ export const ProductCard: React.FC<Props> = ({ product, score, topContributor, o
         <View style={styles.topRow}>
           <View style={styles.nameCol}>
             <Text style={styles.productName} numberOfLines={1}>{product.product_name}</Text>
-            {product.brand && (
+            {timingLabel ? (
+              <Text style={styles.timingLabel} numberOfLines={1}>{timingLabel}</Text>
+            ) : product.brand ? (
               <Text style={styles.brand} numberOfLines={1}>{product.brand}</Text>
-            )}
+            ) : null}
           </View>
           {safe !== undefined && <ScoreRing score={safe} />}
         </View>
@@ -152,6 +155,12 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: FontFamily.sansMedium,
     fontSize: FontSize.xs,
+  },
+  timingLabel: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.xxs,
+    letterSpacing: 0.5,
   },
   metaRow: {
     flexDirection: 'row',

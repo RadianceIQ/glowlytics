@@ -464,6 +464,7 @@ describe('POST /api/vision/analyze', () => {
       relevance: 0.92,
       signal: 'inflammation',
       evidence_level: 'A',
+      source_citation: '',
     });
     expect(res.body.rag_recommendations[1].category).toBe('acne_management');
 

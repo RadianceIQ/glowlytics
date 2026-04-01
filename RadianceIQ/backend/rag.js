@@ -578,6 +578,7 @@ const GUIDELINE_CHUNKS = [
     signal: 'general',
     evidence_level: 'A',
     fitzpatrick_range: 'all',
+    source_citation: 'AAD 2024 Acne Guidelines',
   },
   {
     id: 'dermatologist-referral-02',
@@ -586,6 +587,163 @@ const GUIDELINE_CHUNKS = [
     signal: 'general',
     evidence_level: 'B',
     fitzpatrick_range: 'all',
+    source_citation: 'JAAD 2020 Teledermatology Review',
+  },
+
+  // ==================== MEN'S SKIN HEALTH (3 chunks) ====================
+  {
+    id: 'mens-skin-pfb-01',
+    text: 'Pseudofolliculitis Barbae (PFB): Affects up to 83% of Black men and 20% of White men who shave. Curved hair re-enters the skin causing inflammatory papules and pustules. Prevention: single-blade razors or electric trimmers set to leave 1mm stubble, shave with the grain only, warm compress pre-shave. Treatment: topical retinoids (tretinoin 0.025%) to prevent follicular plugging, benzoyl peroxide 5% wash, glycolic acid 8% lotion. Laser hair removal (Nd:YAG 1064nm) is the definitive treatment for recurrent PFB.',
+    category: 'mens_skin_health',
+    signal: 'inflammation',
+    evidence_level: 'A',
+    fitzpatrick_range: 'all',
+    source_citation: 'AFP 2023 PFB Management',
+  },
+  {
+    id: 'mens-skin-truncal-01',
+    text: 'Male Truncal Acne: Chest and back acne is more common in men due to higher androgen levels and greater sebaceous gland density. Treatment requires higher-strength topical agents: benzoyl peroxide 5-10% wash (leave on 2-3 minutes), adapalene 0.3% for chest. Oral doxycycline 100mg x 3 months for moderate-severe truncal acne. Body sprays and tight athletic wear worsen truncal acne (acne mechanica). Shower within 30 minutes after exercise.',
+    category: 'mens_skin_health',
+    signal: 'inflammation',
+    evidence_level: 'B',
+    fitzpatrick_range: 'all',
+    source_citation: 'AAD 2024 Acne Guidelines',
+  },
+  {
+    id: 'mens-sun-compliance-01',
+    text: 'Men\'s Sunscreen Compliance: Men are 2x less likely to use sunscreen than women (CDC NHIS 2019). Men have 55% higher melanoma mortality. Barriers: texture preferences, perceived femininity, lack of habit. Solutions: SPF-containing moisturizers or aftershave reduce application friction. Mineral stick sunscreens are faster to apply for active use. Daily SPF use reduces melanoma risk by 50% (Green 2011 Nambour trial). Brief clinician counseling increases compliance 3-fold.',
+    category: 'mens_skin_health',
+    signal: 'sunDamage',
+    evidence_level: 'A',
+    fitzpatrick_range: 'all',
+    source_citation: 'JCO 2011 Nambour Trial; CDC NHIS 2019',
+  },
+
+  // ==================== BARRIER REPAIR & SENSITIVE SKIN (2 chunks) ====================
+  {
+    id: 'over-exfoliation-01',
+    text: 'Over-Exfoliation Recovery: Signs include persistent stinging, redness, increased breakouts paradoxically, shiny "glass skin" appearance (stratum corneum thinning), and intolerance to previously tolerated products. Immediate protocol: stop ALL actives (retinoids, AHA/BHA, vitamin C, scrubs). Use only: gentle cleanser (CeraVe, Vanicream), ceramide moisturizer 2x daily, SPF 30+. Timeline: barrier recovery takes 14-28 days. Reintroduce one active at a time, starting lowest concentration, every 2 weeks.',
+    category: 'barrier_repair',
+    signal: 'hydration',
+    evidence_level: 'B',
+    fitzpatrick_range: 'all',
+    source_citation: 'BAD 2023 Barrier Dysfunction Guidelines',
+  },
+  {
+    id: 'sensitive-skin-classification-01',
+    text: 'Sensitive Skin Classification: Type 1 (stinging) responds to capsaicin, lactic acid — avoid these ingredients. Type 2 (burning) is barrier-dysfunction driven — treat with ceramides. Type 3 (allergic) requires patch testing — common culprits: fragrance, methylisothiazolinone, propylene glycol. Type 4 (acne-type) reacts to comedogenic ingredients. Prevalence: 60-70% of women, 50-60% of men report sensitive skin. True sensitive skin (confirmed by dermatologist) affects ~20%. Management: minimal ingredient count, fragrance-free, pH 4.5-5.5.',
+    category: 'barrier_repair',
+    signal: 'hydration',
+    evidence_level: 'B',
+    fitzpatrick_range: 'all',
+    source_citation: 'EADV 2023 Sensitive Skin Consensus',
+  },
+
+  // ==================== HYPERPIGMENTATION (2 chunks) ====================
+  {
+    id: 'melasma-management-01',
+    text: 'Melasma Management: Melasma is distinct from PIH — it is hormonally driven (estrogen, progesterone) and UV-activated. Triple combination cream (hydroquinone 4% + tretinoin 0.05% + fluocinolone 0.01%) is gold standard (Grade A). Oral tranexamic acid 250mg 2x/day shows 49% improvement in melasma severity (MASI score) at 12 weeks with minimal side effects. Strict SPF 50+ with iron oxide (tinted) blocks visible light which triggers melasma in darker skin. Avoid waxing and laser in active melasma.',
+    category: 'hyperpigmentation',
+    signal: 'sunDamage',
+    evidence_level: 'A',
+    fitzpatrick_range: 'all',
+    source_citation: 'AAD 2023 Melasma Guidelines; JAAD 2022 Tranexamic Acid Review',
+  },
+  {
+    id: 'tyrosinase-inhibitors-01',
+    text: 'Tyrosinase Inhibitor Comparison: Hydroquinone 2-4% is most potent but limited to 3-month courses (ochronosis risk). Arbutin (alpha-arbutin 2%) is a gentler alternative with no rebound. Kojic acid 1-2% inhibits melanin but may cause contact dermatitis. Tranexamic acid (topical 3-5%) blocks plasmin-mediated melanocyte activation. Niacinamide 5% inhibits melanosome transfer (not synthesis). Azelaic acid 15-20% is safe in pregnancy and effective for PIH. Layer: AM vitamin C + niacinamide; PM retinoid + azelaic acid.',
+    category: 'hyperpigmentation',
+    signal: 'sunDamage',
+    evidence_level: 'B',
+    fitzpatrick_range: 'all',
+    source_citation: 'Cochrane 2023 Topical Depigmenting Agents Review',
+  },
+
+  // ==================== NUTRITION & SUPPLEMENTS (2 chunks) ====================
+  {
+    id: 'vitamin-c-collagen-01',
+    text: 'Vitamin C and Collagen Synthesis: Vitamin C (ascorbic acid) is an essential cofactor for prolyl and lysyl hydroxylase — enzymes required for collagen cross-linking. Deficiency impairs wound healing and accelerates skin aging. Oral supplementation: 500-1000mg/day supports endogenous collagen production (meta-analysis, 7 RCTs, n=805). Topical L-ascorbic acid 15-20% at pH <3.5 achieves 20x higher skin concentration than oral. Combine with vitamin E and ferulic acid for synergistic photoprotection (Duke patent formulation).',
+    category: 'nutrition_supplements',
+    signal: 'structure',
+    evidence_level: 'A',
+    fitzpatrick_range: 'all',
+    source_citation: 'Nutrients 2017 Meta-Analysis; J Invest Dermatol 2005 Duke Formula',
+  },
+  {
+    id: 'zinc-skin-health-01',
+    text: 'Zinc and Skin Health: Zinc supplementation (30-50mg elemental zinc/day) reduces inflammatory acne lesion count by 33% vs placebo (meta-analysis, 12 RCTs). Zinc gluconate and zinc picolinate have superior bioavailability. Zinc also accelerates wound healing (cofactor for MMPs) and supports immune function in the skin. Topical zinc pyrithione 1-2% is effective for seborrheic dermatitis and dandruff. Excess zinc (>50mg/day) depletes copper — take with copper 2mg if supplementing long-term.',
+    category: 'nutrition_supplements',
+    signal: 'inflammation',
+    evidence_level: 'A',
+    fitzpatrick_range: 'all',
+    source_citation: 'Dermatol Res Pract 2014 Zinc Meta-Analysis',
+  },
+
+  // ==================== LESION RED FLAGS (2 chunks) ====================
+  {
+    id: 'lesion-red-flags-01',
+    text: 'AI-Detected Lesion Referral Criteria: Any AI-detected lesion warrants dermatologist evaluation if: asymmetric shape, irregular borders, color variation within a single lesion, diameter >6mm, or evolution (change over sequential scans). Papules persisting >6 weeks without improvement, nodules >1cm, or any lesion with ulceration/bleeding should be evaluated within 2 weeks. App-based detection is a screening aid, not a diagnostic tool — sensitivity for melanoma is 70-90% with 30-50% specificity in current models.',
+    category: 'lesion_assessment',
+    signal: 'general',
+    evidence_level: 'A',
+    fitzpatrick_range: 'all',
+    source_citation: 'NICE 2024 Suspected Cancer Pathway; BMJ 2023 AI Dermatology Review',
+  },
+  {
+    id: 'nmsc-awareness-01',
+    text: 'Non-Melanoma Skin Cancer Awareness: Basal cell carcinoma (BCC) presents as a pearly nodule, often with telangiectasia, that grows slowly and rarely metastasizes. Squamous cell carcinoma (SCC) appears as a scaly, crusted plaque or nodule, can metastasize if untreated. Actinic keratoses (AKs) are SCC precursors — rough, sandpaper-like patches on sun-exposed skin. >10 AKs indicates field cancerization requiring field-directed therapy (fluorouracil 5%, imiquimod, or PDT). Monthly self-exam reduces late-stage diagnosis by 44%.',
+    category: 'lesion_assessment',
+    signal: 'sunDamage',
+    evidence_level: 'A',
+    fitzpatrick_range: 'all',
+    source_citation: 'AAD 2024 NMSC Guidelines; JAMA Dermatol 2022',
+  },
+
+  // ==================== SIGNAL-SPECIFIC DEEP DIVES (5 chunks) ====================
+  {
+    id: 'hydration-tewl-correlation-01',
+    text: 'Visual Hydration Markers and TEWL: Skin surface specular reflection (measured via image analysis) correlates with stratum corneum hydration (r=0.68, Kim 2019). Reduced specular highlights indicate dehydration. Corneometer measurements >40 AU indicate adequate hydration, <30 AU indicates clinical dehydration. ITA variance (Typology Angle) from photos correlates with uneven hydration distribution. Hydration fluctuates 15-25% diurnally — lowest at 4 AM, highest 2 hours post-moisturization.',
+    category: 'hydration',
+    signal: 'hydration',
+    evidence_level: 'B',
+    fitzpatrick_range: 'all',
+    source_citation: 'Skin Res Technol 2019; IFSCC 2020 Hydration Correlation Study',
+  },
+  {
+    id: 'inflammation-diet-01',
+    text: 'Diet-Inflammation Axis in Skin: Mediterranean diet (high omega-3, polyphenols, low glycemic load) reduces systemic inflammatory markers (CRP, IL-6) by 20% within 12 weeks and is associated with 32% lower acne severity (Skroza 2012). Omega-3 supplementation (EPA 2g/day) reduces inflammatory acne lesions by 42% at 10 weeks. Eliminating dairy reduces acne in 48% of patients who try it. Anti-inflammatory foods: fatty fish, walnuts, berries, turmeric, green tea. Pro-inflammatory: refined sugar, processed meats, fried foods.',
+    category: 'inflammation_diet',
+    signal: 'inflammation',
+    evidence_level: 'B',
+    fitzpatrick_range: 'all',
+    source_citation: 'J Eur Acad Dermatol Venereol 2012; Lipids Health Dis 2012',
+  },
+  {
+    id: 'elasticity-ages-01',
+    text: 'Advanced Glycation End-Products (AGEs) and Skin Aging: Dietary AGEs (formed by high-heat cooking) and endogenous AGEs (from high blood sugar) cross-link collagen fibers, making skin stiff and less elastic. AGE accumulation increases linearly after age 20. Skin fluorescence (AF) at 370nm measures AGE burden and correlates with skin elasticity loss (r=-0.71). Reducing AGE intake: cook at lower temperatures (steaming > grilling), increase antioxidant intake (vitamin C, carnosine), maintain blood sugar <100mg/dL fasting. Carnosine 500mg/day shows anti-glycation benefits in early RCTs.',
+    category: 'skin_aging',
+    signal: 'elasticity',
+    evidence_level: 'B',
+    fitzpatrick_range: 'all',
+    source_citation: 'Aging Cell 2018 AGE-Skin Review; Br J Dermatol 2020',
+  },
+  {
+    id: 'structure-sf-vs-blackhead-01',
+    text: 'Sebaceous Filaments vs Blackheads: Sebaceous filaments (SFs) are normal structures in every pore — they appear as tiny gray/yellow dots primarily on the nose and chin. They refill within 30 days and cannot be permanently removed. Blackheads (open comedones) are true acne lesions — they appear darker, larger, and raised. SFs: manage with BHA 2% 3x/week and niacinamide to reduce sebum. Blackheads: require retinoid therapy (adapalene 0.1%) for lasting improvement. Pore strips temporarily remove SFs but may cause capillary damage with repeated use.',
+    category: 'structure_texture',
+    signal: 'structure',
+    evidence_level: 'C',
+    fitzpatrick_range: 'all',
+    source_citation: 'JAAD 2020 Comedone Classification; Dermatol Surg 2019',
+  },
+  {
+    id: 'inflammation-crp-skin-01',
+    text: 'Systemic Inflammation and Skin: Elevated CRP (>3mg/L) is associated with 2.3x higher risk of moderate-to-severe acne (Karadag 2011). Chronic low-grade inflammation (metabolic, stress, sleep deprivation) manifests as persistent facial erythema, delayed wound healing, and increased sensitivity. Measurable skin biomarkers: increased TEWL, reduced ceramide:cholesterol ratio, elevated sebum IL-1 alpha. Interventions that lower systemic inflammation improve skin within 4-8 weeks: regular exercise, stress reduction, anti-inflammatory diet, 7+ hours sleep.',
+    category: 'inflammatory_conditions',
+    signal: 'inflammation',
+    evidence_level: 'B',
+    fitzpatrick_range: 'all',
+    source_citation: 'J Invest Dermatol 2011; Br J Dermatol 2019 Inflammation-Skin Review',
   },
 ];
 
@@ -618,6 +776,7 @@ async function seedGuidelines() {
           signal: batch[j].signal || 'general',
           evidence_level: batch[j].evidence_level || 'C',
           fitzpatrick_range: batch[j].fitzpatrick_range || 'all',
+          source_citation: batch[j].source_citation || '',
         },
       });
     }
@@ -638,15 +797,27 @@ async function seedGuidelines() {
  * Query Pinecone for guideline chunks relevant to the given query.
  * Returns the top-K most relevant guideline excerpts with their scores.
  */
-async function queryGuidelines(query, topK = 3) {
+/**
+ * @param {string} query - Natural language query
+ * @param {number} topK - Number of results
+ * @param {string|null} signalFilter - Filter to a specific signal (e.g., 'hydration'). Includes 'general' chunks too.
+ */
+async function queryGuidelines(query, topK = 3, signalFilter = null) {
   const index = getPineconeIndex();
   const queryEmbedding = await embedText(query);
 
-  const results = await index.query({
+  const queryOpts = {
     vector: queryEmbedding,
     topK,
     includeMetadata: true,
-  });
+  };
+
+  // Pinecone metadata filter: match the specific signal OR 'general'
+  if (signalFilter) {
+    queryOpts.filter = { signal: { $in: [signalFilter, 'general'] } };
+  }
+
+  const results = await index.query(queryOpts);
 
   return (results.matches || []).map((match) => ({
     id: match.id,
@@ -655,6 +826,7 @@ async function queryGuidelines(query, topK = 3) {
     category: match.metadata?.category || '',
     signal: match.metadata?.signal || 'general',
     evidence_level: match.metadata?.evidence_level || 'C',
+    source_citation: match.metadata?.source_citation || '',
   }));
 }
 
@@ -697,10 +869,30 @@ async function queryGuidelinesMulti({ primaryCondition, userGoal, weakestSignal,
     .slice(0, 7);
 }
 
+/**
+ * Query guidelines filtered to a specific signal.
+ * Used by the signal detail page to show only relevant clinical guidance.
+ */
+async function queryGuidelinesForSignal(signalKey, userContext = '', topK = 4) {
+  const signalNames = {
+    structure: 'skin structure texture pores',
+    hydration: 'skin hydration moisture barrier',
+    inflammation: 'inflammation acne redness irritation',
+    sunDamage: 'sun damage UV protection photoaging',
+    elasticity: 'skin elasticity firmness collagen aging',
+  };
+  const signalQuery = signalNames[signalKey] || signalKey;
+  const query = userContext
+    ? `${signalQuery} recommendation for ${userContext}`
+    : `${signalQuery} clinical guideline`;
+  return queryGuidelines(query, topK, signalKey);
+}
+
 module.exports = {
   embedText,
   seedGuidelines,
   queryGuidelines,
   queryGuidelinesMulti,
+  queryGuidelinesForSignal,
   GUIDELINE_CHUNKS,
 };

@@ -462,6 +462,7 @@ export const useStore = create<AppState>((set, get) => ({
         free_scans_used: s.subscription.free_scans_used + 1,
       },
     }));
+    debouncedPersist(() => get().persistData());
   },
 
   canPerformScan: () => canScanPure(get().subscription),

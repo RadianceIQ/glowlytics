@@ -183,6 +183,7 @@ describe('rag.js', () => {
         category: 'acne_management',
         signal: 'general',
         evidence_level: 'C',
+        source_citation: '',
       });
 
       delete process.env.PINECONE_API_KEY;

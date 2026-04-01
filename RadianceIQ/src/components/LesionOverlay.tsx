@@ -35,7 +35,7 @@ function lesionColor(cls: LesionClass): string {
 
 /** Determine opacity from confidence tier */
 function getLesionOpacity(lesion: DetectedLesion): number {
-  if (lesion.tier === 'possible' || lesion.confidence < 0.30) return 0.45;
+  if (lesion.tier === 'possible' || lesion.confidence < 0.08) return 0.45;
   return 1.0;
 }
 
@@ -275,9 +275,10 @@ export const LesionOverlay: React.FC<Props> = ({
   const hasLesions = lesions.length > 0;
 
   // ─── Coordinate Mapping ─────────────────────────────────────────
-  const srcW = sourceWidth || width;
-  const srcH = sourceHeight || height;
-  const coverScale = Math.max(width / srcW, height / srcH);
+  // Guard against 0 source dimensions (before first frame arrives)
+  const srcW = (sourceWidth && sourceWidth > 0) ? sourceWidth : width;
+  const srcH = (sourceHeight && sourceHeight > 0) ? sourceHeight : height;
+  const coverScale = srcW > 0 && srcH > 0 ? Math.max(width / srcW, height / srcH) : 1;
   const displayedW = srcW * coverScale;
   const displayedH = srcH * coverScale;
   const cropOffsetX = (width - displayedW) / 2;
@@ -357,7 +358,9 @@ export const LesionOverlay: React.FC<Props> = ({
             const typeColor = lesionColor(lesion.class);
             const typeColorBright = typeColor + (isConfirmed ? '' : '77');
             const typeColorDim = typeColor + '40';
-            const label = `${lesion.class.toUpperCase()} ${conf}%`;
+            const lesionInfo = LESION_INFO[lesion.class as LesionClass] ?? { label: lesion.class, subtitle: 'detected lesion' };
+            const primaryLabel = lesionInfo.label.toUpperCase();
+            const subtitle = lesionInfo.subtitle;
 
             const cornerLen = Math.min(w * CORNER_FRAC, 18);
             const cornerLenY = Math.min(h * CORNER_FRAC, 18);
@@ -401,38 +404,53 @@ export const LesionOverlay: React.FC<Props> = ({
                 {/* Center dot (size animated via parent pulse — visual only, static in SVG) */}
                 <Circle cx={centerX} cy={centerY} r={2.5} fill={typeColor} fillOpacity={0.7} />
 
-                {/* ── Label Pill ── */}
-                {isConfirmed && (
-                  <>
-                    <Rect
-                      x={x}
-                      y={Math.max(0, y - LABEL_H - 5)}
-                      width={Math.max(w, 78)}
-                      height={LABEL_H}
-                      fill={BG_DARK}
-                      rx={10}
-                    />
-                    {/* Colored accent bar on label */}
-                    <Rect
-                      x={x}
-                      y={Math.max(0, y - LABEL_H - 5)}
-                      width={3}
-                      height={LABEL_H}
-                      fill={typeColor}
-                      rx={1.5}
-                    />
-                    <SvgText
-                      x={x + 10}
-                      y={Math.max(LABEL_H - 5, y - 9)}
-                      fill={typeColor}
-                      fontSize={9.5}
-                      fontWeight="700"
-                      letterSpacing={1}
-                    >
-                      {label}
-                    </SvgText>
-                  </>
-                )}
+                {/* ── Label Pill: clinical name + subtitle ── */}
+                {isConfirmed && (() => {
+                  // Flip label below bounding box when too close to top of screen
+                  const labelAbove = y > 34;
+                  const pillY = labelAbove ? y - 30 : y2 + 4;
+                  const textY1 = labelAbove ? y - 19 : y2 + 15;
+                  const textY2 = labelAbove ? y - 8 : y2 + 24;
+                  return (
+                    <>
+                      <Rect
+                        x={x}
+                        y={pillY}
+                        width={Math.max(w, 90)}
+                        height={26}
+                        fill={BG_DARK}
+                        rx={10}
+                      />
+                      <Rect
+                        x={x}
+                        y={pillY}
+                        width={3}
+                        height={26}
+                        fill={typeColor}
+                        rx={1.5}
+                      />
+                      <SvgText
+                        x={x + 10}
+                        y={textY1}
+                        fill={typeColor}
+                        fontSize={11}
+                        fontWeight="700"
+                        letterSpacing={0.8}
+                      >
+                        {primaryLabel}
+                      </SvgText>
+                      <SvgText
+                        x={x + 10}
+                        y={textY2}
+                        fill="rgba(255,255,255,0.5)"
+                        fontSize={8}
+                        fontWeight="400"
+                      >
+                        {subtitle}
+                      </SvgText>
+                    </>
+                  );
+                })()}
               </G>
             );
           })}

@@ -25,7 +25,7 @@ const MODEL_PATH = `${MODELS_DIR}acne_detector.onnx`;
 
 const INPUT_SIZE = 640;
 const NUM_CLASSES = 1;
-const CONF_THRESHOLD = 0.1;
+const CONF_THRESHOLD = 0.025;
 const IOU_THRESHOLD = 0.45;
 
 const LESION_CLASSES: LesionClass[] = ['acne'];

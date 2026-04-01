@@ -359,6 +359,14 @@ export default function Results({ hideBottomAction: hideBottomActionProp }: { hi
                 );
               })}
             </View>
+            {latestOutput.lesions && latestOutput.lesions.length > 0 && (
+              <Animated.View entering={FadeInDown.duration(300).delay(600)} style={styles.lesionSummary}>
+                <Feather name="target" size={14} color={Colors.primary} />
+                <Text style={styles.lesionSummaryText}>
+                  {latestOutput.lesions.length} lesion{latestOutput.lesions.length !== 1 ? 's' : ''} detected
+                </Text>
+              </Animated.View>
+            )}
           </StoryPage>
         ),
       });
@@ -618,6 +626,24 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: Spacing.xxs,
   },
+  // Lesion summary pill
+  lesionSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.surfaceOverlay,
+    borderRadius: BorderRadius.full,
+    alignSelf: 'flex-start',
+  },
+  lesionSummaryText: {
+    color: Colors.primary,
+    fontFamily: FontFamily.sansMedium,
+    fontSize: FontSize.sm,
+  },
+
   // Page 3: Insights
   actionPlan: {
     marginTop: Spacing.xl,
