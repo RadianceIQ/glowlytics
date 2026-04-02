@@ -1,6 +1,6 @@
 Glowlytics - Build Progress
 ===========================
-Last Updated: 2026-03-28
+Last Updated: 2026-03-31
 
 MILESTONES (chronological):
  1. Foundation: Expo SDK 54, TypeScript, Expo Router, Zustand
@@ -25,9 +25,12 @@ MILESTONES (chronological):
 20. Today screen: signal movers, AI insight card, 104pt score hero
 21. Metric detail: per-metric personality (coral/amber/blue), SVG face map
 22. Profile: colored sections, tier badges, personal bests grid
+23. Bug fixing: paywall bypass, baseline trend, IDOR, progress ring, cycle day TZ
+24. DB schema: user_profiles columns + whitelist fields for PATCH
 
 CURRENT STATUS:
-- 0 TS errors, 38 screens, 25 components, 20 services, 7 backend modules
+- 0 TS errors, 48 screens, 24 components, 21 services, 7 backend modules
+- 448 tests passing across 26 test suites
 - Scan flow: Camera → Analyzing (infinity loop) → Results (story pages)
 - Backend live on Railway with PostgreSQL, ONNX models, RAG pipeline
 - Latest build submitted to App Store Connect (ASC App ID: 6760600635)
@@ -79,6 +82,16 @@ COMPLETED (grouped by area):
 - Accessibility: zone marker labels, back button roles, swipe hints
 - FaceAssessmentMap: React.memo + useMemo (428 edges), animation cleanup
 - Shared utilities: scoreColor(), gateWithPaywall(), localDateStr()
+
+[Bug Fixes & Hardening (2026-03-31)]
+- Paywall bypass: incrementFreeScansUsed now persists to AsyncStorage
+- Baseline trend: buildOverallSkinInsight uses scanner_indices for baseline (not raw proxies)
+- IDOR: POST /api/model-outputs verifies user owns daily_id before INSERT
+- Progress ring: stage 6 monotonic (0.66→0.70, no longer regresses)
+- Cycle day: parse period_last_start_date as local date (not UTC) to avoid off-by-one
+- Lesion types: added missing subtitle fields for macule, patch, fallback
+- DB schema: added missing user_profiles columns + whitelist PATCH fields
+- Model downloads: pinned to commit hash, auto-download at startup
 
 REMAINING (Launch checklist):
 [ ] !! Clerk PRODUCTION keys (replace pk_test_ → pk_live_) !!

@@ -271,7 +271,7 @@ describe('generateAdjustments', () => {
 
     const tip = tips.find((t) => t.signal === 'structure');
     expect(tip).toBeDefined();
-    expect(tip!.text).toContain('8-12 weeks');
+    expect(tip!.text).toContain('8\u201312 weeks');
     expect(tip!.color).toBe('info');
   });
 

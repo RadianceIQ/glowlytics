@@ -219,12 +219,13 @@ export default function ProductsTab() {
     const result = new Map<ScheduleGroup, (ProductDatum & { timingLabel?: string })[]>();
     for (const [schedule, items] of grouped) {
       if (!items) continue;
+      const byId = new Map(items.map((d) => [d.product.user_product_id, d]));
       const prods = items.map((d) => d.product);
       const sorted = sortByApplicationOrder(prods, schedule === 'PM' ? 'PM' : 'AM');
       result.set(
         schedule,
         sorted.map((cat) => {
-          const original = items.find((d) => d.product.user_product_id === cat.product.user_product_id);
+          const original = byId.get(cat.product.user_product_id);
           return { ...original!, timingLabel: cat.timingLabel };
         }),
       );
@@ -303,7 +304,7 @@ export default function ProductsTab() {
           {adjustments.map((tip, i) => (
             <View key={i} style={styles.adjustmentTip}>
               <Feather name={tip.color === 'warning' ? 'alert-circle' : 'info'} size={14} color={tip.color === 'warning' ? Colors.warning : Colors.primary} />
-              <Text style={styles.adjustmentText}>{tip.text}</Text>
+              <Text style={styles.adjustmentText} numberOfLines={3}>{tip.text}</Text>
             </View>
           ))}
         </View>
@@ -316,8 +317,9 @@ export default function ProductsTab() {
             const items = sortedGrouped.get(schedule);
             if (!items || items.length === 0) return null;
             const palette = SCHEDULE_PALETTE[schedule];
+            const sectionNames = new Set(items.map((d) => d.product.product_name));
             const sectionConflicts = conflicts.filter((c) =>
-              items.some((d) => d.product.product_name === c.productA || d.product.product_name === c.productB)
+              sectionNames.has(c.productA) || sectionNames.has(c.productB)
             );
 
             return (
@@ -371,8 +373,8 @@ export default function ProductsTab() {
                       <View key={i} style={styles.conflictBanner}>
                         <Feather name="alert-triangle" size={14} color={Colors.warning} />
                         <View style={styles.conflictTextWrap}>
-                          <Text style={styles.conflictMessage}>{c.productA} + {c.productB}</Text>
-                          <Text style={styles.conflictResolution}>{c.resolution}</Text>
+                          <Text style={styles.conflictMessage} numberOfLines={2}>{c.productA} + {c.productB}</Text>
+                          <Text style={styles.conflictResolution} numberOfLines={2}>{c.resolution}</Text>
                         </View>
                       </View>
                     ))}

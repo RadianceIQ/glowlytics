@@ -6,16 +6,16 @@
 cornell-hackathon/
   CLAUDE.md, progress.txt, prd.md
   RadianceIQ/                     # Main app (Expo + React Native)
-    app/                          # 38 screens (Expo Router, file-based)
+    app/                          # 48 screens (Expo Router, file-based)
       (tabs)/                     # today, products, camera, reports, profile
       auth/                       # sign-in, sign-up, forgot-password
       onboarding/                 # 7-9 active screens (dynamic per sex/menstrual)
       scan/                       # camera → analyzing → results (story format)
       signal/, skin-metric/, product/, report/, paywall.tsx
     src/
-      components/   # 25 files (see §Components below)
+      components/   # 24 files (see §Components below)
       constants/    # theme.ts, signals.ts, lesions.ts
-      services/     # 20 services (see §Services below)
+      services/     # 21 services (see §Services below)
       store/        # Zustand (useStore.ts)
       utils/        # localDate.ts, cycleDay.ts, animations.ts
       hooks/, types/, config/
@@ -102,6 +102,6 @@ Key redesigned components (this session):
 
 **Camera**: `useFaceTracking` hook → MLKit GPU frame processor. Thresholds: 20% fill, 15° max angle. On-device lesion detection: confidence 0.1, NMS IoU 0.45.
 
-**State**: 0 TS errors, 38 screens, 25 components, 20 services, 7 backend modules. Splash: "Find your glow" DancingScript reveal, 1.5s min. Tab bar: SVG notch + floating camera.
+**State**: 0 TS errors, 48 screens, 24 components, 21 services, 7 backend modules, 448 tests. Splash: "Find your glow" DancingScript reveal, 1.5s min. Tab bar: SVG notch + floating camera.
 
 **Security**: CORS, rate limiting, `safeErrorMessage()`, timing-safe admin secret, cascading account deletion (Apple 5.1.1(v)).

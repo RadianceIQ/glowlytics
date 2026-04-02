@@ -37,24 +37,21 @@ export interface AdjustmentTip {
 
 /** Return true if any ingredient/name text matches a given pattern (case-insensitive substring). */
 function matchesAny(texts: string[], patterns: string[]): boolean {
-  const lower = texts.map((t) => t.toLowerCase());
+  if (!texts || texts.length === 0) return false;
+  const lower = texts.filter(Boolean).map((t) => t.toLowerCase());
   return patterns.some((p) => lower.some((t) => t.includes(p.toLowerCase())));
-}
-
-/** Return the first ingredient text matching a pattern, or undefined. */
-function firstMatch(texts: string[], patterns: string[]): string | undefined {
-  const lowerPatterns = patterns.map((p) => p.toLowerCase());
-  for (const text of texts) {
-    const lw = text.toLowerCase();
-    if (lowerPatterns.some((p) => lw.includes(p))) return text;
-  }
-  return undefined;
 }
 
 /** Return true if a product's ingredients list contains a specific ingredient string. */
 function hasIngredient(product: ProductEntry, ingredient: string): boolean {
+  if (!product.ingredients_list) return false;
   const lw = ingredient.toLowerCase();
-  return product.ingredients_list.some((i) => i.toLowerCase().includes(lw));
+  return product.ingredients_list.filter(Boolean).some((i) => i.toLowerCase().includes(lw));
+}
+
+/** Truncate a product name for display in tips (max 30 chars). */
+function shortName(name: string): string {
+  return name.length > 30 ? name.slice(0, 27) + '...' : name;
 }
 
 /** Return true if a product's ingredients or name matches the given IngredientClass patterns. */
@@ -196,7 +193,7 @@ export function generateAdjustments(
   // ── Inflammation > 60 + has retinoid → warn to pause
   if (inflammation > 60 && retinoidProduct) {
     tips.push({
-      text: `Your inflammation is elevated — consider pausing ${retinoidProduct.product_name} for 2 weeks`,
+      text: `Your inflammation is elevated \u2014 consider pausing ${shortName(retinoidProduct.product_name)} for 2 weeks`,
       signal: 'inflammation',
       color: 'warning',
     });
@@ -205,7 +202,7 @@ export function generateAdjustments(
   // ── Hydration < 40 + has HA → suggest application tip
   if (hydration < 40 && haProduct) {
     tips.push({
-      text: `Apply ${haProduct.product_name} to damp skin for better absorption`,
+      text: `Apply ${shortName(haProduct.product_name)} to damp skin for better absorption`,
       signal: 'hydration',
       color: 'info',
     });
@@ -225,7 +222,7 @@ export function generateAdjustments(
     const schedule = vitCProduct.usage_schedule;
     if (schedule === 'PM') {
       tips.push({
-        text: `Move ${vitCProduct.product_name} to your AM routine`,
+        text: `Move ${shortName(vitCProduct.product_name)} to your AM routine`,
         signal: 'sunDamage',
         color: 'warning',
       });
@@ -235,7 +232,7 @@ export function generateAdjustments(
   // ── Structure < 40 + has retinoid → patience tip
   if (structure < 40 && retinoidProduct) {
     tips.push({
-      text: `Give ${retinoidProduct.product_name} 8-12 weeks for full effect`,
+      text: `Give ${shortName(retinoidProduct.product_name)} 8\u201312 weeks for full effect`,
       signal: 'structure',
       color: 'info',
     });
