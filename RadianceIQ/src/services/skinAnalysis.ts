@@ -369,12 +369,13 @@ export const analyzeWithFallback = async (input: AnalysisInput): Promise<{
           signal_confidence: result.signal_confidence,
         };
       } catch (err: any) {
-        console.warn('[Glowlytics] Vision API failed:', err?.message || err);
-        throw new Error(
-          err?.message?.includes('Network') || err?.message?.includes('abort') || err?.message?.includes('fetch')
-            ? 'Unable to reach our servers. Please check your internet connection and try again.'
-            : err?.message || 'Analysis failed. Please try again.',
-        );
+        console.warn('[Glowlytics] Vision API failed, falling back to local analysis:', err?.message || err);
+        // Fall back to deterministic heuristics instead of crashing the scan
+        const fallbackResult = analyzeSkiN(input);
+        return {
+          ...fallbackResult,
+          confidence: 'low' as Confidence,
+        };
       }
     } else if (!env.API_BASE_URL) {
       // Dev mode — no backend configured, use local heuristics

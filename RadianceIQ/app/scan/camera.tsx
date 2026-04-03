@@ -76,6 +76,7 @@ export default function CameraScreen() {
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [detectedLesions, setDetectedLesions] = useState<DetectedLesion[]>([]);
   const [detectionSource, setDetectionSource] = useState<'on_device' | 'server' | null>(null);
+  const [detectionFrameSize, setDetectionFrameSize] = useState({ w: 0, h: 0 });
   const detectedLesionsRef = useRef<DetectedLesion[]>([]);
 
   // ─── Debug: mock lesions to preview overlay UI ──────────────────
@@ -230,7 +231,7 @@ export default function CameraScreen() {
 
     const detectViaServer = async (base64: string): Promise<DetectedLesion[]> => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), 15000);
       try {
         const res = await fetch(`${env.API_BASE_URL}/api/vision/detect-lesions`, {
           method: 'POST',
@@ -257,8 +258,17 @@ export default function CameraScreen() {
       try {
         // VisionCamera takePhoto for lesion detection frame
         const photo = await cameraRef.current.takePhoto();
-        if (!photo?.path) return;
+        if (!photo?.path) {
+          detectingRef.current = false;
+          return;
+        }
         const photoUri = `file://${photo.path}`;
+        // Store actual photo dimensions for coordinate mapping
+        if (photo.width && photo.height) {
+          setDetectionFrameSize((prev) =>
+            prev.w === photo.width && prev.h === photo.height ? prev : { w: photo.width, h: photo.height }
+          );
+        }
 
         // Try on-device first
         let lesions = await detectOnDevice(photoUri);
@@ -267,13 +277,23 @@ export default function CameraScreen() {
         // Fall back to server if on-device returned nothing
         if (lesions.length === 0 && env.API_BASE_URL) {
           try {
-            const base64 = await FileSystemLegacy.readAsStringAsync(photoUri, {
-              encoding: FileSystemLegacy.EncodingType.Base64,
-            });
-            lesions = await detectViaServer(base64);
-            if (lesions.length > 0) source = 'server';
+            // Resize to 640px before uploading to reduce transfer size (~100KB vs 4MB)
+            const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
+            const resized = await manipulateAsync(
+              photoUri,
+              [{ resize: { width: 640 } }],
+              { format: SaveFormat.JPEG, base64: true, compress: 0.8 },
+            );
+            if (resized.base64) {
+              lesions = await detectViaServer(resized.base64);
+              if (lesions.length > 0) source = 'server';
+            }
+            // Clean up resized temp file
+            if (resized.uri && resized.uri !== photoUri) {
+              FileSystemLegacy.deleteAsync(resized.uri, { idempotent: true }).catch(() => {});
+            }
           } catch {
-            // base64 read failed — non-fatal
+            // Resize or server detect failed — non-fatal
           }
         }
 
@@ -440,8 +460,8 @@ export default function CameraScreen() {
           lesions={DEBUG_LESION_OVERLAY ? debugLesions : detectedLesions}
           width={SCREEN_W}
           height={SCREEN_H}
-          sourceWidth={DEBUG_LESION_OVERLAY ? SCREEN_W : lastFrameWidth}
-          sourceHeight={DEBUG_LESION_OVERLAY ? SCREEN_H : lastFrameHeight}
+          sourceWidth={DEBUG_LESION_OVERLAY ? SCREEN_W : (detectionFrameSize.w || lastFrameWidth)}
+          sourceHeight={DEBUG_LESION_OVERLAY ? SCREEN_H : (detectionFrameSize.h || lastFrameHeight)}
           mirrored={!DEBUG_LESION_OVERLAY}
           detectionSource={DEBUG_LESION_OVERLAY ? 'on_device' : detectionSource}
           scanActive={trackingState.status !== 'no_face'}

@@ -530,9 +530,9 @@ export default function AnalyzingScreen() {
 
     // --- API track: encode photo + fire analysis ---
     const scannerData = {
-      inflammation_index: parseFloat(params.inflammation || '40'),
-      pigmentation_index: parseFloat(params.pigmentation || '30'),
-      texture_index: parseFloat(params.texture || '35'),
+      inflammation_index: parseFloat(params.inflammation || '0'),
+      pigmentation_index: parseFloat(params.pigmentation || '0'),
+      texture_index: parseFloat(params.texture || '0'),
     };
     scannerDataRef.current = scannerData;
 
