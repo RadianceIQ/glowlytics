@@ -301,6 +301,7 @@ export const LesionOverlay: React.FC<Props> = ({
 
   // ─── Map Lesions to Screen Coords ───────────────────────────────
   const mappedLesions = lesions.map((lesion, i) => {
+    if (!lesion.bbox || lesion.bbox.length < 4) return null;
     const [bx, by, bw, bh] = lesion.bbox;
 
     // Face rect filter

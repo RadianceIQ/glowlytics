@@ -56,7 +56,7 @@ function shortName(name: string): string {
 
 /** Return true if a product's ingredients or name matches the given IngredientClass patterns. */
 function productMatchesClass(product: ProductEntry, cls: IngredientClass): boolean {
-  const texts = [product.product_name, ...product.ingredients_list];
+  const texts = [product.product_name, ...(product.ingredients_list || [])];
   return matchesAny(texts, INGREDIENT_CLASS_PATTERNS[cls]);
 }
 
@@ -67,7 +67,7 @@ function productMatchesClass(product: ProductEntry, cls: IngredientClass): boole
  * The highest-priority matching category wins. Falls back to 'unknown'.
  */
 export function categorizeProduct(product: ProductEntry): CategorizedProduct {
-  const texts = [product.product_name, ...product.ingredients_list];
+  const texts = [product.product_name, ...(product.ingredients_list || [])];
 
   let bestDef: typeof CATEGORY_DEFS[number] | undefined;
   let highestPriority = -1;
@@ -186,7 +186,7 @@ export function generateAdjustments(
   // Find products containing specific ingredient classes
   const retinoidProduct = products.find((p) => productMatchesClass(p, 'retinoid'));
   const haProduct = products.find((p) =>
-    matchesAny([p.product_name, ...p.ingredients_list], ['hyaluronic acid'])
+    matchesAny([p.product_name, ...(p.ingredients_list || [])], ['hyaluronic acid'])
   );
   const vitCProduct = products.find((p) => productMatchesClass(p, 'vitamin_c'));
 

@@ -51,13 +51,14 @@ export function useFaceTracking(
       x: fw - f.x - f.width,
     })) : faces;
     const next = analyzeAlignment(mirrored, fw, fh);
-    setTrackingState((prev) =>
-      prev.status === next.status &&
-      prev.lightingOk === next.lightingOk &&
-      prev.issues.length === next.issues.length
-        ? prev
-        : next,
-    );
+    setTrackingState((prev) => {
+      if (prev.status !== next.status) return next;
+      if (prev.lightingOk !== next.lightingOk) return next;
+      if (prev.issues.length !== next.issues.length) return next;
+      // Compare actual issue strings — count match isn't enough
+      if (prev.issues.some((iss, idx) => iss !== next.issues[idx])) return next;
+      return prev;
+    });
   }, [enabled, frameWidth, frameHeight]);
 
   return {

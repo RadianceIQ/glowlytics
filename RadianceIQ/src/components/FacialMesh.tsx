@@ -166,7 +166,7 @@ export const FacialMesh: React.FC<Props> = ({ acneScore, sunDamageScore, skinAge
             const markerCx = baseCx + spreadX;
             const markerCy = baseCy + spreadY;
             const color = LESION_COLORS[lesion.class] || Colors.error;
-            const opacity = Math.max(0.35, Math.min(0.95, lesion.confidence));
+            const opacity = Math.max(0.35, Math.min(0.95, lesion.confidence ?? 0.5));
             const r = 8;
 
             return (
